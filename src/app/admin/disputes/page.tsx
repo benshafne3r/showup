@@ -95,7 +95,6 @@ export default async function AdminDisputesPage() {
                     <div className="flex flex-wrap gap-2">
                       {dispute.evidenceUrls.map((evidence, index) =>
                         evidence.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <a key={index} href={evidence.url} target="_blank" rel="noreferrer">
                             <img
                               src={evidence.url}

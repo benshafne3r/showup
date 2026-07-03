@@ -163,7 +163,7 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
-  async payout(input: {
+  async payout(_input: {
     creatorUserId: string;
     amountCents: number;
     idempotencyKey: string;

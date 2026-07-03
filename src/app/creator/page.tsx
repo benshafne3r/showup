@@ -89,7 +89,9 @@ export default async function DiscoverPage({
           ? deliverables
               .map((d) => `${d.quantity}× ${DELIVERABLE_LABELS[d.platform] ?? d.platform}`)
               .join(" + ")
-          : "Attend only — no content required",
+          : opp.creator_payment_cents > 0
+            ? "Content required — details on the show page"
+            : "Attend only — no content required",
         ticketsRemaining: Math.max(0, opp.tickets_total - opp.tickets_claimed),
         plusOneAllowed: opp.plus_one_allowed,
       };

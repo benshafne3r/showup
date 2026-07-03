@@ -2,7 +2,7 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
-import { notify, notifyCompany } from "./notifications";
+import { notify } from "./notifications";
 import { cancelBooking } from "./bookings";
 import { getPlatformSettings } from "./settings";
 import { uploadFile, publicFileUrl } from "./uploads";

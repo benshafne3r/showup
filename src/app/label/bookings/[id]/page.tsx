@@ -163,7 +163,6 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                     <div className="mt-2 flex flex-wrap gap-2">
                       {attendanceProofUrls.map((proof, index) =>
                         proof.url ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <a key={index} href={proof.url} target="_blank" rel="noreferrer">
                             <img
                               src={proof.url}
@@ -233,7 +232,6 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                         <div className="flex flex-wrap gap-2">
                           {submission.proofUrls.map((proof, index) =>
                             proof.url ? (
-                              // eslint-disable-next-line @next/next/no-img-element
                               <a key={index} href={proof.url} target="_blank" rel="noreferrer">
                                 <img
                                   src={proof.url}

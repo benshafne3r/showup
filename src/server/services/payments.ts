@@ -4,7 +4,7 @@ import { serviceDb } from "@/server/db/service";
 import { paymentProvider } from "@/server/providers/payment";
 import type { CardInput } from "@/server/providers/payment/types";
 import { audit } from "./audit";
-import { notify, notifyCompany } from "./notifications";
+import { notify } from "./notifications";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
 import { formatCents } from "@/lib/money";
