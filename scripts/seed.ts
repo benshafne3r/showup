@@ -172,6 +172,10 @@ async function main() {
   }
 
   console.log("Creating company, artists, venues, tour, shows…");
+  // Demo artist photos (uploaded to the public artist-images bucket):
+  // - Baby Keem: Wikimedia Commons "Baby Keem 2022.jpg" (CC BY 2.0)
+  // - Ella Langley: Wikimedia Commons "Ella Langley in Concert 2025.jpg" (CC BY 4.0)
+  const imageBase = `${url}/storage/v1/object/public/artist-images/demo`;
   const { data: company } = await db
     .from("companies")
     .insert({
@@ -187,16 +191,16 @@ async function main() {
   ]);
 
   const artistRows = [
-    { name: "Neon Coast", genre: "Indie Pop", bio: "Shimmering synth-pop from the West Coast. 40M+ streams.", instagram_handle: "neoncoast" },
-    { name: "Velvet Static", genre: "Alt Rock", bio: "Fuzzy guitars, velvet hooks. On tour behind their sophomore LP.", instagram_handle: "velvetstatic" },
-    { name: "Luna Waves", genre: "Electronic", bio: "Late-night electronic sets that turn venues into oceans.", instagram_handle: "lunawaves" },
+    { name: "Baby Keem", genre: "Hip-Hop / Rap", bio: "Grammy-winning rapper and producer. The family ties run deep — arena-ready sets with festival energy.", instagram_handle: "babykeem", image_url: `${imageBase}/baby-keem.jpg` },
+    { name: "Ella Langley", genre: "Country", bio: "Alabama-born country star. Raw, honest songwriting and one of the loudest sing-along crowds in country music.", instagram_handle: "ellalangley", image_url: `${imageBase}/ella-langley.jpg` },
+    { name: "Luna Waves", genre: "Electronic", bio: "Late-night electronic sets that turn venues into oceans.", instagram_handle: "lunawaves", image_url: null as string | null },
   ];
   const artistIds: string[] = [];
   for (const artist of artistRows) {
     const { data } = await db.from("artists").insert({ company_id: companyId, ...artist }).select("id").single();
     artistIds.push(data!.id);
   }
-  const [neonCoastId, velvetStaticId, lunaWavesId] = artistIds;
+  const [babyKeemId, ellaLangleyId, lunaWavesId] = artistIds;
 
   const venueDefs: Array<[string, string, string]> = [
     ["The Echoplex", "Los Angeles", "CA"],
@@ -207,6 +211,7 @@ async function main() {
     ["Lincoln Hall", "Chicago", "IL"],
     ["Bowery Ballroom", "New York", "NY"],
     ["Mohawk", "Austin", "TX"],
+    ["The Basement East", "Nashville", "TN"],
   ];
   const venueIds: Record<string, string> = {};
   for (const [name, city, state] of venueDefs) {
@@ -220,9 +225,9 @@ async function main() {
   const { data: tour } = await db
     .from("tours")
     .insert({
-      company_id: companyId, artist_id: neonCoastId,
-      name: "Coastal Nights Tour 2026",
-      description: "Neon Coast's headline run across North America.",
+      company_id: companyId, artist_id: babyKeemId,
+      name: "The Melodic Blue Tour 2026",
+      description: "Baby Keem's headline run across North America.",
       starts_on: dateStr(daysFromNow(-12)), ends_on: dateStr(daysFromNow(75)),
     })
     .select("id").single();
@@ -236,16 +241,17 @@ async function main() {
     tickets: number; deliverables: Array<{ platform: "instagram_story" | "instagram_reel" | "tiktok_video"; qty: number; desc: string }>;
   };
   const showDefs: ShowDef[] = [
-    { key: "la_past", artistId: neonCoastId, tourId, city: "Los Angeles", daysOut: -10, status: "completed", valueCents: 9000, pct: 50, payCents: 15000, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok recap (≥30s) tagging @neoncoast" }] },
-    { key: "la", artistId: neonCoastId, tourId, city: "Los Angeles", daysOut: 18, status: "published", valueCents: 10000, pct: 50, payCents: 15000, plusOne: true, tickets: 8, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok or Reel (≥30s) from the show, tag @neoncoast" }] },
-    { key: "sf", artistId: neonCoastId, tourId, city: "San Francisco", daysOut: 22, status: "published", valueCents: 8500, pct: 25, payCents: 5000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_story", qty: 3, desc: "3 IG Stories during the show with venue tag" }] },
-    { key: "portland", artistId: neonCoastId, tourId, city: "Portland", daysOut: 26, status: "published", valueCents: 7500, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
-    { key: "seattle", artistId: neonCoastId, tourId, city: "Seattle", daysOut: 3, status: "published", valueCents: 8000, pct: 75, payCents: 10000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel within 48h of the show" }] },
-    { key: "denver", artistId: neonCoastId, tourId, city: "Denver", daysOut: 33, status: "published", valueCents: 7000, pct: 50, payCents: 7500, plusOne: true, tickets: 8, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok recap with crowd energy" }] },
-    { key: "chicago", artistId: neonCoastId, tourId, city: "Chicago", daysOut: 40, status: "published", valueCents: 9500, pct: 100, payCents: 25000, plusOne: true, tickets: 4, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok (≥45s)" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with ticket link sticker" }] },
-    { key: "nyc", artistId: neonCoastId, tourId, city: "New York", daysOut: 47, status: "published", valueCents: 12000, pct: 50, payCents: 20000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel, tag @neoncoast + @boweryballroom" }] },
-    { key: "austin", artistId: neonCoastId, tourId, city: "Austin", daysOut: 54, status: "published", valueCents: 6500, pct: 25, payCents: 5000, plusOne: false, tickets: 8, deliverables: [{ platform: "instagram_story", qty: 2, desc: "2 IG Stories from the pit" }] },
-    { key: "velvet_la", artistId: velvetStaticId, city: "Los Angeles", daysOut: 12, status: "published", valueCents: 11000, pct: 50, payCents: 12500, plusOne: true, tickets: 5, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel with a track from the encore" }] },
+    { key: "la_past", artistId: babyKeemId, tourId, city: "Los Angeles", daysOut: -10, status: "completed", valueCents: 9000, pct: 50, payCents: 15000, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok recap (≥30s) tagging @babykeem" }] },
+    { key: "la", artistId: babyKeemId, tourId, city: "Los Angeles", daysOut: 18, status: "published", valueCents: 10000, pct: 50, payCents: 15000, plusOne: true, tickets: 8, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok or Reel (≥30s) from the show, tag @babykeem" }] },
+    { key: "sf", artistId: babyKeemId, tourId, city: "San Francisco", daysOut: 22, status: "published", valueCents: 8500, pct: 25, payCents: 5000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_story", qty: 3, desc: "3 IG Stories during the show with venue tag" }] },
+    { key: "portland", artistId: babyKeemId, tourId, city: "Portland", daysOut: 26, status: "published", valueCents: 7500, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
+    { key: "seattle", artistId: babyKeemId, tourId, city: "Seattle", daysOut: 3, status: "published", valueCents: 8000, pct: 75, payCents: 10000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel within 48h of the show" }] },
+    { key: "denver", artistId: babyKeemId, tourId, city: "Denver", daysOut: 33, status: "published", valueCents: 7000, pct: 50, payCents: 7500, plusOne: true, tickets: 8, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok recap with crowd energy" }] },
+    { key: "chicago", artistId: babyKeemId, tourId, city: "Chicago", daysOut: 40, status: "published", valueCents: 9500, pct: 100, payCents: 25000, plusOne: true, tickets: 4, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok (≥45s)" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with ticket link sticker" }] },
+    { key: "nyc", artistId: babyKeemId, tourId, city: "New York", daysOut: 47, status: "published", valueCents: 12000, pct: 50, payCents: 20000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel, tag @babykeem + @boweryballroom" }] },
+    { key: "austin", artistId: babyKeemId, tourId, city: "Austin", daysOut: 54, status: "published", valueCents: 6500, pct: 25, payCents: 5000, plusOne: false, tickets: 8, deliverables: [{ platform: "instagram_story", qty: 2, desc: "2 IG Stories from the pit" }] },
+    { key: "ella_la", artistId: ellaLangleyId, city: "Los Angeles", daysOut: 12, status: "published", valueCents: 11000, pct: 50, payCents: 12500, plusOne: true, tickets: 5, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel with a song from the encore, tag @ellalangley" }] },
+    { key: "ella_nashville", artistId: ellaLangleyId, city: "Nashville", daysOut: 30, status: "published", valueCents: 9000, pct: 50, payCents: 17500, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok (≥30s) from the show, tag @ellalangley" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with venue tag" }] },
     { key: "luna_draft", artistId: lunaWavesId, city: "Denver", daysOut: 60, status: "draft", valueCents: 5000, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
   ];
 
@@ -396,7 +402,7 @@ async function main() {
     "Chicago is my city — I cover Lincoln Hall constantly and my audience is 70% local.", ownerId);
   const zoeBookingId = await makeBooking(approvedReq.requestId, "chicago", zoeId, "awaiting_acceptance", 1, { acceptanceHoursLeft: 20 });
   await db.from("notifications").insert({
-    user_id: zoeId, type: "request_approved", title: "You're approved for Neon Coast!",
+    user_id: zoeId, type: "request_approved", title: "You're approved for Baby Keem!",
     body: "You have 24 hours to review the terms and secure your spot.",
     link: `/creator/bookings/${zoeBookingId}`,
   });
@@ -406,7 +412,7 @@ async function main() {
     "ATX local, would love to cover this.", memberId);
   await db.from("notifications").insert({
     user_id: leoId, type: "request_rejected", title: "Request update",
-    body: "Your request for Neon Coast wasn't selected this time.", link: "/creator/requests",
+    body: "Your request for Baby Keem wasn't selected this time.", link: "/creator/requests",
   });
 
   // 4. Waitlisted: Ava → LA
@@ -415,7 +421,7 @@ async function main() {
 
   // 5. Confirmed upcoming: Mia → LA (hold scheduled, not yet placed)
   const miaReq = await makeRequest("la", miaId, "approved", 2,
-    "This is exactly my audience — LA indie pop fans. Bringing my videographer as +1.", ownerId);
+    "This is exactly my audience — LA hip-hop fans live on my page. Bringing my videographer as +1.", ownerId);
   const miaBookingId = await makeBooking(miaReq.requestId, "la", miaId, "confirmed", 2, { accepted: true });
   {
     const s = shows["la"];
@@ -517,7 +523,7 @@ async function main() {
     await db.from("disputes").insert({
       booking_id: disputeBookingId, company_id: companyId, creator_id: jayId,
       kind: "attendance", status: "open", opened_by: jayId,
-      reason: "I was at the show — arrived during the opener because my train was delayed. Photo shows the Crocodile stage during Neon Coast's set.",
+      reason: "I was at the show — arrived during the opener because my train was delayed. Photo shows the Crocodile stage during Baby Keem's set.",
     });
     await db.from("notifications").insert({
       user_id: adminId, type: "dispute_opened", title: "New attendance dispute",
