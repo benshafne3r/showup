@@ -6,7 +6,7 @@ import { getPlatformSettings } from "@/server/services/settings";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { ShowForm } from "../show-form";
+import { ImportableShowForm } from "../importable-show-form";
 import { Music2 } from "lucide-react";
 
 export const metadata: Metadata = { title: "New show" };
@@ -40,13 +40,13 @@ export default async function NewShowPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
         title="Create a show"
-        description="Publishing makes the opportunity visible to creators immediately."
+        description="Import a tour date to prefill the details, or fill it in by hand. Publishing makes the opportunity visible to creators immediately."
       />
-      <ShowForm
+      <ImportableShowForm
         artists={artists}
         tours={(tours ?? []).map((t) => ({ id: t.id, name: t.name, artistId: t.artist_id }))}
         depositTemplates={settings.depositPercentageTemplates}
-        initial={{ contentDeadlineDays: settings.contentDeadlineDefaultDays }}
+        baseInitial={{ contentDeadlineDays: settings.contentDeadlineDefaultDays }}
       />
     </div>
   );

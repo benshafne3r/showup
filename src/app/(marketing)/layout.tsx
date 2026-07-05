@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
+import { Logo } from "@/components/logo";
 
 const NAV = [
   { href: "/how-it-works", label: "How it works" },
@@ -13,8 +14,8 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
     <div className="flex min-h-screen flex-col">
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-6 px-4">
-          <Link href="/" className="text-lg font-bold tracking-tight">
-            <span className="text-gradient-brand">{BRAND.name}</span>
+          <Link href="/" aria-label={`${BRAND.name} home`}>
+            <Logo />
           </Link>
           <nav aria-label="Main" className="hidden items-center gap-5 text-sm text-muted-foreground md:flex">
             {NAV.map((item) => (

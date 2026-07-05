@@ -41,6 +41,12 @@ const daysFromNow = (days: number) => {
 };
 const dateStr = (d: Date) => d.toISOString().slice(0, 10);
 const iso = (d: Date) => d.toISOString();
+/** "2026-10-13" + n days → Date (UTC noon to dodge timezone edges). */
+const addDays = (date: string, days: number) => {
+  const d = new Date(`${date}T12:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + days);
+  return d;
+};
 
 async function wipe() {
   console.log("Wiping existing data…");
@@ -98,7 +104,7 @@ async function main() {
   console.log("Creating users…");
 
   const adminId = await createUser(`admin@${DOMAIN}`, "Platform Admin", "admin");
-  const ownerId = await createUser(`label.owner@${DOMAIN}`, "Aria Chen", "label");
+  const ownerId = await createUser(`label.owner@${DOMAIN}`, "Ben Shafner", "label");
   const memberId = await createUser(`label.member@${DOMAIN}`, "Marcus Reid", "label");
   const miaId = await createUser(`creator.mia@${DOMAIN}`, "Mia Torres", "creator");
   const jayId = await createUser(`creator.jay@${DOMAIN}`, "Jay Park", "creator");
@@ -179,8 +185,8 @@ async function main() {
   const { data: company } = await db
     .from("companies")
     .insert({
-      name: "Midnight Bloom Records", kind: "label",
-      website: "https://midnightbloom.example.com",
+      name: "Columbia Records", kind: "label",
+      website: "https://www.columbiarecords.com",
       onboarded_at: iso(new Date()), verified_at: iso(new Date()),
     })
     .select("id").single();
@@ -190,79 +196,129 @@ async function main() {
     { company_id: companyId, user_id: memberId, role: "member" },
   ]);
 
-  const artistRows = [
-    { name: "Baby Keem", genre: "Hip-Hop / Rap", bio: "Grammy-winning rapper and producer. The family ties run deep — arena-ready sets with festival energy.", instagram_handle: "babykeem", image_url: `${imageBase}/baby-keem.jpg` },
+  // Two headliners carry the demo shows/bookings (with photos + real tours).
+  const showArtists = [
+    { name: "Baby Keem", genre: "Hip-Hop / Rap", bio: "Grammy-winning rapper and producer. Arena-ready sets with festival energy — on the road behind Ca$ino.", instagram_handle: "babykeem", image_url: `${imageBase}/baby-keem.jpg` },
     { name: "Ella Langley", genre: "Country", bio: "Alabama-born country star. Raw, honest songwriting and one of the loudest sing-along crowds in country music.", instagram_handle: "ellalangley", image_url: `${imageBase}/ella-langley.jpg` },
-    { name: "Luna Waves", genre: "Electronic", bio: "Late-night electronic sets that turn venues into oceans.", instagram_handle: "lunawaves", image_url: null as string | null },
   ];
-  const artistIds: string[] = [];
-  for (const artist of artistRows) {
-    const { data } = await db.from("artists").insert({ company_id: companyId, ...artist }).select("id").single();
-    artistIds.push(data!.id);
-  }
-  const [babyKeemId, ellaLangleyId, lunaWavesId] = artistIds;
+  // The rest of Columbia's active roster — real artists, listed for the label
+  // (no demo shows attached; one carries the draft-show example below).
+  const rosterArtists = [
+    { name: "Adele", genre: "Pop / Soul", instagram_handle: "adele" },
+    { name: "Beyoncé", genre: "R&B / Pop", instagram_handle: "beyonce" },
+    { name: "Harry Styles", genre: "Pop / Rock", instagram_handle: "harrystyles" },
+    { name: "Rosalía", genre: "Flamenco Pop", instagram_handle: "rosalia.vt" },
+    { name: "The Kid LAROI", genre: "Hip-Hop / Pop", instagram_handle: "thekidlaroi" },
+    { name: "Lil Nas X", genre: "Hip-Hop / Pop", instagram_handle: "lilnasx" },
+    { name: "Dominic Fike", genre: "Alt / Indie", instagram_handle: "dominicfike" },
+    { name: "AJR", genre: "Indie Pop", instagram_handle: "ajrbrothers" },
+    { name: "Tyler Childers", genre: "Country / Americana", instagram_handle: "tylerchildersmusic" },
+    { name: "Polo G", genre: "Hip-Hop / Rap", instagram_handle: "polo.capalot" },
+    { name: "Måneskin", genre: "Rock", instagram_handle: "maneskinofficial" },
+    { name: "John Mayer", genre: "Rock / Blues", instagram_handle: "johnmayer" },
+    { name: "The Neighbourhood", genre: "Alt / Indie", instagram_handle: "thenbhd" },
+    { name: "Mora", genre: "Reggaetón / Latin", instagram_handle: "mora" },
+  ];
 
-  const venueDefs: Array<[string, string, string]> = [
-    ["The Echoplex", "Los Angeles", "CA"],
-    ["Great American Music Hall", "San Francisco", "CA"],
-    ["Wonder Ballroom", "Portland", "OR"],
-    ["The Crocodile", "Seattle", "WA"],
-    ["Bluebird Theater", "Denver", "CO"],
-    ["Lincoln Hall", "Chicago", "IL"],
-    ["Bowery Ballroom", "New York", "NY"],
-    ["Mohawk", "Austin", "TX"],
-    ["The Basement East", "Nashville", "TN"],
+  const artistNameById: Record<string, string> = {};
+  const artistIdByName: Record<string, string> = {};
+  const allArtistRows = [
+    ...showArtists,
+    ...rosterArtists.map((r) => ({ ...r, bio: "", image_url: null as string | null })),
+  ];
+  for (const artist of allArtistRows) {
+    const { data } = await db.from("artists").insert({ company_id: companyId, ...artist }).select("id, name").single();
+    artistNameById[data!.id] = data!.name;
+    artistIdByName[data!.name] = data!.id;
+  }
+  const babyKeemId = artistIdByName["Baby Keem"];
+  const ellaLangleyId = artistIdByName["Ella Langley"];
+  const draftArtistId = artistIdByName["Dominic Fike"];
+
+  // Real venues from the two artists' announced 2026 tours.
+  const venueDefs: Array<[string, string, string, string]> = [
+    ["Shrine Expo Hall", "Los Angeles", "CA", "US"],
+    ["WAMU Theater", "Seattle", "WA", "US"],
+    ["L'Olympia", "Paris", "", "FR"],
+    ["O2 Academy Brixton", "London", "", "GB"],
+    ["TD Coliseum", "Hamilton", "ON", "CA"],
+    ["M&T Bank Stadium", "Baltimore", "MD", "US"],
+    ["Koka Booth Amphitheatre", "Cary", "NC", "US"],
+    ["Moody Center", "Austin", "TX", "US"],
+    ["Illinois State Fairgrounds", "Springfield", "IL", "US"],
+    ["Prudential Center", "Newark", "NJ", "US"],
+    ["Red Rocks Amphitheatre", "Morrison", "CO", "US"],
+    ["The Greek Theatre", "Los Angeles", "CA", "US"],
+    ["Mission Ballroom", "Denver", "CO", "US"],
   ];
   const venueIds: Record<string, string> = {};
-  for (const [name, city, state] of venueDefs) {
+  for (const [name, city, state, country] of venueDefs) {
     const { data } = await db
       .from("venues")
-      .insert({ name, city, state, country: "US", capacity: 500, created_by_company: companyId })
+      .insert({ name, city, state: state || null, country, created_by_company: companyId })
       .select("id").single();
-    venueIds[city] = data!.id;
+    venueIds[name] = data!.id;
   }
 
-  const { data: tour } = await db
+  // Real 2026 tours (dates sourced from the artists' public announcements).
+  const { data: keemTour } = await db
     .from("tours")
     .insert({
       company_id: companyId, artist_id: babyKeemId,
-      name: "The Melodic Blue Tour 2026",
-      description: "Baby Keem's headline run across North America.",
-      starts_on: dateStr(daysFromNow(-12)), ends_on: dateStr(daysFromNow(75)),
+      name: "The Ca$ino Tour 2026",
+      description: "Baby Keem's world tour supporting his second album Ca$ino — North America, Europe & UK.",
+      starts_on: "2026-04-15", ends_on: "2026-09-18",
     })
     .select("id").single();
-  const tourId = tour!.id;
+  const keemTourId = keemTour!.id;
 
-  // Shows: one past (completed booking), the rest upcoming across cities.
+  const { data: ellaTour } = await db
+    .from("tours")
+    .insert({
+      company_id: companyId, artist_id: ellaLangleyId,
+      name: "The Dandelion Tour 2026",
+      description: "Ella Langley's headline arena and amphitheater run across North America.",
+      starts_on: "2026-05-07", ends_on: "2026-10-31",
+    })
+    .select("id").single();
+  const ellaTourId = ellaTour!.id;
+
+  // Real show dates from The Ca$ino Tour (Baby Keem) and The Dandelion Tour
+  // (Ella Langley), as publicly announced. Past dates carry the completed /
+  // disputed demo bookings; upcoming dates are open opportunities.
   type ShowDef = {
-    key: string; artistId: string; tourId?: string; city: string;
-    daysOut: number; status: "published" | "draft" | "completed";
+    key: string; artistId: string; tourId?: string; venue: string;
+    date: string; status: "published" | "draft" | "completed";
     valueCents: number; pct: number; payCents: number; plusOne: boolean;
-    tickets: number; deliverables: Array<{ platform: "instagram_story" | "instagram_reel" | "tiktok_video"; qty: number; desc: string }>;
+    tickets: number; notes?: string;
+    deliverables: Array<{ platform: "instagram_story" | "instagram_reel" | "tiktok_video"; qty: number; desc: string }>;
   };
   const showDefs: ShowDef[] = [
-    { key: "la_past", artistId: babyKeemId, tourId, city: "Los Angeles", daysOut: -10, status: "completed", valueCents: 9000, pct: 50, payCents: 15000, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok recap (≥30s) tagging @babykeem" }] },
-    { key: "la", artistId: babyKeemId, tourId, city: "Los Angeles", daysOut: 18, status: "published", valueCents: 10000, pct: 50, payCents: 15000, plusOne: true, tickets: 8, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok or Reel (≥30s) from the show, tag @babykeem" }] },
-    { key: "sf", artistId: babyKeemId, tourId, city: "San Francisco", daysOut: 22, status: "published", valueCents: 8500, pct: 25, payCents: 5000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_story", qty: 3, desc: "3 IG Stories during the show with venue tag" }] },
-    { key: "portland", artistId: babyKeemId, tourId, city: "Portland", daysOut: 26, status: "published", valueCents: 7500, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
-    { key: "seattle", artistId: babyKeemId, tourId, city: "Seattle", daysOut: 3, status: "published", valueCents: 8000, pct: 75, payCents: 10000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel within 48h of the show" }] },
-    { key: "denver", artistId: babyKeemId, tourId, city: "Denver", daysOut: 33, status: "published", valueCents: 7000, pct: 50, payCents: 7500, plusOne: true, tickets: 8, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok recap with crowd energy" }] },
-    { key: "chicago", artistId: babyKeemId, tourId, city: "Chicago", daysOut: 40, status: "published", valueCents: 9500, pct: 100, payCents: 25000, plusOne: true, tickets: 4, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok (≥45s)" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with ticket link sticker" }] },
-    { key: "nyc", artistId: babyKeemId, tourId, city: "New York", daysOut: 47, status: "published", valueCents: 12000, pct: 50, payCents: 20000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel, tag @babykeem + @boweryballroom" }] },
-    { key: "austin", artistId: babyKeemId, tourId, city: "Austin", daysOut: 54, status: "published", valueCents: 6500, pct: 25, payCents: 5000, plusOne: false, tickets: 8, deliverables: [{ platform: "instagram_story", qty: 2, desc: "2 IG Stories from the pit" }] },
-    { key: "ella_la", artistId: ellaLangleyId, city: "Los Angeles", daysOut: 12, status: "published", valueCents: 11000, pct: 50, payCents: 12500, plusOne: true, tickets: 5, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel with a song from the encore, tag @ellalangley" }] },
-    { key: "ella_nashville", artistId: ellaLangleyId, city: "Nashville", daysOut: 30, status: "published", valueCents: 9000, pct: 50, payCents: 17500, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok (≥30s) from the show, tag @ellalangley" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with venue tag" }] },
-    { key: "luna_draft", artistId: lunaWavesId, city: "Denver", daysOut: 60, status: "draft", valueCents: 5000, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
+    // Baby Keem — The Ca$ino Tour 2026
+    { key: "keem_la_past", artistId: babyKeemId, tourId: keemTourId, venue: "Shrine Expo Hall", date: "2026-05-03", status: "completed", valueCents: 9500, pct: 50, payCents: 15000, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok recap (≥30s) tagging @babykeem" }] },
+    { key: "keem_seattle", artistId: babyKeemId, tourId: keemTourId, venue: "WAMU Theater", date: "2026-05-13", status: "completed", valueCents: 8000, pct: 75, payCents: 10000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel within 48h of the show" }] },
+    { key: "keem_paris", artistId: babyKeemId, tourId: keemTourId, venue: "L'Olympia", date: "2026-09-03", status: "published", valueCents: 12000, pct: 50, payCents: 20000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel from the show, tag @babykeem" }] },
+    { key: "keem_london", artistId: babyKeemId, tourId: keemTourId, venue: "O2 Academy Brixton", date: "2026-09-18", status: "published", valueCents: 12500, pct: 50, payCents: 25000, plusOne: true, tickets: 4, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok (≥45s) from the tour closer" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with ticket link sticker" }] },
+    // Ella Langley — The Dandelion Tour 2026
+    { key: "ella_hamilton", artistId: ellaLangleyId, tourId: ellaTourId, venue: "TD Coliseum", date: "2026-07-16", status: "published", valueCents: 8500, pct: 25, payCents: 7500, plusOne: true, tickets: 8, deliverables: [{ platform: "instagram_story", qty: 3, desc: "3 IG Stories during the show with venue tag" }] },
+    { key: "ella_baltimore", artistId: ellaLangleyId, tourId: ellaTourId, venue: "M&T Bank Stadium", date: "2026-07-18", status: "published", valueCents: 11000, pct: 50, payCents: 15000, plusOne: true, tickets: 8, notes: "Stadium date — direct support on Morgan Wallen's Still The Problem Tour.", deliverables: [{ platform: "tiktok_video", qty: 1, desc: "One TikTok (≥30s) from the show, tag @ellalangley" }] },
+    { key: "ella_cary", artistId: ellaLangleyId, tourId: ellaTourId, venue: "Koka Booth Amphitheatre", date: "2026-07-24", status: "published", valueCents: 7500, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
+    { key: "ella_austin", artistId: ellaLangleyId, tourId: ellaTourId, venue: "Moody Center", date: "2026-08-13", status: "published", valueCents: 9000, pct: 50, payCents: 12500, plusOne: true, tickets: 6, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok recap with crowd energy" }] },
+    { key: "ella_springfield", artistId: ellaLangleyId, tourId: ellaTourId, venue: "Illinois State Fairgrounds", date: "2026-08-21", status: "published", valueCents: 7000, pct: 100, payCents: 25000, plusOne: true, tickets: 4, deliverables: [{ platform: "tiktok_video", qty: 1, desc: "TikTok (≥45s)" }, { platform: "instagram_story", qty: 2, desc: "2 IG Stories with ticket link sticker" }] },
+    { key: "ella_newark", artistId: ellaLangleyId, tourId: ellaTourId, venue: "Prudential Center", date: "2026-09-10", status: "published", valueCents: 12000, pct: 50, payCents: 20000, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel, tag @ellalangley" }] },
+    { key: "ella_redrocks", artistId: ellaLangleyId, tourId: ellaTourId, venue: "Red Rocks Amphitheatre", date: "2026-10-07", status: "published", valueCents: 13500, pct: 75, payCents: 17500, plusOne: true, tickets: 6, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel — Red Rocks at golden hour, tag @ellalangley" }] },
+    { key: "ella_la", artistId: ellaLangleyId, tourId: ellaTourId, venue: "The Greek Theatre", date: "2026-10-13", status: "published", valueCents: 11000, pct: 50, payCents: 15000, plusOne: true, tickets: 8, deliverables: [{ platform: "instagram_reel", qty: 1, desc: "One Reel with a song from the encore, tag @ellalangley" }] },
+    // Draft example (unpublished opportunity)
+    { key: "fike_draft", artistId: draftArtistId, venue: "Mission Ballroom", date: "2026-11-20", status: "draft", valueCents: 5000, pct: 25, payCents: 0, plusOne: false, tickets: 10, deliverables: [] },
   ];
 
   const shows: Record<string, { showId: string; oppId: string; def: ShowDef }> = {};
   for (const def of showDefs) {
-    const showDate = daysFromNow(def.daysOut);
     const { data: show } = await db
       .from("shows")
       .insert({
         company_id: companyId, artist_id: def.artistId, tour_id: def.tourId ?? null,
-        venue_id: venueIds[def.city], date: dateStr(showDate),
+        venue_id: venueIds[def.venue], date: def.date,
         doors_time: "19:00", start_time: "20:00",
         status: def.status === "draft" ? "draft" : def.status === "completed" ? "completed" : "published",
         ticket_delivery_method: "guest_list",
@@ -275,9 +331,9 @@ async function main() {
         stated_ticket_value_cents: def.valueCents, deposit_percentage: def.pct,
         creator_payment_cents: def.payCents, plus_one_allowed: def.plusOne,
         tickets_total: def.tickets,
-        application_deadline: iso(daysFromNow(Math.max(def.daysOut - 2, def.daysOut < 0 ? def.daysOut : 1))),
+        application_deadline: iso(addDays(def.date, -2)),
         content_deadline_days: 7,
-        notes: def.payCents === 0 ? "Attend-only opportunity — no content required." : "",
+        notes: def.notes ?? (def.payCents === 0 ? "Attend-only opportunity — no content required." : ""),
         published_at: def.status === "draft" ? null : iso(daysFromNow(-14)),
       })
       .select("id").single();
@@ -334,12 +390,12 @@ async function main() {
         request_id: request!.id, kind: (i === 0 ? "primary" : "plus_one") as "primary" | "plus_one",
       })),
     );
-    const artistName = artistRows.find((a) => artistIds[artistRows.indexOf(a)] === s.def.artistId)?.name ?? "Show";
+    const artistName = artistNameById[s.def.artistId] ?? "Show";
     const { data: thread } = await db
       .from("message_threads")
       .insert({
         request_id: request!.id, creator_id: creatorId, company_id: companyId,
-        subject: `${artistName} — ${s.def.city}`,
+        subject: `${artistName} — ${s.def.venue}`,
       })
       .select("id").single();
     return { requestId: request!.id, threadId: thread!.id, show: s };
@@ -368,7 +424,7 @@ async function main() {
         ticket_count: ticketCount, includes_plus_one: ticketCount === 2,
         content_required: contentRequired,
         content_state: opts.content ?? (contentRequired ? "pending" : "not_required"),
-        content_deadline_at: contentRequired ? iso(daysFromNow(s.def.daysOut + 7)) : null,
+        content_deadline_at: contentRequired ? iso(addDays(s.def.date, 7)) : null,
         attendance_state: opts.attendance ?? "not_started",
         acceptance_deadline_at: iso(new Date(Date.now() + (opts.acceptanceHoursLeft ?? 24) * 3600 * 1000)),
         accepted_at: opts.accepted ? iso(new Date()) : null,
@@ -388,45 +444,45 @@ async function main() {
     return booking!.id;
   };
 
-  // 1. Pending: Jay → NYC (with a message exchange)
-  const pendingReq = await makeRequest("nyc", jayId, "pending", 2,
-    "I shoot NYC shows weekly — my Bowery recaps average 25k views. Would love to bring my editor as +1.");
+  // 1. Pending: Jay → Ella Langley @ Prudential Center, Newark (NYC metro)
+  const pendingReq = await makeRequest("ella_newark", jayId, "pending", 2,
+    "I shoot NYC-metro shows weekly — my arena recaps average 25k views. Would love to bring my editor as +1.");
   await db.from("messages").insert([
     { thread_id: pendingReq.threadId, sender_id: jayId, kind: "text", body: "Happy to share examples of past venue recaps if helpful!", read_by: [jayId] },
-    { thread_id: pendingReq.threadId, sender_id: ownerId, kind: "text", body: "Thanks Jay — reviewing this week. Your Bowery work looks great.", read_by: [ownerId] },
+    { thread_id: pendingReq.threadId, sender_id: ownerId, kind: "text", body: "Thanks Jay — reviewing this week. Your arena work looks great.", read_by: [ownerId] },
   ]);
   await db.from("message_threads").update({ last_message_at: iso(new Date()) }).eq("id", pendingReq.threadId);
 
-  // 2. Approved awaiting acceptance: Zoe → Chicago (100% deposit show)
-  const approvedReq = await makeRequest("chicago", zoeId, "approved", 1,
-    "Chicago is my city — I cover Lincoln Hall constantly and my audience is 70% local.", ownerId);
-  const zoeBookingId = await makeBooking(approvedReq.requestId, "chicago", zoeId, "awaiting_acceptance", 1, { acceptanceHoursLeft: 20 });
+  // 2. Approved awaiting acceptance: Zoe → Ella Langley @ Illinois State Fairgrounds (100% deposit show)
+  const approvedReq = await makeRequest("ella_springfield", zoeId, "approved", 1,
+    "The Midwest is my beat — my audience is 70% regional and country crossover crushes on my page.", ownerId);
+  const zoeBookingId = await makeBooking(approvedReq.requestId, "ella_springfield", zoeId, "awaiting_acceptance", 1, { acceptanceHoursLeft: 20 });
   await db.from("notifications").insert({
-    user_id: zoeId, type: "request_approved", title: "You're approved for Baby Keem!",
+    user_id: zoeId, type: "request_approved", title: "You're approved for Ella Langley!",
     body: "You have 24 hours to review the terms and secure your spot.",
     link: `/creator/bookings/${zoeBookingId}`,
   });
 
-  // 3. Rejected: Leo → Austin
-  await makeRequest("austin", leoId, "rejected", 1,
+  // 3. Rejected: Leo → Ella Langley @ Moody Center, Austin
+  await makeRequest("ella_austin", leoId, "rejected", 1,
     "ATX local, would love to cover this.", memberId);
   await db.from("notifications").insert({
     user_id: leoId, type: "request_rejected", title: "Request update",
-    body: "Your request for Baby Keem wasn't selected this time.", link: "/creator/requests",
+    body: "Your request for Ella Langley wasn't selected this time.", link: "/creator/requests",
   });
 
-  // 4. Waitlisted: Ava → LA
-  await makeRequest("la", avaId, "waitlisted", 2,
+  // 4. Waitlisted: Ava → Ella Langley @ The Greek Theatre, LA
+  await makeRequest("ella_la", avaId, "waitlisted", 2,
     "LA-based, 168k on TikTok. My last concert GRWM hit 300k views.");
 
-  // 5. Confirmed upcoming: Mia → LA (hold scheduled, not yet placed)
-  const miaReq = await makeRequest("la", miaId, "approved", 2,
-    "This is exactly my audience — LA hip-hop fans live on my page. Bringing my videographer as +1.", ownerId);
-  const miaBookingId = await makeBooking(miaReq.requestId, "la", miaId, "confirmed", 2, { accepted: true });
+  // 5. Confirmed upcoming: Mia → Ella Langley @ The Greek Theatre (hold scheduled, not yet placed)
+  const miaReq = await makeRequest("ella_la", miaId, "approved", 2,
+    "LA is home — my concert recaps hit hardest with local fans. Bringing my videographer as +1.", ownerId);
+  const miaBookingId = await makeBooking(miaReq.requestId, "ella_la", miaId, "confirmed", 2, { accepted: true });
   {
-    const s = shows["la"];
+    const s = shows["ella_la"];
     const holdCents = authorizationAmountCents(s.def.valueCents, 2, s.def.pct);
-    const scheduledFor = daysFromNow(s.def.daysOut - 5);
+    const scheduledFor = addDays(s.def.date, -5);
     await db.from("authorization_records").insert({
       booking_id: miaBookingId, creator_id: miaId, company_id: companyId,
       payment_method_id: pmIds[miaId], status: "scheduled", amount_cents: holdCents,
@@ -436,23 +492,24 @@ async function main() {
       booking_id: miaBookingId, creator_id: miaId, company_id: companyId,
       status: "pending_fulfillment", amount_cents: s.def.payCents, provider: "mock",
     });
+    const instructions = "You're on the guest list under 'Mia Torres +1' at The Greek Theatre box office. Doors 7 PM — bring photo ID.";
     await db.from("bookings").update({
-      ticket_instructions: "You're on the guest list under 'Mia Torres +1'. Arrive by 7:45 PM, west entrance, bring photo ID.",
+      ticket_instructions: instructions,
       ticket_instructions_sent_at: iso(new Date()),
     }).eq("id", miaBookingId);
     await db.from("messages").insert([
-      { thread_id: miaReq.threadId, sender_id: ownerId, kind: "ticket_instructions", body: "You're on the guest list under 'Mia Torres +1'. Arrive by 7:45 PM, west entrance, bring photo ID.", read_by: [ownerId] },
+      { thread_id: miaReq.threadId, sender_id: ownerId, kind: "ticket_instructions", body: instructions, read_by: [ownerId] },
     ]);
     await db.from("message_threads").update({ last_message_at: iso(new Date()) }).eq("id", miaReq.threadId);
   }
 
-  // 6. Completed: Mia → past LA show (attended + posted + paid, hold released)
-  const pastReq = await makeRequest("la_past", miaId, "approved", 1,
-    "Would love to kick the tour off with a recap!", ownerId);
-  const pastBookingId = await makeBooking(pastReq.requestId, "la_past", miaId, "completed", 1,
+  // 6. Completed: Mia → Baby Keem @ Shrine Expo Hall (attended + posted + paid, hold released)
+  const pastReq = await makeRequest("keem_la_past", miaId, "approved", 1,
+    "Would love to cover the LA stop of the Ca$ino Tour!", ownerId);
+  const pastBookingId = await makeBooking(pastReq.requestId, "keem_la_past", miaId, "completed", 1,
     { attendance: "approved", content: "approved", accepted: true });
   {
-    const s = shows["la_past"];
+    const s = shows["keem_la_past"];
     const holdCents = authorizationAmountCents(s.def.valueCents, 1, s.def.pct);
     const intentId = "pi_mock_seed_past";
     await db.from("mock_payment_state").insert({
@@ -463,8 +520,8 @@ async function main() {
       booking_id: pastBookingId, creator_id: miaId, company_id: companyId,
       payment_method_id: pmIds[miaId], status: "released", amount_cents: holdCents,
       provider: "mock", provider_intent_id: intentId, idempotency_key: "seed:past",
-      scheduled_for: iso(daysFromNow(-15)), authorized_at: iso(daysFromNow(-15)),
-      released_at: iso(daysFromNow(-9)), attempt_count: 1,
+      scheduled_for: iso(addDays(s.def.date, -5)), authorized_at: iso(addDays(s.def.date, -5)),
+      released_at: iso(addDays(s.def.date, 1)), attempt_count: 1,
     });
     const transferId = "tr_mock_seed_past";
     await db.from("mock_payment_state").insert({
@@ -475,29 +532,29 @@ async function main() {
       booking_id: pastBookingId, creator_id: miaId, company_id: companyId,
       status: "paid", amount_cents: s.def.payCents, provider: "mock",
       provider_transfer_id: transferId, idempotency_key: "payout:seed:past",
-      paid_at: iso(daysFromNow(-8)),
+      paid_at: iso(addDays(s.def.date, 2)),
     });
     await db.from("attendance_submissions").insert({
       booking_id: pastBookingId, creator_id: miaId, company_id: companyId,
-      status: "approved", checked_in_at: iso(daysFromNow(-10)),
-      note: "At the venue! Crowd shot attached.", proof_paths: [],
-      reviewed_by: ownerId, reviewed_at: iso(daysFromNow(-9)),
+      status: "approved", checked_in_at: iso(addDays(s.def.date, 0)),
+      note: "At the Shrine! Crowd shot attached.", proof_paths: [],
+      reviewed_by: ownerId, reviewed_at: iso(addDays(s.def.date, 1)),
     });
     await db.from("content_submissions").insert({
       booking_id: pastBookingId, creator_id: miaId, company_id: companyId,
       status: "approved", post_url: "https://www.tiktok.com/@miatorres.live/video/7301234567890",
       caption_note: "Recap hit 84k views in 48h!", proof_paths: [],
-      submitted_at: iso(daysFromNow(-9)), reviewed_by: ownerId, reviewed_at: iso(daysFromNow(-8)),
+      submitted_at: iso(addDays(s.def.date, 1)), reviewed_by: ownerId, reviewed_at: iso(addDays(s.def.date, 2)),
     });
   }
 
-  // 7. Disputed: Jay → Seattle (attendance rejected → dispute open)
-  const disputeReq = await makeRequest("seattle", jayId, "approved", 1,
+  // 7. Disputed: Jay → Baby Keem @ WAMU Theater (attendance rejected → dispute open)
+  const disputeReq = await makeRequest("keem_seattle", jayId, "approved", 1,
     "In Seattle that weekend for a shoot — perfect timing.", memberId);
-  const disputeBookingId = await makeBooking(disputeReq.requestId, "seattle", jayId, "disputed", 1,
+  const disputeBookingId = await makeBooking(disputeReq.requestId, "keem_seattle", jayId, "disputed", 1,
     { attendance: "disputed", accepted: true });
   {
-    const s = shows["seattle"];
+    const s = shows["keem_seattle"];
     const holdCents = authorizationAmountCents(s.def.valueCents, 1, s.def.pct);
     const intentId = "pi_mock_seed_dispute";
     await db.from("mock_payment_state").insert({
@@ -508,7 +565,7 @@ async function main() {
       booking_id: disputeBookingId, creator_id: jayId, company_id: companyId,
       payment_method_id: pmIds[jayId], status: "authorized", amount_cents: holdCents,
       provider: "mock", provider_intent_id: intentId, idempotency_key: "seed:dispute",
-      scheduled_for: iso(daysFromNow(-2)), authorized_at: iso(daysFromNow(-2)), attempt_count: 1,
+      scheduled_for: iso(addDays(s.def.date, -5)), authorized_at: iso(addDays(s.def.date, -5)), attempt_count: 1,
     });
     await db.from("creator_payment_records").insert({
       booking_id: disputeBookingId, creator_id: jayId, company_id: companyId,
@@ -516,25 +573,25 @@ async function main() {
     });
     await db.from("attendance_submissions").insert({
       booking_id: disputeBookingId, creator_id: jayId, company_id: companyId,
-      status: "disputed", checked_in_at: iso(daysFromNow(0)),
+      status: "disputed", checked_in_at: iso(addDays(s.def.date, 0)),
       note: "Checked in late — venue photo attached.", proof_paths: [],
-      reviewed_by: memberId, reviewed_at: iso(new Date()), review_note: "Photo doesn't show the show in progress.",
+      reviewed_by: memberId, reviewed_at: iso(addDays(s.def.date, 1)), review_note: "Photo doesn't show the show in progress.",
     });
     await db.from("disputes").insert({
       booking_id: disputeBookingId, company_id: companyId, creator_id: jayId,
       kind: "attendance", status: "open", opened_by: jayId,
-      reason: "I was at the show — arrived during the opener because my train was delayed. Photo shows the Crocodile stage during Baby Keem's set.",
+      reason: "I was at the show — arrived during the opener because my train was delayed. Photo shows the WAMU Theater stage during Baby Keem's set.",
     });
     await db.from("notifications").insert({
       user_id: adminId, type: "dispute_opened", title: "New attendance dispute",
-      body: "Jay Park disputes a rejected attendance at The Crocodile (Seattle).",
+      body: "Jay Park disputes a rejected attendance at WAMU Theater (Seattle).",
       link: "/admin/disputes",
     });
   }
 
   // 8. Withdrawn + expired extras for status coverage
-  await makeRequest("sf", leoId, "withdrawn", 1, "Might be in SF that week — will confirm.");
-  await makeRequest("denver", avaId, "expired", 1, "Denver girlies let's go");
+  await makeRequest("ella_redrocks", leoId, "withdrawn", 1, "Might be in Colorado that week — will confirm.");
+  await makeRequest("ella_redrocks", avaId, "expired", 1, "Red Rocks bucket list, let's go");
 
   console.log("\nSeed complete ✅");
   console.log(`\nDemo password for all accounts: ${PASSWORD}`);

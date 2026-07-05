@@ -3,7 +3,6 @@ import { AppShell } from "@/components/app-shell";
 import { getSessionUser } from "@/server/auth/guards";
 import { unreadNotificationCount } from "@/server/services/notifications";
 import { unreadMessageCount } from "@/server/services/messaging";
-import { serverEnv } from "@/lib/env";
 
 export default async function CreatorLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -24,7 +23,6 @@ export default async function CreatorLayout({ children }: { children: React.Reac
       userName={user.fullName || user.email}
       notificationsHref="/creator/notifications"
       unreadNotifications={unreadNotifs}
-      testModeBanner={serverEnv.paymentProvider === "mock"}
       navItems={[
         { href: "/creator", label: "Discover", exact: true },
         { href: "/creator/requests", label: "My requests" },

@@ -3,7 +3,6 @@ import { AppShell } from "@/components/app-shell";
 import { getSessionUser } from "@/server/auth/guards";
 import { serviceDb } from "@/server/db/service";
 import { unreadNotificationCount } from "@/server/services/notifications";
-import { serverEnv } from "@/lib/env";
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -27,7 +26,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       userName={user.fullName || user.email}
       notificationsHref="/admin/notifications"
       unreadNotifications={unreadNotifs}
-      testModeBanner={serverEnv.paymentProvider === "mock"}
       navItems={[
         { href: "/admin", label: "Dashboard", exact: true },
         { href: "/admin/disputes", label: "Disputes", badge: openDisputes },

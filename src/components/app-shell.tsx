@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Bell, Menu } from "lucide-react";
 import { NavLink } from "@/components/nav-link";
+import { Logo } from "@/components/logo";
 
 export type NavItem = {
   href: string;
@@ -24,7 +25,6 @@ export function AppShell({
   userName,
   notificationsHref,
   unreadNotifications,
-  testModeBanner,
   children,
 }: {
   navItems: NavItem[];
@@ -33,16 +33,10 @@ export function AppShell({
   userName: string;
   notificationsHref: string;
   unreadNotifications: number;
-  testModeBanner?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-screen flex-col">
-      {testModeBanner ? (
-        <div className="bg-amber-500/15 px-4 py-1.5 text-center text-xs font-medium text-amber-300">
-          Payments are in TEST MODE — no real money moves.
-        </div>
-      ) : null}
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4">
           <Sheet>
@@ -53,8 +47,8 @@ export function AppShell({
             </SheetTrigger>
             <SheetContent side="left" className="w-64 p-0">
               <SheetHeader className="border-b px-4 py-3 text-left">
-                <SheetTitle>
-                  <span className="text-gradient-brand font-bold">{BRAND.name}</span>{" "}
+                <SheetTitle className="flex items-center gap-2">
+                  <Logo />
                   <span className="text-xs font-normal text-muted-foreground">{roleLabel}</span>
                 </SheetTitle>
               </SheetHeader>
@@ -66,8 +60,8 @@ export function AppShell({
             </SheetContent>
           </Sheet>
 
-          <Link href={homeHref} className="flex items-baseline gap-2 font-bold tracking-tight">
-            <span className="text-gradient-brand">{BRAND.name}</span>
+          <Link href={homeHref} className="flex items-center gap-2" aria-label={`${BRAND.name} home`}>
+            <Logo />
             <span className="hidden text-xs font-normal text-muted-foreground sm:inline">
               {roleLabel}
             </span>

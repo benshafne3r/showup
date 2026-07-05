@@ -4,7 +4,6 @@ import { getSessionUser, getMemberCompany } from "@/server/auth/guards";
 import { unreadNotificationCount } from "@/server/services/notifications";
 import { unreadMessageCount } from "@/server/services/messaging";
 import { serviceDb } from "@/server/db/service";
-import { serverEnv } from "@/lib/env";
 
 export default async function LabelLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
@@ -41,7 +40,6 @@ export default async function LabelLayout({ children }: { children: React.ReactN
       userName={user.fullName || user.email}
       notificationsHref="/label/notifications"
       unreadNotifications={unreadNotifs}
-      testModeBanner={serverEnv.paymentProvider === "mock"}
       navItems={[
         { href: "/label", label: "Dashboard", exact: true },
         { href: "/label/requests", label: "Requests", badge: pendingRequests },

@@ -8,12 +8,12 @@ import { ArrowRight, BadgeCheck, Check, Plus } from "lucide-react";
 
 const DEMO_IMAGES = `${publicEnv.supabaseUrl}/storage/v1/object/public/artist-images/demo`;
 
-/** FanMoments-style fading name wall. First rows loud, later rows ghosted. */
+/** FanMoments-style fading name wall — real Columbia roster, loud to ghosted. */
 const ARTIST_WALL: Array<{ names: string[]; className: string }> = [
   { names: ["Baby Keem", "Ella Langley"], className: "text-4xl md:text-6xl opacity-100" },
-  { names: ["Luna Waves", "Velvet Static"], className: "text-3xl md:text-5xl opacity-70" },
-  { names: ["Neon Coast", "Midnight Bloom", "Golden Hour"], className: "text-2xl md:text-4xl opacity-45" },
-  { names: ["Paper Planes", "Atlas Drive", "Sunday Ghost", "The Armadas"], className: "text-xl md:text-3xl opacity-25" },
+  { names: ["Harry Styles", "Rosalía"], className: "text-3xl md:text-5xl opacity-75" },
+  { names: ["The Kid LAROI", "Lil Nas X", "Dominic Fike"], className: "text-2xl md:text-4xl opacity-50" },
+  { names: ["AJR", "Tyler Childers", "Måneskin", "Mora"], className: "text-xl md:text-3xl opacity-30" },
 ];
 
 const HOW_IT_WORKS: Array<[string, string]> = [
