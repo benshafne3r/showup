@@ -6,6 +6,17 @@ recommended host (native Next.js support, free tier, built-in cron).
 
 Repo: https://github.com/benshafne3r/showup
 
+**Databases:**
+- **Dev** — project `showup` (`mvtmomgepsgrqptsfqak`), paid org "50 - 50". Used by
+  local `npm run dev` / `npm run seed` (`.env.local`).
+- **Production** — project `Show Up` (`mpcjunweelepgcglolvx`), **free** org
+  "Show Up Project". Already migrated + seeded + artist photos uploaded. Its
+  keys are in **`.env.production.local`** (gitignored) — copy them into Vercel.
+
+> The production DB is separate from dev, so local `npm run seed` never touches
+> live data. (Free-tier note: the project pauses after ~7 days idle and needs a
+> manual "Restore" click in the Supabase dashboard.)
+
 ## 1. Import the repo into Vercel
 
 1. Go to [vercel.com](https://vercel.com) and sign in with **GitHub**.
@@ -16,39 +27,41 @@ Repo: https://github.com/benshafne3r/showup
 ## 2. Environment variables
 
 In the Vercel project → **Settings → Environment Variables**, add each of these
-(scope: Production + Preview). Most values you can copy verbatim from your local
-`.env.local`.
+(scope: Production + Preview). **Open `.env.production.local`** (in the project
+root, gitignored) — it already has your production Supabase URL + keys and the
+shared secrets filled in; copy them straight across.
 
 | Variable | Value |
 |---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | copy from `.env.local` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | copy from `.env.local` |
-| `SUPABASE_SERVICE_ROLE_KEY` | copy from `.env.local` — **server-only, keep secret** |
+| `NEXT_PUBLIC_SUPABASE_URL` | from `.env.production.local` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | from `.env.production.local` |
+| `SUPABASE_SERVICE_ROLE_KEY` | from `.env.production.local` — **server-only, keep secret** |
 | `NEXT_PUBLIC_APP_URL` | **your Vercel URL**, e.g. `https://showup.vercel.app` (NOT localhost) |
 | `PAYMENT_PROVIDER` | `mock` (no real money) |
-| `MOCK_WEBHOOK_SECRET` | copy from `.env.local` |
+| `MOCK_WEBHOOK_SECRET` | from `.env.production.local` |
 | `EMAIL_PROVIDER` | `console` (or `resend` + `RESEND_API_KEY`) |
 | `EMAIL_FROM` | `ShowUp <notifications@example.com>` |
-| `CRON_SECRET` | copy from `.env.local` |
+| `CRON_SECRET` | from `.env.production.local` |
 | `BANDSINTOWN_APP_ID` | optional — live tour-date import |
 | `TICKETMASTER_API_KEY` | optional — live tour-date import fallback |
 | `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | leave blank (mock mode) |
 
-> **`NEXT_PUBLIC_APP_URL` is the one to get right.** Notification links and the
-> mock payment webhook self-post use it. After the first deploy gives you a
-> URL, set this to it and redeploy.
+> **`NEXT_PUBLIC_APP_URL` is the one to get right.** In `.env.production.local`
+> it's a placeholder — set it to your real Vercel URL. Notification links and the
+> mock payment webhook self-post use it. After the first deploy gives you a URL,
+> set this and redeploy.
 
 Then click **Deploy**.
 
 ## 3. Supabase configuration
 
-In the Supabase dashboard (project `mvtmomgepsgrqptsfqak`):
+In the Supabase dashboard, **production project `Show Up` (`mpcjunweelepgcglolvx`)**:
 
 - **Authentication → URL Configuration** → set **Site URL** to your Vercel URL
   and add it to **Redirect URLs**.
-- The database is already migrated (`supabase/migrations/`) and seeded. To
-  reset demo data against production, run `npm run seed` locally (it targets the
-  same hosted DB — see the caveat below).
+- The database is already migrated (`supabase/migrations/`) and seeded, email
+  auto-confirm is on, and the demo artist photos are uploaded — nothing to do
+  here beyond the URL config.
 
 ## 4. Cron (already configured)
 
@@ -68,10 +81,9 @@ git push            # → production deploy
 
 ## Caveats for a public/live deploy
 
-- **Shared database.** Dev and production point at the same Supabase project.
-  Running `npm run seed` locally **wipes and reseeds production data**. For a
-  real launch, create a separate Supabase project for production and point the
-  Vercel env vars at it.
+- **Free-tier pause.** The production project is on Supabase's free plan, which
+  pauses after ~7 days of inactivity — click **Restore** in the Supabase
+  dashboard to wake it. Upgrade the org to Pro if you want it always-on.
 - **Demo accounts are reachable.** The seeded logins (`*@demo.showup.test` /
   `ShowUp!Demo1`) work on the live URL. Fine for a demo; remove them before a
   real launch.
