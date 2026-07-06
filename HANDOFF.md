@@ -8,8 +8,35 @@ in exchange for attendance + optional social content (the creator's card gets a
 temporary hold, released on verified attendance; content earns a fixed payment).
 All build phases are done and committed. The app runs end-to-end on demo data with
 mock payments/email. Branding is an indify-style **red** theme, a flat ticket
-**logo** (`src/components/logo.tsx`), no "test mode" banner. Tests: Vitest 34 unit
+**logo** (`src/components/logo.tsx`), no "test mode" banner. Tests: Vitest **39** unit
 green; Playwright e2e covers the golden path + admin dispute + permissions.
+
+## Production-readiness pass — in progress (this session)
+Working the pass in order: security → integrations → resilience.
+- **Security audit: PASS.** Reviewed RLS (all 30 tables, policies correct not just
+  present), service-role isolation (`server-only`), every server action guards on
+  line 1, cross-company IDOR closed (`company_id` server-derived + `.eq`-scoped),
+  all 6 rate limits enforced (service layer), webhook sig+dedupe, clean env split.
+  Supabase advisors: 3 WARN + 3 INFO, all consciously accepted in migration `0004`.
+  No real vulns found. Optional nit: add `import "server-only"` to `src/lib/env.ts`.
+- **Integrations: code-complete, blocked on external setup.** Stripe (207-line
+  adapter) + Resend adapters are done and env-selected. Going live needs live keys,
+  Stripe Connect KYC, and removing the `sk_test_` rail — none are code. Written up
+  step-by-step in **`docs/GO_LIVE.md`**. One real code gap flagged there: the
+  add-card form takes raw PAN server-side (PCI) → needs Stripe Elements before live.
+- **Resilience: DONE.** New `src/server/log.ts` (structured JSON logs) +
+  `src/server/action-error.ts` (`toActionError`: expected errors pass through,
+  unexpected are logged server-side + shown a generic message — previously the raw
+  `Error.message` leaked to users and nothing was logged). All 3 action files use it.
+  `jobs.ts` cron runner now isolates each step (one failure logs + continues, adds
+  `errors` count) — matters because step 2 places card holds. Cron + webhook routes
+  wrapped in try/catch + logging. Added `src/app/global-error.tsx` (root-layout
+  boundary; `error.tsx`'s component renamed `RouteError`). Test:
+  `tests/action-error.test.ts` locks the no-leak/does-log contract.
+- **Gotcha caught by e2e:** a `"use server"` file may only export async functions.
+  Re-exporting a *type* (`export type { ActionState }`) breaks Next's server-action
+  bundler at build time (typecheck/lint/unit all pass — only e2e/build catches it).
+  Fixed by declaring `export type ActionState = …` inline in each action file.
 
 Demo label is **Columbia Records** (owner **Ben Shafner**) with a 16-artist roster.
 Two headliners carry real 2026 tours: **Baby Keem** (Ca$ino Tour) and **Ella
@@ -44,16 +71,17 @@ provider returns the real dates for the two demo artists.
   Supabase project's Auth → URL config. Full steps in `docs/DEPLOYMENT.md`.
 
 ## Next steps
-1. **Agreed next build — production-readiness pass** (not started). Concretely:
-   - Add a **password-reset** flow (Supabase `resetPasswordForEmail` + `/reset` page).
-   - Turn OFF `mailer_autoconfirm` and add real **email verification** (dev currently
-     auto-confirms; see the auth config on each Supabase project).
-   - Wire **Resend** for real emails (`EMAIL_PROVIDER=resend` + `RESEND_API_KEY`) — the
-     adapter exists in `src/server/providers/email/`, nothing sends until keyed.
-   - Add **error tracking** (Sentry) + basic product analytics.
-   - **Gate/remove the demo accounts** (`*@demo.showup.test`) before real users.
-2. Finish the Vercel deploy (dashboard import + env vars) — the only thing left to go live.
-3. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
+Production-readiness pass — remaining items (security + resilience done this session):
+1. **Stripe Elements (PCI)** — move the add-card form off raw PAN before any live
+   payments. See `docs/GO_LIVE.md` §B3. Do this right before going live, not early.
+2. Add a **password-reset** flow (Supabase `resetPasswordForEmail` + `/reset` page).
+3. Turn OFF `mailer_autoconfirm` + real **email verification** (dev auto-confirms).
+4. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
+   natural hook point — pipe its `error` level to Sentry.
+5. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.
+6. Finish the Vercel deploy (dashboard import + env vars) — last mile to go live.
+7. When ready for real money/email, follow **`docs/GO_LIVE.md`** end to end.
+8. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
 
 ### Improvement backlog (discussed, not chosen yet)
 - **Content verification + view tracking** — auto-check a submitted post is live and pull

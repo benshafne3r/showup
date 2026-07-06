@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { requireAdmin, AuthError } from "@/server/auth/guards";
+import { requireAdmin } from "@/server/auth/guards";
 import { serviceDb } from "@/server/db/service";
 import { audit } from "@/server/services/audit";
 import { notify } from "@/server/services/notifications";
@@ -16,14 +16,13 @@ import {
 } from "@/server/services/payments";
 import { updatePlatformSetting } from "@/server/services/settings";
 import { runScheduledJobs } from "@/server/services/jobs";
+import { toActionError } from "@/server/action-error";
 
+// "use server" files may only export async functions; declare the type inline
+// (erased at compile time) rather than re-exporting it.
 export type ActionState = { error: string } | { success: string } | null;
 
-function fail(err: unknown): ActionState {
-  if (err instanceof AuthError) return { error: err.message };
-  if (err instanceof Error && err.message) return { error: err.message };
-  return { error: "Something went wrong." };
-}
+const fail = (err: unknown): ActionState => toActionError(err, "admin.action");
 
 // ── Users & companies ───────────────────────────────────────────────────
 

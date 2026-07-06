@@ -13,16 +13,14 @@ import { approveAttendance, rejectAttendance, resolveNoShow } from "@/server/ser
 import { reviewContent } from "@/server/services/content";
 import { payoutCreatorPayment } from "@/server/services/payments";
 import { parseDollarsToCents } from "@/lib/money";
-import { RateLimitError } from "@/server/services/rate-limit";
-import { AuthError } from "@/server/auth/guards";
+import { toActionError } from "@/server/action-error";
 
+// NOTE: "use server" files may only export async functions; a re-exported type
+// trips Next's server-action bundler. Declare the type inline (it is erased at
+// compile time) rather than re-exporting it from @/server/action-error.
 export type ActionState = { error: string } | { success: string } | null;
 
-function fail(err: unknown): ActionState {
-  if (err instanceof RateLimitError || err instanceof AuthError) return { error: err.message };
-  if (err instanceof Error && err.message) return { error: err.message };
-  return { error: "Something went wrong. Please try again." };
-}
+const fail = (err: unknown): ActionState => toActionError(err, "label.action");
 
 // ── Company onboarding & team ───────────────────────────────────────────
 

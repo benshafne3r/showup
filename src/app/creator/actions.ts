@@ -16,15 +16,13 @@ import {
   markAllNotificationsRead,
   markNotificationRead,
 } from "@/server/services/notifications";
-import { RateLimitError } from "@/server/services/rate-limit";
+import { toActionError } from "@/server/action-error";
 
+// "use server" files may only export async functions; declare the type inline
+// (erased at compile time) rather than re-exporting it.
 export type ActionState = { error: string } | { success: string } | null;
 
-function fail(err: unknown): ActionState {
-  if (err instanceof RateLimitError) return { error: err.message };
-  if (err instanceof Error && err.message) return { error: err.message };
-  return { error: "Something went wrong. Please try again." };
-}
+const fail = (err: unknown): ActionState => toActionError(err, "creator.action");
 
 // ── Onboarding / profile ────────────────────────────────────────────────
 
