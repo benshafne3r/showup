@@ -130,7 +130,7 @@ export async function saveArtistAction(
       imageFile: imageFile instanceof File ? imageFile : null,
     });
     if (!result.ok) return { error: result.error };
-    revalidatePath("/label/artists");
+    revalidatePath("/label/tours");
     return { success: "Artist saved" };
   } catch (err) {
     return fail(err);
@@ -139,7 +139,11 @@ export async function saveArtistAction(
 
 const tourSchema = z.object({
   tourId: z.string().uuid().optional().or(z.literal("")),
-  artistId: z.string().uuid("Pick an artist"),
+  // Either an existing artist id, or new-artist fields (created inline).
+  artistId: z.string().uuid().optional().or(z.literal("")),
+  newArtistName: z.string().max(120).optional().or(z.literal("")),
+  newArtistGenre: z.string().max(60).optional().or(z.literal("")),
+  newArtistInstagram: z.string().max(60).optional().or(z.literal("")),
   name: z.string().min(1, "Tour name is required").max(160),
   description: z.string().max(1000),
   startsOn: z.string().optional().or(z.literal("")),
@@ -154,11 +158,33 @@ export async function saveTourAction(
     const context = await requireLabelWithCompany();
     const parsed = tourSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const actor = { id: context.user.id, role: "label" as const };
+
+    // Resolve the artist: use the selected one, or create a new one inline.
+    let artistId = parsed.data.artistId || "";
+    if (!artistId) {
+      const name = parsed.data.newArtistName?.trim();
+      if (!name) return { error: "Pick an existing artist or add a new one" };
+      const image = formData.get("image");
+      const created = await upsertArtist({
+        companyId: context.companyId,
+        actor,
+        name,
+        genre: parsed.data.newArtistGenre ?? "",
+        bio: "",
+        instagramHandle: (parsed.data.newArtistInstagram ?? "").replace(/^@/, ""),
+        spotifyUrl: "",
+        imageFile: image instanceof File ? image : null,
+      });
+      if (!created.ok) return { error: created.error };
+      artistId = created.artistId;
+    }
+
     const result = await upsertTour({
       companyId: context.companyId,
-      actor: { id: context.user.id, role: "label" },
+      actor,
       tourId: parsed.data.tourId || undefined,
-      artistId: parsed.data.artistId,
+      artistId,
       name: parsed.data.name,
       description: parsed.data.description,
       startsOn: parsed.data.startsOn,

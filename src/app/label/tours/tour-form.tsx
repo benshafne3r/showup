@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveTourAction, type ActionState } from "../actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
+import { cn } from "@/lib/utils";
 import { Pencil, Plus } from "lucide-react";
 
 export function TourFormDialog({
@@ -39,13 +40,17 @@ export function TourFormDialog({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveTourAction, null);
   const editing = !!tour;
+  // In create mode, choose an existing artist or add a new one inline.
+  const [mode, setMode] = useState<"existing" | "new">(
+    artists.length > 0 ? "existing" : "new",
+  );
 
   return (
     <Dialog>
       <DialogTrigger asChild>
         {editing ? (
           <Button variant="outline" size="sm">
-            <Pencil className="size-3.5" aria-hidden /> Edit
+            <Pencil className="size-3.5" aria-hidden /> Edit tour
           </Button>
         ) : (
           <Button>
@@ -59,24 +64,95 @@ export function TourFormDialog({
         </DialogHeader>
         <form action={formAction} className="space-y-4">
           {editing ? <input type="hidden" name="tourId" value={tour.id} /> : null}
-          <div className="space-y-1.5">
-            <Label htmlFor="tour-artist">Artist</Label>
-            <Select name="artistId" defaultValue={tour?.artistId || artists[0]?.id}>
-              <SelectTrigger id="tour-artist" className="w-full">
-                <SelectValue placeholder="Pick an artist" />
-              </SelectTrigger>
-              <SelectContent>
-                {artists.map((artist) => (
-                  <SelectItem key={artist.id} value={artist.id}>
-                    {artist.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          {/* Artist: pick existing or add new (create mode only) */}
+          {editing ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="tour-artist">Artist</Label>
+              <Select name="artistId" defaultValue={tour.artistId}>
+                <SelectTrigger id="tour-artist" className="w-full">
+                  <SelectValue placeholder="Pick an artist" />
+                </SelectTrigger>
+                <SelectContent>
+                  {artists.map((artist) => (
+                    <SelectItem key={artist.id} value={artist.id}>
+                      {artist.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <fieldset className="space-y-2">
+              <legend className="text-sm font-medium">Artist</legend>
+              {artists.length > 0 ? (
+                <div className="flex gap-1 rounded-lg border p-1" role="tablist">
+                  {(["existing", "new"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      role="tab"
+                      aria-selected={mode === m}
+                      onClick={() => setMode(m)}
+                      className={cn(
+                        "flex-1 rounded-md px-3 py-1.5 text-sm transition-colors",
+                        mode === m
+                          ? "bg-primary/15 font-medium text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {m === "existing" ? "Existing artist" : "New artist"}
+                    </button>
+                  ))}
+                </div>
+              ) : null}
+
+              {mode === "existing" && artists.length > 0 ? (
+                <Select name="artistId" defaultValue={artists[0]?.id}>
+                  <SelectTrigger id="tour-artist" className="w-full">
+                    <SelectValue placeholder="Pick an artist" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {artists.map((artist) => (
+                      <SelectItem key={artist.id} value={artist.id}>
+                        {artist.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-artist-name">Name</Label>
+                      <Input id="new-artist-name" name="newArtistName" placeholder="Baby Keem" required={mode === "new"} />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-artist-genre">Genre</Label>
+                      <Input id="new-artist-genre" name="newArtistGenre" placeholder="Hip-Hop / Rap" />
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-artist-ig">Instagram</Label>
+                      <Input id="new-artist-ig" name="newArtistInstagram" placeholder="artistname" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label htmlFor="new-artist-image">Photo</Label>
+                      <Input id="new-artist-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    The photo shows on discovery cards — landscape works best.
+                  </p>
+                </div>
+              )}
+            </fieldset>
+          )}
+
           <div className="space-y-1.5">
             <Label htmlFor="tour-name">Tour name</Label>
-            <Input id="tour-name" name="name" defaultValue={tour?.name ?? ""} placeholder="Coastal Nights Tour 2026" required />
+            <Input id="tour-name" name="name" defaultValue={tour?.name ?? ""} placeholder="The Ca$ino Tour 2026" required />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="tour-description">Description</Label>

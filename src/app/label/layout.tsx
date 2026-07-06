@@ -43,9 +43,8 @@ export default async function LabelLayout({ children }: { children: React.ReactN
       navItems={[
         { href: "/label", label: "Dashboard", exact: true },
         { href: "/label/requests", label: "Requests", badge: pendingRequests },
-        { href: "/label/shows", label: "Shows" },
-        { href: "/label/artists", label: "Artists" },
         { href: "/label/tours", label: "Tours" },
+        { href: "/label/shows", label: "Shows" },
         { href: "/label/messages", label: "Messages", badge: unreadMessages },
         { href: "/label/payments", label: "Payments" },
         { href: "/label/team", label: "Team" },

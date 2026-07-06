@@ -22,20 +22,24 @@ const ARTIST = `E2E Band ${runId}`;
 
 test.describe.configure({ mode: "serial" });
 
-test("label creates an artist and a show with an opportunity", async ({ page }) => {
+test("label creates an artist (via a tour) and a show with an opportunity", async ({ page }) => {
   await signIn(page, ACCOUNTS.labelOwner);
 
-  // Create the artist.
-  await page.goto("/label/artists");
-  await page.getByRole("button", { name: "Add artist" }).first().click();
-  await page.getByLabel("Name").fill(ARTIST);
+  // Tours-first: create the artist inline while creating their tour.
+  await page.goto("/label/tours");
+  await page.getByRole("button", { name: "New tour" }).first().click();
+  await page.getByRole("tab", { name: "New artist" }).click();
+  await page.getByLabel("Name", { exact: true }).fill(ARTIST);
   await page.getByLabel("Genre").fill("Synthwave");
-  await page.getByRole("button", { name: "Add artist" }).last().click();
-  await expect(page.getByText("Artist saved")).toBeVisible();
+  await page.getByLabel("Tour name").fill(`E2E Tour ${runId}`);
+  await page.getByRole("button", { name: "Create tour" }).click();
+  // The dialog stays open and shows a success message; the artist now exists.
+  await expect(page.getByText("Tour saved")).toBeVisible();
 
-  // Create the show (dated today so check-in opens immediately).
+  // Create the show (dated today so check-in opens immediately). The show
+  // form's artist picker is #show-artist (the page also has an import panel).
   await page.goto("/label/shows/new");
-  await page.getByLabel("Artist").click();
+  await page.locator("#show-artist").click();
   await page.getByRole("option", { name: ARTIST }).click();
   await page.getByLabel("Venue name").fill(`E2E Hall ${runId}`);
   await page.getByLabel("City", { exact: true }).fill("Austin");

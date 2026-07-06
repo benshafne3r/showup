@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { requireLabelPage } from "../require-label";
 import { serviceDb } from "@/server/db/service";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
+import { Button } from "@/components/ui/button";
 import { TourFormDialog } from "./tour-form";
+import { ArtistFormDialog } from "./artist-form";
 import { formatShowDate } from "@/lib/dates";
-import { Route } from "lucide-react";
+import { CalendarPlus, Route } from "lucide-react";
 
 export const metadata: Metadata = { title: "Tours" };
 export const dynamic = "force-dynamic";
@@ -14,83 +17,130 @@ export const dynamic = "force-dynamic";
 export default async function ToursPage() {
   const context = await requireLabelPage();
   const db = serviceDb();
-  const [{ data: tours }, { data: artists }] = await Promise.all([
-    db
-      .from("tours")
-      .select("id, name, description, starts_on, ends_on, artist_id, artists(name), shows(id, date, status, venues(city))")
-      .eq("company_id", context.companyId)
-      .order("created_at", { ascending: false }),
-    db.from("artists").select("id, name").eq("company_id", context.companyId).order("name"),
-  ]);
+  const { data: tours } = await db
+    .from("tours")
+    .select(
+      `id, name, description, starts_on, ends_on, artist_id,
+       artists(id, name, genre, image_url, bio, instagram_handle, spotify_url),
+       shows(id, date, status, venues(city))`,
+    )
+    .eq("company_id", context.companyId)
+    .order("created_at", { ascending: false });
 
-  const artistOptions = (artists ?? []).map((a) => ({ id: a.id, name: a.name }));
+  // Existing artists (those already attached to a tour) for the "existing"
+  // picker. Artists with no tour don't surface — this is the Tours-first model.
+  const artistOptions = Array.from(
+    new Map((tours ?? []).map((t) => [t.artist_id, t.artists?.name ?? ""])).entries(),
+  ).map(([id, name]) => ({ id, name }));
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Tours"
-        description="Group shows into tours per artist."
+        description="Every tour, grouped by artist. Add a new artist while you create their tour."
         action={<TourFormDialog artists={artistOptions} />}
       />
       {!tours?.length ? (
         <EmptyState
           icon={Route}
           title="No tours yet"
-          description="Create a tour, then add show dates to it — or create standalone shows."
+          description="Create your first tour — you can add the artist right in the same step, then add show dates to it."
           action={<TourFormDialog artists={artistOptions} />}
         />
       ) : (
         <div className="space-y-4">
           {tours.map((tour) => {
+            const artist = tour.artists;
             const shows = [...(tour.shows ?? [])].sort((a, b) => (a.date < b.date ? -1 : 1));
             return (
-              <div key={tour.id} className="rounded-xl border bg-card p-5">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <h2 className="font-semibold">{tour.name}</h2>
-                    <p className="text-sm text-muted-foreground">
-                      {tour.artists?.name}
-                      {tour.starts_on ? ` · ${formatShowDate(tour.starts_on)}` : ""}
-                      {tour.ends_on ? ` – ${formatShowDate(tour.ends_on)}` : ""}
-                    </p>
+              <div key={tour.id} className="overflow-hidden rounded-xl border bg-card">
+                <div className="flex flex-col gap-4 sm:flex-row">
+                  {/* Artist visual */}
+                  <div className="artist-card-img relative h-32 w-full shrink-0 overflow-hidden sm:h-auto sm:w-44">
+                    {artist?.image_url ? (
+                      <Image
+                        src={artist.image_url}
+                        alt={`${artist.name} image`}
+                        fill
+                        sizes="(max-width: 640px) 100vw, 176px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="flex h-full items-end p-3">
+                        <span className="text-lg font-bold text-white/95">{artist?.name}</span>
+                      </div>
+                    )}
                   </div>
-                  <TourFormDialog
-                    artists={artistOptions}
-                    tour={{
-                      id: tour.id,
-                      artistId: tour.artist_id,
-                      name: tour.name,
-                      description: tour.description,
-                      startsOn: tour.starts_on ?? "",
-                      endsOn: tour.ends_on ?? "",
-                    }}
-                  />
+
+                  <div className="flex-1 p-5 sm:pl-0">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-medium tracking-wide text-muted-foreground uppercase">
+                          {artist?.name}
+                          {artist?.genre ? ` · ${artist.genre}` : ""}
+                        </p>
+                        <h2 className="text-lg font-semibold">{tour.name}</h2>
+                        <p className="text-sm text-muted-foreground">
+                          {tour.starts_on ? formatShowDate(tour.starts_on) : "Dates TBA"}
+                          {tour.ends_on ? ` – ${formatShowDate(tour.ends_on)}` : ""} ·{" "}
+                          {shows.length} show{shows.length === 1 ? "" : "s"}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {artist ? (
+                          <ArtistFormDialog
+                            artist={{
+                              id: artist.id,
+                              name: artist.name,
+                              genre: artist.genre,
+                              bio: artist.bio,
+                              instagramHandle: artist.instagram_handle ?? "",
+                              spotifyUrl: artist.spotify_url ?? "",
+                            }}
+                          />
+                        ) : null}
+                        <TourFormDialog
+                          artists={artistOptions}
+                          tour={{
+                            id: tour.id,
+                            artistId: tour.artist_id,
+                            name: tour.name,
+                            description: tour.description,
+                            startsOn: tour.starts_on ?? "",
+                            endsOn: tour.ends_on ?? "",
+                          }}
+                        />
+                        <Button asChild size="sm">
+                          <Link href={`/label/shows/new?tour=${tour.id}`}>
+                            <CalendarPlus className="size-4" aria-hidden /> Add a date
+                          </Link>
+                        </Button>
+                      </div>
+                    </div>
+
+                    {shows.length ? (
+                      <ul className="mt-3 flex flex-wrap gap-2">
+                        {shows.map((show) => (
+                          <li key={show.id}>
+                            <Link
+                              href={`/label/shows/${show.id}`}
+                              className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/60"
+                            >
+                              {formatShowDate(show.date)} · {show.venues?.city}
+                              {show.status !== "published" ? (
+                                <span className="text-muted-foreground">({show.status})</span>
+                              ) : null}
+                            </Link>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-3 text-sm text-muted-foreground">
+                        No dates on this tour yet — use “Add a date”.
+                      </p>
+                    )}
+                  </div>
                 </div>
-                {shows.length ? (
-                  <ul className="mt-3 flex flex-wrap gap-2">
-                    {shows.map((show) => (
-                      <li key={show.id}>
-                        <Link
-                          href={`/label/shows/${show.id}`}
-                          className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/60"
-                        >
-                          {formatShowDate(show.date)} · {show.venues?.city}
-                          {show.status !== "published" ? (
-                            <span className="text-muted-foreground">({show.status})</span>
-                          ) : null}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="mt-3 text-sm text-muted-foreground">
-                    No shows on this tour yet —{" "}
-                    <Link href="/label/shows/new" className="text-primary hover:underline">
-                      add one
-                    </Link>
-                    .
-                  </p>
-                )}
               </div>
             );
           })}

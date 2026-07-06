@@ -34,7 +34,7 @@ export function ArtistFormDialog({ artist }: { artist?: ArtistInput }) {
       <DialogTrigger asChild>
         {editing ? (
           <Button variant="outline" size="sm">
-            <Pencil className="size-3.5" aria-hidden /> Edit
+            <Pencil className="size-3.5" aria-hidden /> Edit artist
           </Button>
         ) : (
           <Button>
