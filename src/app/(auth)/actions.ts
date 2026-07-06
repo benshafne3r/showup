@@ -5,10 +5,11 @@ import { z } from "zod";
 import { userDb } from "@/server/db/server-client";
 import { serviceDb } from "@/server/db/service";
 import { enforceRateLimit, RateLimitError } from "@/server/services/rate-limit";
-import { claimInvites } from "@/server/services/companies";
+import { destinationFor } from "@/server/auth/destination";
 import { publicEnv } from "@/lib/env";
 
 export type AuthFormState = { error: string } | null;
+export type SignUpState = { error: string } | { pending: string } | null;
 export type ResetRequestState = { error: string } | { sent: true } | null;
 
 const signInSchema = z.object({
@@ -22,29 +23,6 @@ const signUpSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters").max(72),
   role: z.enum(["creator", "label"]),
 });
-
-async function destinationFor(userId: string): Promise<string> {
-  const db = serviceDb();
-  const { data: user } = await db.from("users").select("role, email").eq("id", userId).maybeSingle();
-  if (!user) return "/";
-  if (user.role === "admin") return "/admin";
-  if (user.role === "label") {
-    await claimInvites(userId, user.email);
-    const { data: membership } = await db
-      .from("company_members")
-      .select("id")
-      .eq("user_id", userId)
-      .limit(1)
-      .maybeSingle();
-    return membership ? "/label" : "/label/onboarding";
-  }
-  const { data: profile } = await db
-    .from("creator_profiles")
-    .select("onboarded_at")
-    .eq("user_id", userId)
-    .maybeSingle();
-  return profile?.onboarded_at ? "/creator" : "/creator/onboarding";
-}
 
 export async function signIn(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const parsed = signInSchema.safeParse(Object.fromEntries(formData));
@@ -75,7 +53,7 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   redirect(await destinationFor(data.user.id));
 }
 
-export async function signUp(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+export async function signUp(_prev: SignUpState, formData: FormData): Promise<SignUpState> {
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { fullName, email, password, role } = parsed.data;
@@ -91,7 +69,12 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
   const { data, error } = await db.auth.signUp({
     email,
     password,
-    options: { data: { full_name: fullName, role } },
+    options: {
+      data: { full_name: fullName, role },
+      // Confirmation link routes through the callback, which exchanges the code
+      // for a session and forwards to the role-appropriate destination.
+      emailRedirectTo: `${publicEnv.appUrl}/auth/callback`,
+    },
   });
   if (error) {
     return {
@@ -100,8 +83,9 @@ export async function signUp(_prev: AuthFormState, formData: FormData): Promise<
         : error.message,
     };
   }
+  // No session means email confirmation is required (mailer_autoconfirm off).
   if (!data.user || !data.session) {
-    return { error: "Check your email to confirm your account, then sign in." };
+    return { pending: email };
   }
 
   // The auth trigger mirrors into public.users; give it a beat on first signup.

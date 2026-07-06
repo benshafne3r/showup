@@ -48,6 +48,13 @@ If anything's wrong, the app **automatically falls back to console mode** (see
 `src/server/providers/email/index.ts`), so a missing key won't crash it — emails
 just won't send.
 
+6. **Require email verification.** In the Supabase dashboard → Authentication →
+   Providers → Email, turn **off** "Confirm email" auto-confirm (a.k.a.
+   `mailer_autoconfirm`). New signups will then have to click a confirmation link
+   before they get a session — the app already handles this: the sign-up form shows
+   a "check your email" panel, and the link routes through `/auth/callback`. Make
+   sure `${APP_URL}/auth/callback` is in the redirect allowlist (see the checklist).
+
 ---
 
 ## Part B — Payments (Stripe). The careful one.

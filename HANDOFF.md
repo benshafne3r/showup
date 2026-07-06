@@ -70,31 +70,40 @@ provider returns the real dates for the two demo artists.
   values (set `NEXT_PUBLIC_APP_URL` to the Vercel URL), and add that URL to the prod
   Supabase project's Auth → URL config. Full steps in `docs/DEPLOYMENT.md`.
 
-## Password reset (built this session)
-Full flow, styled to match the auth pages:
-- `/forgot-password` (`(auth)/forgot-password/`) → `requestPasswordReset` action emails
-  a link (rate-limited `auth.reset`, neutral "if an account exists" — no enumeration).
-- `/auth/callback` route handler exchanges the PKCE `code` for a session, forwards to
-  `next` (same-origin only); on failure → `/forgot-password?error=expired` + logs it.
-- `/update-password` (`(auth)/update-password/`) requires the recovery session (else
-  redirects to the reset flow); `updatePassword` action sets the new password.
-- "Forgot password?" link added to the sign-in form.
+## Auth email flows (built this session)
+Both password reset and email verification, styled to match the auth pages. Shared
+piece: **`/auth/callback`** (`src/app/auth/callback/route.ts`) exchanges the PKCE
+`code` for a session, then routes on — honoring an explicit `next` (reset →
+`/update-password`) or, when none is given (signup confirmation), computing the
+role-appropriate landing via **`src/server/auth/destination.ts`** (`destinationFor`,
+extracted from the auth actions so both callers share it). On failure →
+`/forgot-password?error=expired` + structured log.
+
+- **Password reset:** `/forgot-password` → `requestPasswordReset` emails a link
+  (rate-limited `auth.reset`, neutral "if an account exists" — no enumeration).
+  `/update-password` requires the recovery session; `updatePassword` sets it.
+  "Forgot password?" link added to sign-in.
+- **Email verification:** `signUp` now passes `emailRedirectTo=…/auth/callback` and,
+  when Supabase returns no session (i.e. confirmation required), returns a `pending`
+  state → sign-up form shows a "check your email" panel instead of an error. With
+  dev's `mailer_autoconfirm` **on**, signup still returns a session and routes
+  straight to onboarding (verified), so this is a no-op until the flag is turned off.
 - ⚠️ **Prod config:** `${NEXT_PUBLIC_APP_URL}/auth/callback` must be in the Supabase
-  project's **Auth → URL Configuration → Redirect URLs** or the link won't work.
+  project's **Auth → URL Configuration → Redirect URLs**, and to *require* email
+  verification turn **off** `mailer_autoconfirm` on the prod project.
 - e2e: `e2e/password-reset.spec.ts` (link, neutral confirmation, both expiry guards).
-  The real email→link→set-password happy path needs a live inbox → verify manually.
+  Full email→link happy paths need a live inbox → verify manually.
 
 ## Next steps
-Production-readiness pass — remaining items (security + resilience + password-reset done):
+Production-readiness pass — remaining (security, resilience, password-reset, email-verify done):
 1. **Stripe Elements (PCI)** — move the add-card form off raw PAN before any live
    payments. See `docs/GO_LIVE.md` §B3. Do this right before going live, not early.
-2. Turn OFF `mailer_autoconfirm` + real **email verification** (dev auto-confirms).
-4. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
+2. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
    natural hook point — pipe its `error` level to Sentry.
-5. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.
-6. Finish the Vercel deploy (dashboard import + env vars) — last mile to go live.
-7. When ready for real money/email, follow **`docs/GO_LIVE.md`** end to end.
-8. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
+3. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.
+4. Finish the Vercel deploy (dashboard import + env vars) — last mile to go live.
+5. When ready for real money/email, follow **`docs/GO_LIVE.md`** end to end.
+6. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
 
 ### Improvement backlog (discussed, not chosen yet)
 - **Content verification + view tracking** — auto-check a submitted post is live and pull
@@ -118,3 +127,7 @@ Production-readiness pass — remaining items (security + resilience + password-
   `npm run test:e2e` (it starts its own dev server), or it fails with "Another next
   dev server is already running."
 - Preview server pinned to port 3000 in `.claude/launch.json` (mock webhooks self-post there).
+- **e2e golden-path is flaky under full-suite load** — the serial chain occasionally
+  times out on a different step each run (file upload / streamed revalidation). It
+  passes 9/9 when re-run alone (`npx playwright test golden-path`). Consider adding
+  `retries: 1` to `playwright.config` to absorb it. Not a product bug.

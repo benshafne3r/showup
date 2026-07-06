@@ -12,6 +12,19 @@ export function SignUpForm({ defaultRole }: { defaultRole: "creator" | "label" }
   const [state, formAction] = useActionState(signUp, null);
   const [role, setRole] = useState<"creator" | "label">(defaultRole);
 
+  if (state && "pending" in state) {
+    return (
+      <p
+        role="status"
+        className="rounded-lg border border-primary/30 bg-primary/10 p-4 text-sm"
+      >
+        Almost there — we sent a confirmation link to{" "}
+        <span className="font-medium">{state.pending}</span>. Click it to verify your email and
+        finish setting up your account.
+      </p>
+    );
+  }
+
   return (
     <form action={formAction} className="space-y-4" noValidate>
       <fieldset className="space-y-2">
