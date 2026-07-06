@@ -9,6 +9,26 @@ import { uploadFile, publicFileUrl } from "./uploads";
 
 /** Artists, venues, tours, shows — label catalog management. */
 
+/**
+ * Download a remote image (e.g. a Spotify artist photo) into a File so it can
+ * flow through the same validated upload path as a user-picked file. Returns
+ * null on any failure so a missing photo never blocks saving the artist.
+ */
+async function fetchRemoteImage(url: string): Promise<File | null> {
+  if (!/^https:\/\//.test(url)) return null;
+  try {
+    const res = await fetch(url, { cache: "no-store" });
+    if (!res.ok) return null;
+    const type = res.headers.get("content-type") ?? "image/jpeg";
+    if (!type.startsWith("image/")) return null;
+    const ext = type.includes("png") ? "png" : type.includes("webp") ? "webp" : "jpg";
+    const buf = await res.arrayBuffer();
+    return new File([buf], `spotify.${ext}`, { type });
+  } catch {
+    return null;
+  }
+}
+
 export async function upsertArtist(input: {
   companyId: string;
   actor: { id: string; role: string };
@@ -19,12 +39,20 @@ export async function upsertArtist(input: {
   instagramHandle?: string;
   spotifyUrl?: string;
   imageFile?: File | null;
+  /** A remote image URL (Spotify photo) to fetch + store when no file is given. */
+  remoteImageUrl?: string;
 }): Promise<{ ok: true; artistId: string } | { ok: false; error: string }> {
   const db = serviceDb();
 
   let imageUrl: string | undefined;
-  if (input.imageFile && input.imageFile.size > 0) {
-    const path = await uploadFile("artist-images", input.companyId, input.imageFile);
+  const file =
+    input.imageFile && input.imageFile.size > 0
+      ? input.imageFile
+      : input.remoteImageUrl
+        ? await fetchRemoteImage(input.remoteImageUrl)
+        : null;
+  if (file) {
+    const path = await uploadFile("artist-images", input.companyId, file);
     imageUrl = publicFileUrl("artist-images", path);
   }
 

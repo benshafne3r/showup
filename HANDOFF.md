@@ -57,6 +57,22 @@ Langley** (Dandelion Tour), with photos on cards.
   artist+tour) or standalone from the Shows list. Artists only surface once they
   have a tour (intentional — discovery only ever showed artists with published shows).
 
+## Spotify artist picker (built this session)
+Adding an artist can auto-fill from Spotify instead of manual entry:
+- `SpotifyArtistPicker` (`src/app/label/tours/spotify-artist-picker.tsx`) — debounced
+  type-ahead calling `searchSpotifyArtistsAction`. On select it fills name + genre +
+  Spotify URL and captures the profile photo URL.
+- On save, `upsertArtist` (`catalog.ts`) fetches that photo and **stores it in our
+  `artist-images` bucket** (via `fetchRemoteImage` + the existing `uploadFile`), so we
+  own the asset — not a hot-link. Fields stay editable; manual entry + file upload
+  remain as fallback.
+- Wired into both `tours/tour-form.tsx` (new-artist step) and `tours/artist-form.tsx`
+  (edit). Provider: `src/server/providers/spotify/` (Client Credentials flow, token
+  cached ~1h); `spotifyConfigured()` gates it.
+- **Needs creds:** `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET` (free app at
+  developer.spotify.com/dashboard). Unset → picker returns nothing, manual entry works
+  (verified). Real search + photo-pull needs the keys → verify once added.
+
 ## Tour-date import
 `/label/shows/new` has an **Import a tour date** panel: pick an artist → fetch →
 click a date to prefill venue/city/date. Provider chain in

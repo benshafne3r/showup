@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
+import { SpotifyArtistPicker } from "./spotify-artist-picker";
 import { cn } from "@/lib/utils";
 import { Pencil, Plus } from "lucide-react";
 
@@ -44,6 +45,14 @@ export function TourFormDialog({
   const [mode, setMode] = useState<"existing" | "new">(
     artists.length > 0 ? "existing" : "new",
   );
+  // New-artist fields — pre-filled by the Spotify picker, still editable.
+  const [newArtist, setNewArtist] = useState({
+    name: "",
+    genre: "",
+    spotifyUrl: "",
+    imageUrl: "",
+    fromSpotify: false,
+  });
 
   return (
     <Dialog>
@@ -122,14 +131,57 @@ export function TourFormDialog({
                 </Select>
               ) : (
                 <div className="space-y-3 rounded-lg border p-3">
+                  <SpotifyArtistPicker
+                    selectedName={newArtist.fromSpotify ? newArtist.name : undefined}
+                    onSelect={(a) =>
+                      setNewArtist({
+                        name: a.name,
+                        genre: a.genre,
+                        spotifyUrl: a.spotifyUrl,
+                        imageUrl: a.imageUrl ?? "",
+                        fromSpotify: true,
+                      })
+                    }
+                  />
+                  {/* Captured from the Spotify selection; server fetches + stores the photo. */}
+                  <input type="hidden" name="newArtistSpotifyUrl" value={newArtist.spotifyUrl} />
+                  <input type="hidden" name="newArtistImageUrl" value={newArtist.imageUrl} />
+
+                  {newArtist.imageUrl ? (
+                    <div className="flex items-center gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src={newArtist.imageUrl}
+                        alt=""
+                        className="size-12 rounded-lg object-cover"
+                      />
+                      <p className="text-xs text-muted-foreground">Photo pulled from Spotify.</p>
+                    </div>
+                  ) : null}
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="new-artist-name">Name</Label>
-                      <Input id="new-artist-name" name="newArtistName" placeholder="Baby Keem" required={mode === "new"} />
+                      <Input
+                        id="new-artist-name"
+                        name="newArtistName"
+                        placeholder="Baby Keem"
+                        required={mode === "new"}
+                        value={newArtist.name}
+                        onChange={(e) =>
+                          setNewArtist((s) => ({ ...s, name: e.target.value, fromSpotify: false }))
+                        }
+                      />
                     </div>
                     <div className="space-y-1.5">
                       <Label htmlFor="new-artist-genre">Genre</Label>
-                      <Input id="new-artist-genre" name="newArtistGenre" placeholder="Hip-Hop / Rap" />
+                      <Input
+                        id="new-artist-genre"
+                        name="newArtistGenre"
+                        placeholder="Hip-Hop / Rap"
+                        value={newArtist.genre}
+                        onChange={(e) => setNewArtist((s) => ({ ...s, genre: e.target.value }))}
+                      />
                     </div>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
@@ -137,13 +189,15 @@ export function TourFormDialog({
                       <Label htmlFor="new-artist-ig">Instagram</Label>
                       <Input id="new-artist-ig" name="newArtistInstagram" placeholder="artistname" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label htmlFor="new-artist-image">Photo</Label>
-                      <Input id="new-artist-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" />
-                    </div>
+                    {!newArtist.imageUrl ? (
+                      <div className="space-y-1.5">
+                        <Label htmlFor="new-artist-image">Photo</Label>
+                        <Input id="new-artist-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" />
+                      </div>
+                    ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    The photo shows on discovery cards — landscape works best.
+                    Pick from Spotify to auto-fill the photo, or enter details manually.
                   </p>
                 </div>
               )}

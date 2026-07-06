@@ -13,6 +13,7 @@ import { approveAttendance, rejectAttendance, resolveNoShow } from "@/server/ser
 import { reviewContent } from "@/server/services/content";
 import { payoutCreatorPayment } from "@/server/services/payments";
 import { parseDollarsToCents } from "@/lib/money";
+import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
 import { toActionError } from "@/server/action-error";
 
 // NOTE: "use server" files may only export async functions; a re-exported type
@@ -98,6 +99,12 @@ export async function changeMemberRoleAction(formData: FormData): Promise<void> 
 
 // ── Artists & tours ─────────────────────────────────────────────────────
 
+/** Type-ahead search of Spotify's artist catalog (label users only). */
+export async function searchSpotifyArtistsAction(query: string): Promise<SpotifyArtist[]> {
+  await requireLabelWithCompany();
+  return searchArtists(query);
+}
+
 const artistSchema = z.object({
   artistId: z.string().uuid().optional().or(z.literal("")),
   name: z.string().min(1, "Artist name is required").max(120),
@@ -105,6 +112,8 @@ const artistSchema = z.object({
   bio: z.string().max(1000),
   instagramHandle: z.string().max(60),
   spotifyUrl: z.string().url().or(z.literal("")),
+  // A Spotify photo URL to fetch + store when the artist was picked from search.
+  imageUrl: z.string().url().or(z.literal("")).optional(),
 });
 
 export async function saveArtistAction(
@@ -126,6 +135,7 @@ export async function saveArtistAction(
       instagramHandle: parsed.data.instagramHandle.replace(/^@/, ""),
       spotifyUrl: parsed.data.spotifyUrl,
       imageFile: imageFile instanceof File ? imageFile : null,
+      remoteImageUrl: parsed.data.imageUrl || undefined,
     });
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/tours");
@@ -142,6 +152,8 @@ const tourSchema = z.object({
   newArtistName: z.string().max(120).optional().or(z.literal("")),
   newArtistGenre: z.string().max(60).optional().or(z.literal("")),
   newArtistInstagram: z.string().max(60).optional().or(z.literal("")),
+  newArtistSpotifyUrl: z.string().url().or(z.literal("")).optional(),
+  newArtistImageUrl: z.string().url().or(z.literal("")).optional(),
   name: z.string().min(1, "Tour name is required").max(160),
   description: z.string().max(1000),
   startsOn: z.string().optional().or(z.literal("")),
@@ -171,8 +183,9 @@ export async function saveTourAction(
         genre: parsed.data.newArtistGenre ?? "",
         bio: "",
         instagramHandle: (parsed.data.newArtistInstagram ?? "").replace(/^@/, ""),
-        spotifyUrl: "",
+        spotifyUrl: parsed.data.newArtistSpotifyUrl ?? "",
         imageFile: image instanceof File ? image : null,
+        remoteImageUrl: parsed.data.newArtistImageUrl || undefined,
       });
       if (!created.ok) return { error: created.error };
       artistId = created.artistId;

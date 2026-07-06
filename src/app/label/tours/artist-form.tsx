@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { saveArtistAction, type ActionState } from "../actions";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
+import { SpotifyArtistPicker } from "./spotify-artist-picker";
 import { Pencil, Plus } from "lucide-react";
 
 type ArtistInput = {
@@ -28,6 +29,12 @@ type ArtistInput = {
 export function ArtistFormDialog({ artist }: { artist?: ArtistInput }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveArtistAction, null);
   const editing = !!artist;
+  // Controlled so the Spotify picker can pre-fill name/genre/URL.
+  const [name, setName] = useState(artist?.name ?? "");
+  const [genre, setGenre] = useState(artist?.genre ?? "");
+  const [spotifyUrl, setSpotifyUrl] = useState(artist?.spotifyUrl ?? "");
+  // A freshly-picked Spotify photo URL to fetch + store (blank = keep current).
+  const [imageUrl, setImageUrl] = useState("");
 
   return (
     <Dialog>
@@ -48,13 +55,46 @@ export function ArtistFormDialog({ artist }: { artist?: ArtistInput }) {
         </DialogHeader>
         <form action={formAction} className="space-y-4">
           {editing ? <input type="hidden" name="artistId" value={artist.id} /> : null}
+
+          <div className="space-y-1.5">
+            <Label>Find on Spotify</Label>
+            <SpotifyArtistPicker
+              onSelect={(a) => {
+                setName(a.name);
+                setGenre(a.genre);
+                setSpotifyUrl(a.spotifyUrl);
+                setImageUrl(a.imageUrl ?? "");
+              }}
+            />
+          </div>
+          <input type="hidden" name="imageUrl" value={imageUrl} />
+          {imageUrl ? (
+            <div className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={imageUrl} alt="" className="size-12 rounded-lg object-cover" />
+              <p className="text-xs text-muted-foreground">New photo from Spotify.</p>
+            </div>
+          ) : null}
+
           <div className="space-y-1.5">
             <Label htmlFor="artist-name">Name</Label>
-            <Input id="artist-name" name="name" defaultValue={artist?.name ?? ""} required />
+            <Input
+              id="artist-name"
+              name="name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="artist-genre">Genre</Label>
-            <Input id="artist-genre" name="genre" defaultValue={artist?.genre ?? ""} placeholder="Indie Pop" />
+            <Input
+              id="artist-genre"
+              name="genre"
+              value={genre}
+              onChange={(e) => setGenre(e.target.value)}
+              placeholder="Indie Pop"
+            />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="artist-bio">Bio</Label>
@@ -67,11 +107,18 @@ export function ArtistFormDialog({ artist }: { artist?: ArtistInput }) {
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="artist-spotify">Spotify URL</Label>
-              <Input id="artist-spotify" name="spotifyUrl" type="url" defaultValue={artist?.spotifyUrl ?? ""} placeholder="https://open.spotify.com/…" />
+              <Input
+                id="artist-spotify"
+                name="spotifyUrl"
+                type="url"
+                value={spotifyUrl}
+                onChange={(e) => setSpotifyUrl(e.target.value)}
+                placeholder="https://open.spotify.com/…"
+              />
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="artist-image">Artist image</Label>
+            <Label htmlFor="artist-image">Or upload an image</Label>
             <Input id="artist-image" name="image" type="file" accept="image/jpeg,image/png,image/webp" />
             <p className="text-xs text-muted-foreground">Used on discovery cards — landscape works best.</p>
           </div>

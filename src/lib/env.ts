@@ -53,4 +53,12 @@ export const serverEnv = {
   get cronSecret() {
     return required("CRON_SECRET");
   },
+  // Spotify (Client Credentials) — powers the artist search + auto photo.
+  // Optional: unset → the picker falls back to manual entry.
+  get spotifyClientId() {
+    return process.env.SPOTIFY_CLIENT_ID ?? "";
+  },
+  get spotifyClientSecret() {
+    return process.env.SPOTIFY_CLIENT_SECRET ?? "";
+  },
 };
