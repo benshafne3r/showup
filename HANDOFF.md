@@ -149,6 +149,9 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
   `npm run test:e2e` (it starts its own dev server), or it fails with "Another next
   dev server is already running."
 - Preview server pinned to port 3000 in `.claude/launch.json` (mock webhooks self-post there).
+- **`.env.local` drives dev AND e2e.** The seed + e2e assume `PAYMENT_PROVIDER=mock`.
+  If you set it to `stripe` for sandbox testing, switch it back to `mock` before
+  `npm run test:e2e` (or the tests will hit real Stripe and fail).
 - **e2e golden-path is flaky under full-suite load** — the serial chain occasionally
   times out on a different step each run (file upload / streamed revalidation). It
   passes 9/9 when re-run alone (`npx playwright test golden-path`). Consider adding
