@@ -63,6 +63,13 @@ export interface PaymentProvider {
 
   attachPaymentMethod(userId: string, card: CardInput): Promise<PaymentMethodInfo>;
 
+  /**
+   * Attach a card that was tokenized client-side (Stripe Elements → `pm_…`),
+   * so a real PAN never reaches the server. This is the PCI-safe production
+   * path; `attachPaymentMethod` (raw card) remains for the mock provider.
+   */
+  attachPaymentMethodToken(userId: string, paymentMethodId: string): Promise<PaymentMethodInfo>;
+
   authorize(input: {
     providerMethodId: string;
     amountCents: number;

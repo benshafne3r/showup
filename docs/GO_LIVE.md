@@ -90,19 +90,23 @@ it makes real money impossible until you deliberately remove it.
    spot → label approves → hold is placed → attendance approved → hold released /
    payout sent. Watch it all succeed in the Stripe test dashboard.
 
-### B3. The PCI card-number gap (must fix before live)
+### B3. PCI — Stripe Elements (already built ✅)
 
-Right now the "add a card" form sends the **raw card number** to your server
-(`cardSchema` in `src/app/creator/actions.ts`). That is fine for testing, but if
-real cards flow through it, your whole app falls under **PCI-DSS** — a heavy
-compliance burden.
+The PCI-safe card form is **done**: `src/app/creator/payments/stripe-card-form.tsx`
+uses **Stripe Elements**, so the card number goes straight from the browser to
+Stripe and your server only ever receives a `pm_…` token — keeping you in the
+lightest PCI tier (SAQ A). It turns on automatically once the Stripe env vars are
+set (below); with them unset, the app keeps using the mock/raw form.
 
-**The fix:** switch the card form to **Stripe Elements**, so the card number goes
-straight from the customer's browser to Stripe and your server only ever sees a
-safe token. The adapter already expects a token (`attachPaymentMethod` comment in
-`stripe.ts`). This is a code change — schedule it right before going live, not
-months ahead. Ask your developer (or a future Claude session) to "wire the
-payment-method form to Stripe Elements".
+Set all four together (test values shown):
+- `PAYMENT_PROVIDER=stripe`
+- `STRIPE_SECRET_KEY=sk_test_…`
+- `STRIPE_WEBHOOK_SECRET=whsec_…`
+- `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_…`
+
+Then go to `/creator/payments` → **Add a card**, enter Stripe test card
+`4242 4242 4242 4242`, and confirm it saves. (The full card field + save was not
+verifiable in the headless dev preview — check it in a real browser.)
 
 ### B4. Only then: go live
 

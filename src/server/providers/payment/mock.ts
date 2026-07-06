@@ -145,6 +145,15 @@ export class MockPaymentProvider implements PaymentProvider {
     };
   }
 
+  async attachPaymentMethodToken(userId: string, paymentMethodId: string): Promise<PaymentMethodInfo> {
+    // Mock has no client tokenization, so this simulates a saved card from any
+    // token. (Real Elements + this token path is only exercised under Stripe.)
+    const id = `pm_mock_${randomUUID()}`;
+    const info = { brand: "visa", last4: "4242", expMonth: 12, expYear: new Date().getFullYear() + 3 };
+    await saveState(id, "payment_method", { userId, token: paymentMethodId, ...info });
+    return { providerMethodId: id, ...info, verified: true };
+  }
+
   async authorize(input: {
     providerMethodId: string;
     amountCents: number;

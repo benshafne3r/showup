@@ -7,7 +7,11 @@ import { requireCreator, requireUser } from "@/server/auth/guards";
 import { upsertCreatorProfile } from "@/server/services/profiles";
 import { createRequest, withdrawRequest } from "@/server/services/requests";
 import { acceptBooking } from "@/server/services/bookings";
-import { attachPaymentMethod, retryAuthorizationForBooking } from "@/server/services/payments";
+import {
+  attachPaymentMethod,
+  attachPaymentMethodByToken,
+  retryAuthorizationForBooking,
+} from "@/server/services/payments";
 import { submitAttendance } from "@/server/services/attendance";
 import { submitContent } from "@/server/services/content";
 import { sendMessage, markThreadRead } from "@/server/services/messaging";
@@ -189,6 +193,23 @@ export async function addPaymentMethod(
     const parsed = cardSchema.safeParse(Object.fromEntries(formData));
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const result = await attachPaymentMethod(user.id, { ...parsed.data, cvc: parsed.data.cvc });
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/creator", "layout");
+    return { success: "Card verified and saved" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function addPaymentMethodToken(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const user = await requireCreator();
+    // Stripe Elements tokenized the card in the browser; we only get a pm_ id.
+    const paymentMethodId = z.string().startsWith("pm_").max(255).parse(formData.get("paymentMethodId"));
+    const result = await attachPaymentMethodByToken(user.id, paymentMethodId);
     if (!result.ok) return { error: result.error };
     revalidatePath("/creator", "layout");
     return { success: "Card verified and saved" };

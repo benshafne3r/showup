@@ -94,16 +94,38 @@ extracted from the auth actions so both callers share it). On failure →
 - e2e: `e2e/password-reset.spec.ts` (link, neutral confirmation, both expiry guards).
   Full email→link happy paths need a live inbox → verify manually.
 
+## Stripe Elements / PCI-safe cards (built this session)
+The add-card form no longer has to send a raw PAN to the server:
+- New `src/app/creator/payments/stripe-card-form.tsx` — Stripe Elements. Card is
+  tokenized in the browser (`stripe.createPaymentMethod`) → only a `pm_…` id
+  reaches the server. Loads Stripe.js from the publishable key.
+- Provider interface gained `attachPaymentMethodToken(userId, pm_id)`
+  (`types.ts`); implemented in `stripe.ts` (attaches the PM to the customer) and
+  a simulated version in `mock.ts`. Service: `attachPaymentMethodByToken` +
+  shared `recordPaymentMethod` (`payments.ts`). Action: `addPaymentMethodToken`.
+- **Gating:** the payments page renders Elements only when
+  `PAYMENT_PROVIDER=stripe` **and** `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` is set;
+  otherwise the existing raw/mock form (so dev + e2e stay on mock, unchanged).
+- Env: added `publicEnv.stripePublishableKey` + `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`
+  in `.env.example`. Client SDK: `@stripe/stripe-js`, `@stripe/react-stripe-js`.
+- Verified: renders in stripe mode, Stripe.js loads with a real `pk_test_` key,
+  gating correct, e2e mock path intact. **Not fully verified:** the card input
+  field + real tokenize→attach needs a real browser + a live `sk_test_` secret →
+  user to confirm. (The card-input iframe didn't paint in the headless preview.)
+- **To activate:** set `PAYMENT_PROVIDER=stripe`, `STRIPE_SECRET_KEY=sk_test_…`,
+  `STRIPE_WEBHOOK_SECRET=whsec_…`, `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_…`.
+  (User pasted a `sk_test_` secret in chat once — it was treated as burned and
+  never written to disk; rotate it in the Stripe dashboard.)
+
 ## Next steps
-Production-readiness pass — remaining (security, resilience, password-reset, email-verify done):
-1. **Stripe Elements (PCI)** — move the add-card form off raw PAN before any live
-   payments. See `docs/GO_LIVE.md` §B3. Do this right before going live, not early.
-2. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
+Production-readiness pass — remaining (security, resilience, auth email, Stripe Elements done):
+1. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
    natural hook point — pipe its `error` level to Sentry.
-3. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.
-4. Finish the Vercel deploy (dashboard import + env vars) — last mile to go live.
-5. When ready for real money/email, follow **`docs/GO_LIVE.md`** end to end.
-6. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
+2. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.
+3. Finish the Vercel deploy (dashboard import + env vars) — last mile to go live.
+4. When ready for real money/email, follow **`docs/GO_LIVE.md`** end to end
+   (Stripe Connect KYC + live keys are still required for payouts / real charges).
+5. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
 
 ### Improvement backlog (discussed, not chosen yet)
 - **Content verification + view tracking** — auto-check a submitted post is live and pull

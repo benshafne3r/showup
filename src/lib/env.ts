@@ -19,6 +19,10 @@ export const publicEnv = {
   get appUrl() {
     return process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   },
+  /** Publishable (browser-safe) Stripe key. Empty unless Stripe Elements is on. */
+  get stripePublishableKey() {
+    return process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
+  },
 };
 
 export const serverEnv = {

@@ -2,7 +2,7 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { paymentProvider } from "@/server/providers/payment";
-import type { CardInput } from "@/server/providers/payment/types";
+import type { CardInput, PaymentProvider } from "@/server/providers/payment/types";
 import { audit } from "./audit";
 import { notify } from "./notifications";
 import { getPlatformSettings } from "./settings";
@@ -23,10 +23,27 @@ export async function attachPaymentMethod(userId: string, card: CardInput) {
   await enforceRateLimit("payment_method.attach", userId);
   const provider = paymentProvider();
   const info = await provider.attachPaymentMethod(userId, card);
+  return recordPaymentMethod(userId, provider.name, info);
+}
+
+/** PCI-safe path: the card was tokenized client-side (Stripe Elements). */
+export async function attachPaymentMethodByToken(userId: string, paymentMethodId: string) {
+  await enforceRateLimit("payment_method.attach", userId);
+  const provider = paymentProvider();
+  const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
+  return recordPaymentMethod(userId, provider.name, info);
+}
+
+async function recordPaymentMethod(
+  userId: string,
+  providerName: PaymentProvider["name"],
+  info: Awaited<ReturnType<PaymentProvider["attachPaymentMethod"]>>,
+) {
   if (!info.verified) {
     return { ok: false as const, error: info.failureReason ?? "Card verification failed" };
   }
 
+  const provider = { name: providerName };
   const db = serviceDb();
   // Single default per user (MVP keeps one active card).
   await db.from("payment_methods").update({ is_default: false }).eq("user_id", userId);

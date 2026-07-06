@@ -92,6 +92,34 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
+  async attachPaymentMethodToken(userId: string, paymentMethodId: string): Promise<PaymentMethodInfo> {
+    // The card was tokenized in the browser by Stripe Elements; we only ever
+    // see the resulting `pm_…` id, never the PAN. This is the PCI-safe path.
+    const customer = await this.getOrCreateCustomer(userId);
+    try {
+      const pm = await this.stripe.paymentMethods.attach(paymentMethodId, { customer });
+      const card = pm.card;
+      return {
+        providerMethodId: pm.id,
+        brand: card?.brand ?? "card",
+        last4: card?.last4 ?? "0000",
+        expMonth: card?.exp_month ?? 0,
+        expYear: card?.exp_year ?? 0,
+        verified: true,
+      };
+    } catch (err) {
+      return {
+        providerMethodId: "",
+        brand: "card",
+        last4: "0000",
+        expMonth: 0,
+        expYear: 0,
+        verified: false,
+        failureReason: err instanceof Error ? err.message : "Card verification failed",
+      };
+    }
+  }
+
   private async getOrCreateCustomer(userId: string): Promise<string> {
     const search = await this.stripe.customers.search({
       query: `metadata["showup_user_id"]:"${userId}"`,

@@ -12,6 +12,8 @@ import { formatCents } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCardForm } from "./add-card-form";
+import { StripeCardForm } from "./stripe-card-form";
+import { publicEnv, serverEnv } from "@/lib/env";
 import { CreditCard, Landmark } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments" };
@@ -83,7 +85,11 @@ export default async function CreatorPaymentsPage() {
               now.
             </p>
           )}
-          <AddCardForm hasCard={!!methods?.length} />
+          {serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
+            <StripeCardForm hasCard={!!methods?.length} />
+          ) : (
+            <AddCardForm hasCard={!!methods?.length} />
+          )}
         </CardContent>
       </Card>
 
