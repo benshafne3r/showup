@@ -63,7 +63,7 @@ export async function inviteMemberAction(
       role,
     });
     if (!result.ok) return { error: result.error };
-    revalidatePath("/label/team");
+    revalidatePath("/label/settings");
     return { success: `Invite sent to ${email}` };
   } catch (err) {
     return fail(err);
@@ -79,7 +79,7 @@ export async function removeMemberAction(formData: FormData): Promise<void> {
     actor: { id: context.user.id, role: "label" },
     memberUserId,
   });
-  revalidatePath("/label/team");
+  revalidatePath("/label/settings");
 }
 
 export async function changeMemberRoleAction(formData: FormData): Promise<void> {
@@ -93,7 +93,7 @@ export async function changeMemberRoleAction(formData: FormData): Promise<void> 
     memberUserId,
     newRole,
   });
-  revalidatePath("/label/team");
+  revalidatePath("/label/settings");
 }
 
 // ── Artists & tours ─────────────────────────────────────────────────────

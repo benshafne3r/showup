@@ -43,7 +43,12 @@ Two headliners carry real 2026 tours: **Baby Keem** (Ca$ino Tour) and **Ella
 Langley** (Dandelion Tour), with photos on cards.
 
 ## Label IA is Tours-first (recent change)
-- The **Artists** nav item/page were removed. **Tours** is now the artist-forward
+- **Nav (this session):** `Tours · Requests · Shows · Messages · Payments · Settings`.
+  The **Dashboard** was removed — `/label` now redirects to `/label/tours` (the
+  landing), carrying the post-onboarding `?welcome` banner onto the Tours page.
+  **Team** was merged into **Settings** (`/label/settings` shows Company profile +
+  Team & permissions + Invite); `/label/team` redirects to it. `homeHref=/label/tours`.
+- The **Artists** nav item/page were removed. **Tours** is the artist-forward
   catalog: each tour card shows its artist (photo + name + genre), dates, and shows.
 - Create/edit an artist **inline** in the tour flow: "New tour" has an
   Existing/New-artist toggle (`src/app/label/tours/tour-form.tsx`); per-tour

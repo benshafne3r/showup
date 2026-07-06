@@ -14,8 +14,13 @@ import { CalendarPlus, Route } from "lucide-react";
 export const metadata: Metadata = { title: "Tours" };
 export const dynamic = "force-dynamic";
 
-export default async function ToursPage() {
+export default async function ToursPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ welcome?: string }>;
+}) {
   const context = await requireLabelPage();
+  const { welcome } = await searchParams;
   const db = serviceDb();
   const { data: tours } = await db
     .from("tours")
@@ -35,6 +40,14 @@ export default async function ToursPage() {
 
   return (
     <div className="space-y-6">
+      {welcome ? (
+        <div
+          className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300"
+          role="status"
+        >
+          Company created! Add your first artist while creating their tour, then add show dates.
+        </div>
+      ) : null}
       <PageHeader
         title="Tours"
         description="Every tour, grouped by artist. Add a new artist while you create their tour."

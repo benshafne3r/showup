@@ -36,18 +36,16 @@ export default async function LabelLayout({ children }: { children: React.ReactN
   return (
     <AppShell
       roleLabel={membership.companies?.name ?? "Label"}
-      homeHref="/label"
+      homeHref="/label/tours"
       userName={user.fullName || user.email}
       notificationsHref="/label/notifications"
       unreadNotifications={unreadNotifs}
       navItems={[
-        { href: "/label", label: "Dashboard", exact: true },
-        { href: "/label/requests", label: "Requests", badge: pendingRequests },
         { href: "/label/tours", label: "Tours" },
+        { href: "/label/requests", label: "Requests", badge: pendingRequests },
         { href: "/label/shows", label: "Shows" },
         { href: "/label/messages", label: "Messages", badge: unreadMessages },
         { href: "/label/payments", label: "Payments" },
-        { href: "/label/team", label: "Team" },
         { href: "/label/settings", label: "Settings" },
       ]}
     >
