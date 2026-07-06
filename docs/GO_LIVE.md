@@ -117,6 +117,8 @@ Once B1–B3 are done and the test flow is solid:
 - [ ] App hosted on Vercel + production Supabase (`docs/DEPLOYMENT.md`)
 - [ ] `NEXT_PUBLIC_APP_URL` set to the real domain; that domain added to
       Supabase → Auth → URL config
+- [ ] `https://YOUR-DOMAIN/auth/callback` added to Supabase → Auth → URL
+      Configuration → **Redirect URLs** (password-reset links fail without it)
 - [ ] Email verified and sending (`EMAIL_PROVIDER=resend`)
 - [ ] Stripe Connect onboarding live; a test creator completed KYC
 - [ ] Full flow passes with Stripe **test** keys

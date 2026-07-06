@@ -70,12 +70,25 @@ provider returns the real dates for the two demo artists.
   values (set `NEXT_PUBLIC_APP_URL` to the Vercel URL), and add that URL to the prod
   Supabase project's Auth → URL config. Full steps in `docs/DEPLOYMENT.md`.
 
+## Password reset (built this session)
+Full flow, styled to match the auth pages:
+- `/forgot-password` (`(auth)/forgot-password/`) → `requestPasswordReset` action emails
+  a link (rate-limited `auth.reset`, neutral "if an account exists" — no enumeration).
+- `/auth/callback` route handler exchanges the PKCE `code` for a session, forwards to
+  `next` (same-origin only); on failure → `/forgot-password?error=expired` + logs it.
+- `/update-password` (`(auth)/update-password/`) requires the recovery session (else
+  redirects to the reset flow); `updatePassword` action sets the new password.
+- "Forgot password?" link added to the sign-in form.
+- ⚠️ **Prod config:** `${NEXT_PUBLIC_APP_URL}/auth/callback` must be in the Supabase
+  project's **Auth → URL Configuration → Redirect URLs** or the link won't work.
+- e2e: `e2e/password-reset.spec.ts` (link, neutral confirmation, both expiry guards).
+  The real email→link→set-password happy path needs a live inbox → verify manually.
+
 ## Next steps
-Production-readiness pass — remaining items (security + resilience done this session):
+Production-readiness pass — remaining items (security + resilience + password-reset done):
 1. **Stripe Elements (PCI)** — move the add-card form off raw PAN before any live
    payments. See `docs/GO_LIVE.md` §B3. Do this right before going live, not early.
-2. Add a **password-reset** flow (Supabase `resetPasswordForEmail` + `/reset` page).
-3. Turn OFF `mailer_autoconfirm` + real **email verification** (dev auto-confirms).
+2. Turn OFF `mailer_autoconfirm` + real **email verification** (dev auto-confirms).
 4. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
    natural hook point — pipe its `error` level to Sentry.
 5. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.

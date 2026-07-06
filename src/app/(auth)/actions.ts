@@ -6,8 +6,10 @@ import { userDb } from "@/server/db/server-client";
 import { serviceDb } from "@/server/db/service";
 import { enforceRateLimit, RateLimitError } from "@/server/services/rate-limit";
 import { claimInvites } from "@/server/services/companies";
+import { publicEnv } from "@/lib/env";
 
 export type AuthFormState = { error: string } | null;
+export type ResetRequestState = { error: string } | { sent: true } | null;
 
 const signInSchema = z.object({
   email: z.string().email("Enter a valid email address"),
@@ -116,4 +118,64 @@ export async function signOut(): Promise<void> {
   const db = await userDb();
   await db.auth.signOut();
   redirect("/");
+}
+
+// ── Password reset ──────────────────────────────────────────────────────
+
+const resetRequestSchema = z.object({
+  email: z.string().email("Enter a valid email address"),
+});
+
+/**
+ * Step 1: email a reset link. Always reports success (never reveals whether an
+ * address has an account) unless the input is invalid or rate-limited. The link
+ * lands on /auth/callback, which exchanges the code for a session and forwards
+ * to /update-password.
+ */
+export async function requestPasswordReset(
+  _prev: ResetRequestState,
+  formData: FormData,
+): Promise<ResetRequestState> {
+  const parsed = resetRequestSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const email = parsed.data.email.toLowerCase();
+
+  try {
+    await enforceRateLimit("auth.reset", email);
+  } catch (err) {
+    if (err instanceof RateLimitError) return { error: err.message };
+    throw err;
+  }
+
+  const db = await userDb();
+  const redirectTo = `${publicEnv.appUrl}/auth/callback?next=${encodeURIComponent("/update-password")}`;
+  await db.auth.resetPasswordForEmail(email, { redirectTo });
+  return { sent: true };
+}
+
+const updatePasswordSchema = z.object({
+  password: z.string().min(8, "Password must be at least 8 characters").max(72),
+});
+
+/**
+ * Step 2: set a new password. Requires the recovery session established by the
+ * callback route; without it the link has expired.
+ */
+export async function updatePassword(
+  _prev: AuthFormState,
+  formData: FormData,
+): Promise<AuthFormState> {
+  const parsed = updatePasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+
+  const db = await userDb();
+  const {
+    data: { user },
+  } = await db.auth.getUser();
+  if (!user) return { error: "Your reset link has expired. Request a new one." };
+
+  const { error } = await db.auth.updateUser({ password: parsed.data.password });
+  if (error) return { error: error.message };
+
+  redirect(await destinationFor(user.id));
 }

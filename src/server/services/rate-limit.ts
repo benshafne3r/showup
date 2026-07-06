@@ -12,6 +12,7 @@ export class RateLimitError extends Error {
 const LIMITS: Record<string, { windowSeconds: number; max: number }> = {
   "auth.sign_in": { windowSeconds: 300, max: 10 },
   "auth.sign_up": { windowSeconds: 3600, max: 8 },
+  "auth.reset": { windowSeconds: 3600, max: 6 },
   "request.create": { windowSeconds: 3600, max: 20 },
   "message.send": { windowSeconds: 60, max: 30 },
   "payment_method.attach": { windowSeconds: 3600, max: 10 },
