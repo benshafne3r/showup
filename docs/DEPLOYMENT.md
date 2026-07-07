@@ -83,6 +83,32 @@ requests get preview deploys.
 git push            # → production deploy
 ```
 
+## Alternative: Railway
+
+Railway hosts this app just as well — it's a standard Next.js Node server
+(`next build` → `next start`, which binds to Railway's injected `PORT`
+automatically). Use this instead of Vercel if you already have Railway.
+
+1. **Web service.** New Project → **Deploy from GitHub repo** → `benshafne3r/showup`.
+   Nixpacks auto-detects Next.js (build `next build`, start `next start`). No
+   config file needed.
+2. **Env vars.** Add the same variables as the Vercel table above (Variables tab).
+   Set `NEXT_PUBLIC_APP_URL` to the Railway domain (Settings → Networking →
+   Generate Domain, e.g. `https://showup-production.up.railway.app`), then redeploy.
+3. **Cron (the one difference).** `vercel.json` crons don't run on Railway, so the
+   scheduled jobs need Railway's cron. Add a **second service** from the same repo:
+   - Start command: `npm run cron` (hits `/api/cron/run` using env vars — works
+     headless via `scripts/run-cron.mjs`).
+   - Settings → **Cron Schedule**: `*/10 * * * *`.
+   - Give it `NEXT_PUBLIC_APP_URL` (the web domain) + `CRON_SECRET` (same value as
+     the web service). Railway runs it every 10 min; it exits after each run.
+   - *(Simpler alternative: an external scheduler like cron-job.org or a GitHub
+     Actions `schedule` hitting `POST https://YOUR-URL/api/cron/run` with header
+     `x-cron-secret: <CRON_SECRET>`.)*
+4. **Supabase** URL config: same as the Vercel section 3 (Site URL + Redirect
+   URLs incl. `/auth/callback`), using the Railway domain.
+5. **Ship updates:** every push to `main` redeploys (Railway watches the branch).
+
 ## Caveats for a public/live deploy
 
 - **Free-tier pause.** The production project is on Supabase's free plan, which
