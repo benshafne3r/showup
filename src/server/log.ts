@@ -1,7 +1,7 @@
 import "server-only";
 
 /**
- * Minimal structured logger. Emits one JSON line per event so Vercel / any log
+ * Minimal structured logger. Emits one JSON line per event so any log
  * aggregator can filter and search by field. Use this instead of bare
  * `console.*` in server code so production failures are actually greppable.
  */

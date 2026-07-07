@@ -81,15 +81,19 @@ Set `BANDSINTOWN_APP_ID` or `TICKETMASTER_API_KEY` for live data; otherwise the 
 provider returns the real dates for the two demo artists.
 
 ## Deploy status
-- Code is public: **https://github.com/benshafne3r/showup**. `vercel.json` runs
-  `/api/cron/run` every 10 min.
+- **Host: Railway** (not Vercel — `vercel.json` removed). Code is public:
+  **https://github.com/benshafne3r/showup**; Railway redeploys on push to `main`.
+  A Railway domain is live (`showup-production-05d8.up.railway.app`) — but was
+  502'ing until `PORT=3000` was set (the domain routes to 3000; `next start` must
+  listen there). Cron runs as a **second Railway service** (`npm run cron`, `*/10`).
 - **Two Supabase projects:** dev `mvtmomgepsgrqptsfqak` (`.env.local`, paid org);
   **production `Show Up` `mpcjunweelepgcglolvx`** in a **free** org — fully migrated,
   seeded, artist photos uploaded, email auto-confirm on. Its keys are in
   **`.env.production.local`** (gitignored).
-- Remaining (user): import the repo into Vercel, paste the `.env.production.local`
-  values (set `NEXT_PUBLIC_APP_URL` to the Vercel URL), and add that URL to the prod
-  Supabase project's Auth → URL config. Full steps in `docs/DEPLOYMENT.md`.
+- Remaining (user): confirm the web service is up, set `NEXT_PUBLIC_APP_URL` to the
+  Railway domain + redeploy, add that domain **and** `/auth/callback` to the prod
+  Supabase Auth → URL config, and add the cron service. Full steps in
+  `docs/DEPLOYMENT.md`.
 
 ## Auth email flows (built this session)
 Both password reset and email verification, styled to match the auth pages. Shared
@@ -143,7 +147,7 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 1. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
    natural hook point — pipe its `error` level to Sentry.
 2. **Gate/remove demo accounts** (`*@demo.showup.test`) before real users.
-3. Finish the Vercel deploy (dashboard import + env vars) — last mile to go live.
+3. Finish the Railway deploy (env vars + domain + Supabase URL config + cron service) — last mile to go live.
 4. When ready for real money/email, follow **`docs/GO_LIVE.md`** end to end
    (Stripe Connect KYC + live keys are still required for payouts / real charges).
 5. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.

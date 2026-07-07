@@ -29,7 +29,7 @@ Decisions made without asking, per the brief ("make reasonable MVP assumptions a
 ## Platform
 21. Hosted Supabase project (`showup`, org "50 - 50", us-east-1, $10/mo — user approved) is the dev database. e2e tests run against it with seeded data.
 22. Admin accounts are created by seed (dev) or manual SQL (documented in README) — no self-serve admin signup.
-23. Cron = secret-protected route hit by Vercel Cron in production or `npm run cron` locally; plus lazy expiry on read so UIs are truthful without the cron.
+23. Cron = secret-protected route hit by the cron scheduler in production or `npm run cron` locally; plus lazy expiry on read so UIs are truthful without the cron.
 24. In-app notifications + email only; SMS/push are stubs behind the `NotificationChannel` abstraction.
 25. Messaging read-state is a simple `read_by uuid[]` per message (fine at MVP scale).
 26. Brand name is centralized in `src/lib/brand.ts` (name, tagline) for easy renaming.

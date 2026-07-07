@@ -7,9 +7,9 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Scheduled-job endpoint. Protect with CRON_SECRET; compatible with Vercel
- * Cron (Authorization: Bearer <secret>) and manual/local runs
- * (x-cron-secret header).
+ * Scheduled-job endpoint. Protect with CRON_SECRET. Accepts the secret via
+ * either an `x-cron-secret` header (Railway cron service / manual runs) or an
+ * `Authorization: Bearer <secret>` header (external cron schedulers).
  */
 export async function POST(request: NextRequest) {
   const provided =

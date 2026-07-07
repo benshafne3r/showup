@@ -9,7 +9,7 @@ import { log, errorFields } from "@/server/log";
 export type JobResults = Record<string, number> & { errors: number };
 
 /**
- * Scheduled job runner, invoked by /api/cron/run (Vercel Cron compatible)
+ * Scheduled job runner, invoked by /api/cron/run (a scheduled cron)
  * or manually by an admin. Every step is idempotent: state claims are
  * status-guarded and reminders are deduplicated against notification history.
  *

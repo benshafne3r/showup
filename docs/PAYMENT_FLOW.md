@@ -51,7 +51,7 @@ authorization:not_scheduled   adds payment method         authorization:       a
 
 1. **Approve** → booking `awaiting_acceptance` with terms snapshot (`authorization_amount_cents = value × tickets × pct`, one pure function in `src/lib/money.ts`).
 2. **Accept** → three-step flow: review terms (full hold math shown again) → add payment method (provider verifies) → explicit consent checkbox (stores `terms_accepted_at`, `terms_version`, amount). Booking → `confirmed`; `authorization_records` row created `scheduled` with `scheduled_for = show_date − authorization_window_days` (immediate if already inside the window).
-3. **Cron** (`/api/cron/run`, `CRON_SECRET`-protected, Vercel-cron compatible; also manually runnable by admin):
+3. **Cron** (`/api/cron/run`, `CRON_SECRET`-protected, cron-scheduler compatible; also manually runnable by admin):
    - expires overdue `awaiting_acceptance` bookings (also lazily expired on read),
    - places due authorizations (status-guarded claim: `UPDATE ... SET status='pending' WHERE status='scheduled'` → provider call → `authorized` or `failed`),
    - handles grace-period expiry (cancel booking, release inventory),

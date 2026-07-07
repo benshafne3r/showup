@@ -103,7 +103,7 @@ Time-based transitions (24h acceptance expiry, placing holds N days before the s
 npm run cron            # trigger against the local dev server
 ```
 
-Admins can also trigger it from the admin dashboard ("Run scheduled jobs now"). Reads also lazily expire overdue acceptances, so the UI stays truthful between runs. In production, point a scheduler (e.g. Vercel Cron) at the endpoint every 5–15 minutes.
+Admins can also trigger it from the admin dashboard ("Run scheduled jobs now"). Reads also lazily expire overdue acceptances, so the UI stays truthful between runs. In production, point a scheduler (e.g. a Railway cron service or cron-job.org) at the endpoint every 5–15 minutes.
 
 ## Payments model (MVP)
 
@@ -132,7 +132,7 @@ Security model (details in [`docs/SECURITY.md`](docs/SECURITY.md)): the browser 
 ## Deployment
 
 1. Create a production Supabase project, apply `supabase/migrations/` in order, and configure Auth email settings.
-2. Deploy to Vercel (or any Node host): set every variable from `.env.example`.
-3. Schedule `POST /api/cron/run` (Vercel Cron: sends `Authorization: Bearer $CRON_SECRET`).
+2. Deploy to Railway (or any Node host): set every variable from `.env.example`. See `docs/DEPLOYMENT.md`.
+3. Schedule `POST /api/cron/run` (send the secret via `x-cron-secret` or `Authorization: Bearer $CRON_SECRET`).
 4. Keep `PAYMENT_PROVIDER=mock` until the Stripe checklist is done and sandbox credentials are verified; the Stripe adapter hard-refuses non-test keys until then.
 5. Replace the Terms/Privacy placeholders with counsel-reviewed documents before public launch.

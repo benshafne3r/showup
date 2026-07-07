@@ -5,12 +5,12 @@ emails) into a **real** product (real card holds, real emails). It's written to
 be followed step by step, even if you don't code.
 
 > **Before this doc:** `docs/DEPLOYMENT.md` covers getting the app *hosted* on
-> Vercel with the production Supabase database. Do that first. This doc is only
+> Railway with the production Supabase database. Do that first. This doc is only
 > about switching **payments** and **email** from test mode to live.
 
 ## The mental model
 
-The app has two "switches", each an environment variable you set in Vercel:
+The app has two "switches", each an environment variable you set in Railway:
 
 | Switch | Demo value | Live value |
 |---|---|---|
@@ -36,7 +36,7 @@ creator payouts) and **Resend** (email). Everything below is about getting those
    shows "Verified". (You can test with Resend's shared domain first, but use
    your own before launch.)
 3. Create an **API key** in the Resend dashboard. It starts with `re_`.
-4. In Vercel → your project → Settings → Environment Variables, set:
+4. In Railway → your service → **Variables**, set:
    - `EMAIL_PROVIDER` = `resend`
    - `RESEND_API_KEY` = the `re_...` key
    - `EMAIL_FROM` = `ShowUp <notifications@yourdomain.com>` (must be on the
@@ -82,7 +82,7 @@ it makes real money impossible until you deliberately remove it.
 1. Get your Stripe **test** keys (they start with `sk_test_` and `pk_test_`).
 2. Set up a webhook in Stripe pointing at `https://YOUR-APP/api/webhooks/payments`
    and copy its signing secret (starts with `whsec_`).
-3. In Vercel, set:
+3. In Railway, set:
    - `PAYMENT_PROVIDER` = `stripe`
    - `STRIPE_SECRET_KEY` = the `sk_test_...` key
    - `STRIPE_WEBHOOK_SECRET` = the `whsec_...` secret
@@ -116,7 +116,7 @@ Once B1–B3 are done and the test flow is solid:
    (the `if (!key.startsWith("sk_test_"))` block) — a deliberate, reviewed code
    change. Consider gating it on an explicit `STRIPE_LIVE_OK=true` env var so it
    can't happen by accident.
-2. Swap the test keys in Vercel for **live** keys (`sk_live_`, `pk_live_`,
+2. Swap the test keys in Railway for **live** keys (`sk_live_`, `pk_live_`,
    `whsec_` live) and point the webhook at the production URL.
 3. Do one **small real transaction** yourself and confirm the hold + release in
    the live Stripe dashboard before announcing anything.
@@ -125,7 +125,7 @@ Once B1–B3 are done and the test flow is solid:
 
 ## Final pre-launch checklist
 
-- [ ] App hosted on Vercel + production Supabase (`docs/DEPLOYMENT.md`)
+- [ ] App hosted on Railway + production Supabase (`docs/DEPLOYMENT.md`)
 - [ ] `NEXT_PUBLIC_APP_URL` set to the real domain; that domain added to
       Supabase → Auth → URL config
 - [ ] `https://YOUR-DOMAIN/auth/callback` added to Supabase → Auth → URL
@@ -135,9 +135,9 @@ Once B1–B3 are done and the test flow is solid:
 - [ ] Full flow passes with Stripe **test** keys
 - [ ] Card form moved to Stripe Elements (PCI)
 - [ ] `stripe.ts` 7-item checklist confirmed
-- [ ] Safety rail removed deliberately; live keys in Vercel
+- [ ] Safety rail removed deliberately; live keys in Railway
 - [ ] One real end-to-end transaction verified in the live dashboard
 - [ ] `CRON_SECRET` set (scheduled jobs place/release holds — see
-      `docs/DEPLOYMENT.md` for the Vercel Cron setup)
+      `docs/DEPLOYMENT.md` for the the cron scheduler setup)
 
 When every box is checked, you're live.

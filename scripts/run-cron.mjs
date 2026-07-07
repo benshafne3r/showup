@@ -1,7 +1,7 @@
 /**
  * Trigger the scheduled-job endpoint:  npm run cron
  *
- * Reads CRON_SECRET + app URL from the process environment (Railway/Vercel/CI),
+ * Reads CRON_SECRET + app URL from the process environment (Railway/CI),
  * falling back to a local .env.local file for `npm run cron` during dev.
  * Suitable as a Railway cron service (schedule it every 10 min).
  */
