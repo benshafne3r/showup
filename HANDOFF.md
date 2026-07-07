@@ -81,11 +81,14 @@ Set `BANDSINTOWN_APP_ID` or `TICKETMASTER_API_KEY` for live data; otherwise the 
 provider returns the real dates for the two demo artists.
 
 ## Deploy status
-- **Host: Railway** (not Vercel — `vercel.json` removed). Code is public:
-  **https://github.com/benshafne3r/showup**; Railway redeploys on push to `main`.
-  A Railway domain is live (`showup-production-05d8.up.railway.app`) — but was
-  502'ing until `PORT=3000` was set (the domain routes to 3000; `next start` must
-  listen there). Cron runs as a **second Railway service** (`npm run cron`, `*/10`).
+- **LIVE on Railway:** https://showup-production-05d8.up.railway.app (homepage +
+  sign-in render; Supabase-backed artist images load, so the prod DB is connected).
+  Host is Railway (not Vercel — `vercel.json` removed); redeploys on push to `main`.
+- **Port gotcha (resolved):** Railway injects `PORT=8080` and `next start` binds to
+  it — the generated domain must route to **8080**, not the Next.js default 3000
+  (that caused the initial 502). Match the domain port to whatever the runtime log
+  shows (`Local: http://localhost:8080`).
+- Cron should run as a **second Railway service** (`npm run cron`, `*/10 * * * *`).
 - **Two Supabase projects:** dev `mvtmomgepsgrqptsfqak` (`.env.local`, paid org);
   **production `Show Up` `mpcjunweelepgcglolvx`** in a **free** org — fully migrated,
   seeded, artist photos uploaded, email auto-confirm on. Its keys are in
