@@ -44,7 +44,8 @@ shared secrets filled in; copy them straight across.
 | `CRON_SECRET` | from `.env.production.local` |
 | `BANDSINTOWN_APP_ID` | optional — live tour-date import |
 | `TICKETMASTER_API_KEY` | optional — live tour-date import fallback |
-| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` | leave blank (mock mode) |
+| `SPOTIFY_CLIENT_ID` / `SPOTIFY_CLIENT_SECRET` | optional — enables the Spotify artist picker (auto name/genre/photo); unset → manual entry |
+| `STRIPE_SECRET_KEY` / `STRIPE_WEBHOOK_SECRET` / `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` | leave blank (mock mode) |
 
 > **`NEXT_PUBLIC_APP_URL` is the one to get right.** In `.env.production.local`
 > it's a placeholder — set it to your real Vercel URL. Notification links and the
@@ -57,11 +58,14 @@ Then click **Deploy**.
 
 In the Supabase dashboard, **production project `Show Up` (`mpcjunweelepgcglolvx`)**:
 
-- **Authentication → URL Configuration** → set **Site URL** to your Vercel URL
-  and add it to **Redirect URLs**.
+- **Authentication → URL Configuration** → set **Site URL** to your Vercel URL,
+  and under **Redirect URLs** add both your Vercel URL and
+  **`https://YOUR-VERCEL-URL/auth/callback`** (required for password reset +
+  signup email confirmation links to work).
 - The database is already migrated (`supabase/migrations/`) and seeded, email
   auto-confirm is on, and the demo artist photos are uploaded — nothing to do
-  here beyond the URL config.
+  here beyond the URL config. (To *require* email verification later, turn off
+  `mailer_autoconfirm`; see `docs/GO_LIVE.md`.)
 
 ## 4. Cron (already configured)
 
