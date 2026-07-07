@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useRef, useTransition, useEffect } from "react";
-import { searchSpotifyArtistsAction } from "../actions";
+import { useState, useRef, useEffect } from "react";
+import { searchSpotifyArtistsAction, enrichArtistAction } from "../actions";
 import { Input } from "@/components/ui/input";
 import { Search, Loader2, Check } from "lucide-react";
 
@@ -10,13 +10,17 @@ export type PickedArtist = {
   genre: string;
   imageUrl: string | null;
   spotifyUrl: string;
+  bio: string;
+  instagram: string;
 };
 
+type SearchHit = Pick<PickedArtist, "name" | "genre" | "imageUrl" | "spotifyUrl">;
+
 /**
- * Type-ahead over Spotify's artist catalog. On select, hands the chosen
- * artist's name/genre/photo/url to the parent form. When Spotify isn't
- * configured the action returns [], so this quietly shows nothing and the
- * manual fields below remain the way to add an artist.
+ * Type-ahead over Spotify's artist catalog. On select it fills name/genre/photo
+ * from Spotify and then enriches with a bio + Instagram from MusicBrainz +
+ * Wikipedia (Spotify has neither). When Spotify isn't configured the search
+ * returns [], so this quietly shows nothing and manual entry still works.
  */
 export function SpotifyArtistPicker({
   onSelect,
@@ -26,9 +30,10 @@ export function SpotifyArtistPicker({
   selectedName?: string;
 }) {
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<PickedArtist[]>([]);
+  const [results, setResults] = useState<SearchHit[]>([]);
   const [open, setOpen] = useState(false);
-  const [pending, start] = useTransition();
+  const [searching, setSearching] = useState(false);
+  const [enriching, setEnriching] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const boxRef = useRef<HTMLDivElement>(null);
 
@@ -48,20 +53,34 @@ export function SpotifyArtistPicker({
       setOpen(false);
       return;
     }
-    timer.current = setTimeout(() => {
-      start(async () => {
-        const found = await searchSpotifyArtistsAction(value);
-        setResults(
-          found.map((a) => ({
-            name: a.name,
-            genre: a.genre,
-            imageUrl: a.imageUrl,
-            spotifyUrl: a.spotifyUrl,
-          })),
-        );
-        setOpen(true);
-      });
+    setSearching(true);
+    timer.current = setTimeout(async () => {
+      const found = await searchSpotifyArtistsAction(value);
+      setResults(
+        found.map((a) => ({
+          name: a.name,
+          genre: a.genre,
+          imageUrl: a.imageUrl,
+          spotifyUrl: a.spotifyUrl,
+        })),
+      );
+      setSearching(false);
+      setOpen(true);
     }, 300);
+  }
+
+  async function choose(hit: SearchHit) {
+    setQuery(hit.name);
+    setOpen(false);
+    setEnriching(true);
+    // Fill Spotify data immediately; layer bio + Instagram on once fetched.
+    onSelect({ ...hit, bio: "", instagram: "" });
+    try {
+      const extra = await enrichArtistAction(hit.name);
+      onSelect({ ...hit, bio: extra.bio, instagram: extra.instagram });
+    } finally {
+      setEnriching(false);
+    }
   }
 
   return (
@@ -77,14 +96,15 @@ export function SpotifyArtistPicker({
           aria-label="Search Spotify for an artist"
           autoComplete="off"
         />
-        {pending ? (
+        {searching || enriching ? (
           <Loader2 className="absolute top-2.5 right-2.5 size-4 animate-spin text-muted-foreground" aria-hidden />
         ) : null}
       </div>
 
       {selectedName ? (
         <p className="mt-1.5 flex items-center gap-1 text-xs text-emerald-400">
-          <Check className="size-3.5" aria-hidden /> Using {selectedName} from Spotify
+          <Check className="size-3.5" aria-hidden />
+          {enriching ? `Fetching ${selectedName}'s details…` : `Using ${selectedName} from Spotify`}
         </p>
       ) : null}
 
@@ -94,11 +114,7 @@ export function SpotifyArtistPicker({
             <li key={`${artist.spotifyUrl}-${i}`}>
               <button
                 type="button"
-                onClick={() => {
-                  onSelect(artist);
-                  setQuery(artist.name);
-                  setOpen(false);
-                }}
+                onClick={() => choose(artist)}
                 className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted"
               >
                 {artist.imageUrl ? (

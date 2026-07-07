@@ -14,6 +14,7 @@ import { reviewContent } from "@/server/services/content";
 import { payoutCreatorPayment } from "@/server/services/payments";
 import { parseDollarsToCents } from "@/lib/money";
 import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
+import { enrichArtist } from "@/server/providers/artist-enrich";
 import { toActionError } from "@/server/action-error";
 
 // NOTE: "use server" files may only export async functions; a re-exported type
@@ -105,6 +106,15 @@ export async function searchSpotifyArtistsAction(query: string): Promise<Spotify
   return searchArtists(query);
 }
 
+/**
+ * Best-effort bio + Instagram for a picked artist (MusicBrainz + Wikipedia,
+ * since Spotify has neither). Blanks on miss — never throws.
+ */
+export async function enrichArtistAction(name: string): Promise<{ bio: string; instagram: string }> {
+  await requireLabelWithCompany();
+  return enrichArtist(name);
+}
+
 const artistSchema = z.object({
   artistId: z.string().uuid().optional().or(z.literal("")),
   name: z.string().min(1, "Artist name is required").max(120),
@@ -151,6 +161,7 @@ const tourSchema = z.object({
   artistId: z.string().uuid().optional().or(z.literal("")),
   newArtistName: z.string().max(120).optional().or(z.literal("")),
   newArtistGenre: z.string().max(60).optional().or(z.literal("")),
+  newArtistBio: z.string().max(1000).optional().or(z.literal("")),
   newArtistInstagram: z.string().max(60).optional().or(z.literal("")),
   newArtistSpotifyUrl: z.string().url().or(z.literal("")).optional(),
   newArtistImageUrl: z.string().url().or(z.literal("")).optional(),
@@ -181,7 +192,7 @@ export async function saveTourAction(
         actor,
         name,
         genre: parsed.data.newArtistGenre ?? "",
-        bio: "",
+        bio: parsed.data.newArtistBio ?? "",
         instagramHandle: (parsed.data.newArtistInstagram ?? "").replace(/^@/, ""),
         spotifyUrl: parsed.data.newArtistSpotifyUrl ?? "",
         imageFile: image instanceof File ? image : null,
@@ -204,6 +215,66 @@ export async function saveTourAction(
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/tours");
     return { success: "Tour saved" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// Merged edit: the artist's details AND the tour, saved together (one popup).
+const tourEditSchema = z.object({
+  tourId: z.string().uuid(),
+  artistId: z.string().uuid(),
+  artistName: z.string().min(1, "Artist name is required").max(120),
+  artistGenre: z.string().max(60),
+  artistBio: z.string().max(1000),
+  artistInstagram: z.string().max(60),
+  artistSpotifyUrl: z.string().url().or(z.literal("")),
+  artistImageUrl: z.string().url().or(z.literal("")).optional(),
+  name: z.string().min(1, "Tour name is required").max(160),
+  description: z.string().max(1000),
+  startsOn: z.string().optional().or(z.literal("")),
+  endsOn: z.string().optional().or(z.literal("")),
+});
+
+export async function saveTourEditAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    const parsed = tourEditSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const actor = { id: context.user.id, role: "label" as const };
+    const image = formData.get("image");
+
+    const artist = await upsertArtist({
+      companyId: context.companyId,
+      actor,
+      artistId: parsed.data.artistId,
+      name: parsed.data.artistName,
+      genre: parsed.data.artistGenre,
+      bio: parsed.data.artistBio,
+      instagramHandle: parsed.data.artistInstagram.replace(/^@/, ""),
+      spotifyUrl: parsed.data.artistSpotifyUrl,
+      imageFile: image instanceof File ? image : null,
+      remoteImageUrl: parsed.data.artistImageUrl || undefined,
+    });
+    if (!artist.ok) return { error: artist.error };
+
+    const tour = await upsertTour({
+      companyId: context.companyId,
+      actor,
+      tourId: parsed.data.tourId,
+      artistId: parsed.data.artistId,
+      name: parsed.data.name,
+      description: parsed.data.description,
+      startsOn: parsed.data.startsOn,
+      endsOn: parsed.data.endsOn,
+    });
+    if (!tour.ok) return { error: tour.error };
+
+    revalidatePath("/label/tours");
+    return { success: "Changes saved" };
   } catch (err) {
     return fail(err);
   }

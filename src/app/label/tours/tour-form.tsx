@@ -49,6 +49,8 @@ export function TourFormDialog({
   const [newArtist, setNewArtist] = useState({
     name: "",
     genre: "",
+    bio: "",
+    instagram: "",
     spotifyUrl: "",
     imageUrl: "",
     fromSpotify: false,
@@ -134,16 +136,20 @@ export function TourFormDialog({
                   <SpotifyArtistPicker
                     selectedName={newArtist.fromSpotify ? newArtist.name : undefined}
                     onSelect={(a) =>
-                      setNewArtist({
+                      // Called twice (Spotify data first, then bio/Instagram once
+                      // enriched), so merge — keep existing bio/IG if a lookup is blank.
+                      setNewArtist((s) => ({
                         name: a.name,
                         genre: a.genre,
+                        bio: a.bio || s.bio,
+                        instagram: a.instagram || s.instagram,
                         spotifyUrl: a.spotifyUrl,
                         imageUrl: a.imageUrl ?? "",
                         fromSpotify: true,
-                      })
+                      }))
                     }
                   />
-                  {/* Captured from the Spotify selection; server fetches + stores the photo. */}
+                  {/* Captured from the Spotify/enrichment selection. */}
                   <input type="hidden" name="newArtistSpotifyUrl" value={newArtist.spotifyUrl} />
                   <input type="hidden" name="newArtistImageUrl" value={newArtist.imageUrl} />
 
@@ -184,10 +190,28 @@ export function TourFormDialog({
                       />
                     </div>
                   </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-artist-bio">Bio</Label>
+                    <Textarea
+                      id="new-artist-bio"
+                      name="newArtistBio"
+                      rows={2}
+                      maxLength={1000}
+                      value={newArtist.bio}
+                      onChange={(e) => setNewArtist((s) => ({ ...s, bio: e.target.value }))}
+                      placeholder="Auto-filled from Wikipedia when picked from Spotify"
+                    />
+                  </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <div className="space-y-1.5">
                       <Label htmlFor="new-artist-ig">Instagram</Label>
-                      <Input id="new-artist-ig" name="newArtistInstagram" placeholder="artistname" />
+                      <Input
+                        id="new-artist-ig"
+                        name="newArtistInstagram"
+                        placeholder="artistname"
+                        value={newArtist.instagram}
+                        onChange={(e) => setNewArtist((s) => ({ ...s, instagram: e.target.value }))}
+                      />
                     </div>
                     {!newArtist.imageUrl ? (
                       <div className="space-y-1.5">
@@ -197,7 +221,7 @@ export function TourFormDialog({
                     ) : null}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    Pick from Spotify to auto-fill the photo, or enter details manually.
+                    Pick from Spotify to auto-fill photo, bio &amp; Instagram, or enter manually.
                   </p>
                 </div>
               )}

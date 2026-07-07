@@ -7,7 +7,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { TourFormDialog } from "./tour-form";
-import { ArtistFormDialog } from "./artist-form";
+import { TourEditDialog } from "./tour-edit-dialog";
 import { formatShowDate } from "@/lib/dates";
 import { CalendarPlus, Route } from "lucide-react";
 
@@ -101,28 +101,24 @@ export default async function ToursPage({
                       </div>
                       <div className="flex flex-wrap items-center gap-2">
                         {artist ? (
-                          <ArtistFormDialog
+                          <TourEditDialog
+                            tour={{
+                              id: tour.id,
+                              name: tour.name,
+                              description: tour.description ?? "",
+                              startsOn: tour.starts_on ?? "",
+                              endsOn: tour.ends_on ?? "",
+                            }}
                             artist={{
                               id: artist.id,
                               name: artist.name,
-                              genre: artist.genre,
-                              bio: artist.bio,
+                              genre: artist.genre ?? "",
+                              bio: artist.bio ?? "",
                               instagramHandle: artist.instagram_handle ?? "",
                               spotifyUrl: artist.spotify_url ?? "",
                             }}
                           />
                         ) : null}
-                        <TourFormDialog
-                          artists={artistOptions}
-                          tour={{
-                            id: tour.id,
-                            artistId: tour.artist_id,
-                            name: tour.name,
-                            description: tour.description,
-                            startsOn: tour.starts_on ?? "",
-                            endsOn: tour.ends_on ?? "",
-                          }}
-                        />
                         <Button asChild size="sm">
                           <Link href={`/label/shows/new?tour=${tour.id}`}>
                             <CalendarPlus className="size-4" aria-hidden /> Add a date
