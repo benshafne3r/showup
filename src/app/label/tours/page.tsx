@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { CreateDialog } from "./create-dialog";
 import { TourEditDialog } from "./tour-edit-dialog";
+import { DeleteTourButton } from "./delete-tour-button";
 import { formatShowDate } from "@/lib/dates";
 import { CalendarPlus, Route } from "lucide-react";
 
@@ -124,6 +125,11 @@ export default async function ToursPage({
                             <CalendarPlus className="size-4" aria-hidden /> Add a date
                           </Link>
                         </Button>
+                        <DeleteTourButton
+                          tourId={tour.id}
+                          tourName={tour.name}
+                          showCount={shows.length}
+                        />
                       </div>
                     </div>
 

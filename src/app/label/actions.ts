@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser, requireLabelWithCompany, requireCompanyRole } from "@/server/auth/guards";
 import { createCompany, inviteMember, removeMember, changeMemberRole } from "@/server/services/companies";
-import { upsertArtist, upsertTour, upsertShow, cancelShow } from "@/server/services/catalog";
+import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
 import { upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
 import { sendTicketInstructions, cancelBooking } from "@/server/services/bookings";
@@ -519,6 +519,50 @@ export async function cancelShowAction(
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/shows");
     return { success: `Show canceled — ${result.canceledBookings} booking(s) released` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function deleteTourAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    await requireCompanyRole(context.companyId, "admin");
+    const tourId = z.string().uuid().parse(formData.get("tourId"));
+    const result = await deleteTour({
+      tourId,
+      companyId: context.companyId,
+      actor: { id: context.user.id, role: "label" },
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/label/tours");
+    revalidatePath("/label/shows");
+    return { success: "Tour deleted" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function deleteShowAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    await requireCompanyRole(context.companyId, "admin");
+    const showId = z.string().uuid().parse(formData.get("showId"));
+    const result = await deleteShow({
+      showId,
+      actor: { id: context.user.id, role: "label" },
+      companyId: context.companyId,
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/label/shows");
+    revalidatePath("/label/tours");
+    return { success: "Deleted" };
   } catch (err) {
     return fail(err);
   }

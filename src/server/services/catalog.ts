@@ -394,3 +394,99 @@ async function postponeShowInternal(
     metadata: { oldDate, newDate: show.date },
   });
 }
+
+// ── Delete tour / show (hard delete, guarded against bookings) ────────────
+
+export async function deleteTour(input: {
+  tourId: string;
+  companyId: string;
+  actor: { id: string; role: string };
+}): Promise<{ ok: true; deletedShows: number } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const { data: tour } = await db
+    .from("tours")
+    .select("id, name")
+    .eq("id", input.tourId)
+    .eq("company_id", input.companyId)
+    .maybeSingle();
+  if (!tour) return { ok: false, error: "Tour not found" };
+
+  const { data: shows } = await db
+    .from("shows")
+    .select("id")
+    .eq("tour_id", input.tourId)
+    .eq("company_id", input.companyId);
+  const showIds = (shows ?? []).map((s) => s.id);
+
+  if (showIds.length) {
+    const { count } = await db
+      .from("bookings")
+      .select("id", { count: "exact", head: true })
+      .in("show_id", showIds);
+    if ((count ?? 0) > 0) {
+      return { ok: false, error: "Some shows have creator bookings — cancel those shows first." };
+    }
+    // Deleting the shows cascades to their opportunities, requests, deliverables.
+    const { error: showErr } = await db.from("shows").delete().in("id", showIds);
+    if (showErr) return { ok: false, error: showErr.message };
+  }
+
+  const { error } = await db
+    .from("tours")
+    .delete()
+    .eq("id", input.tourId)
+    .eq("company_id", input.companyId);
+  if (error) return { ok: false, error: error.message };
+
+  await audit({
+    actorId: input.actor.id,
+    actorRole: input.actor.role,
+    action: "tour.delete",
+    entityType: "tour",
+    entityId: input.tourId,
+    companyId: input.companyId,
+    metadata: { name: tour.name, deletedShows: showIds.length },
+  });
+  return { ok: true, deletedShows: showIds.length };
+}
+
+export async function deleteShow(input: {
+  showId: string;
+  companyId: string;
+  actor: { id: string; role: string };
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const { data: show } = await db
+    .from("shows")
+    .select("id")
+    .eq("id", input.showId)
+    .eq("company_id", input.companyId)
+    .maybeSingle();
+  if (!show) return { ok: false, error: "Show not found" };
+
+  const { count } = await db
+    .from("bookings")
+    .select("id", { count: "exact", head: true })
+    .eq("show_id", input.showId);
+  if ((count ?? 0) > 0) {
+    return { ok: false, error: "This show has creator bookings — cancel it instead." };
+  }
+
+  const { error } = await db
+    .from("shows")
+    .delete()
+    .eq("id", input.showId)
+    .eq("company_id", input.companyId);
+  if (error) return { ok: false, error: error.message };
+
+  await audit({
+    actorId: input.actor.id,
+    actorRole: input.actor.role,
+    action: "show.delete",
+    entityType: "show",
+    entityId: input.showId,
+    companyId: input.companyId,
+    metadata: {},
+  });
+  return { ok: true };
+}
