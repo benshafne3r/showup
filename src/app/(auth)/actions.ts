@@ -50,7 +50,13 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
     return { error: "This account has been suspended. Contact support." };
   }
 
-  redirect(await destinationFor(data.user.id));
+  redirect(nextFromForm(formData) ?? (await destinationFor(data.user.id)));
+}
+
+/** A safe same-origin relative path from the form (e.g. an invite target), or null. */
+function nextFromForm(formData: FormData): string | null {
+  const n = formData.get("next");
+  return typeof n === "string" && n.startsWith("/") && !n.startsWith("//") ? n : null;
 }
 
 export async function signUp(_prev: SignUpState, formData: FormData): Promise<SignUpState> {
@@ -95,7 +101,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
     await new Promise((r) => setTimeout(r, 150));
   }
 
-  redirect(await destinationFor(data.user.id));
+  redirect(nextFromForm(formData) ?? (await destinationFor(data.user.id)));
 }
 
 export async function signOut(): Promise<void> {

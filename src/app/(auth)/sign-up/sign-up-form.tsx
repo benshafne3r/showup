@@ -8,7 +8,13 @@ import { SubmitButton } from "@/components/submit-button";
 import { cn } from "@/lib/utils";
 import { Mic2, Sparkles } from "lucide-react";
 
-export function SignUpForm({ defaultRole }: { defaultRole: "creator" | "label" }) {
+export function SignUpForm({
+  defaultRole,
+  next,
+}: {
+  defaultRole: "creator" | "label";
+  next?: string;
+}) {
   const [state, formAction] = useActionState(signUp, null);
   const [role, setRole] = useState<"creator" | "label">(defaultRole);
 
@@ -27,6 +33,7 @@ export function SignUpForm({ defaultRole }: { defaultRole: "creator" | "label" }
 
   return (
     <form action={formAction} className="space-y-4" noValidate>
+      {next ? <input type="hidden" name="next" value={next} /> : null}
       <fieldset className="space-y-2">
         <legend className="text-sm font-medium">I am a…</legend>
         <div className="grid grid-cols-2 gap-2" role="radiogroup" aria-label="Account type">

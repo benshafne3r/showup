@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { CreateDialog } from "./create-dialog";
 import { TourEditDialog } from "./tour-edit-dialog";
 import { DeleteTourButton } from "./delete-tour-button";
+import { ShareButton } from "./share-button";
 import { formatShowDate } from "@/lib/dates";
 import { CalendarPlus, Route } from "lucide-react";
 
@@ -125,6 +126,7 @@ export default async function ToursPage({
                             <CalendarPlus className="size-4" aria-hidden /> Add a date
                           </Link>
                         </Button>
+                        <ShareButton path={`/invite/tour/${tour.id}`} />
                         <DeleteTourButton
                           tourId={tour.id}
                           tourName={tour.name}

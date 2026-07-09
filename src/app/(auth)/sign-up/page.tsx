@@ -7,10 +7,12 @@ export const metadata: Metadata = { title: "Create account" };
 export default async function SignUpPage({
   searchParams,
 }: {
-  searchParams: Promise<{ role?: string }>;
+  searchParams: Promise<{ role?: string; next?: string }>;
 }) {
   const params = await searchParams;
   const defaultRole = params.role === "label" ? "label" : "creator";
+  const next = params.next;
+  const signInHref = next ? `/sign-in?next=${encodeURIComponent(next)}` : "/sign-in";
   return (
     <div className="space-y-6 rounded-2xl border bg-card/70 p-8 backdrop-blur">
       <div className="space-y-1">
@@ -19,10 +21,10 @@ export default async function SignUpPage({
           Free tickets for creators. Reliable reach for artist teams.
         </p>
       </div>
-      <SignUpForm defaultRole={defaultRole} />
+      <SignUpForm defaultRole={defaultRole} next={next} />
       <p className="text-center text-sm text-muted-foreground">
         Already have an account?{" "}
-        <Link href="/sign-in" className="font-medium text-primary hover:underline">
+        <Link href={signInHref} className="font-medium text-primary hover:underline">
           Sign in
         </Link>
       </p>
