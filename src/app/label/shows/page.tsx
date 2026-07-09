@@ -10,6 +10,8 @@ import { formatShowDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { CalendarPlus } from "lucide-react";
 import type { ShowStatus } from "@/lib/statuses";
+import { ShareButton } from "../tours/share-button";
+import { DeleteShowButton } from "./delete-show-button";
 
 export const metadata: Metadata = { title: "Shows" };
 export const dynamic = "force-dynamic";
@@ -68,6 +70,7 @@ export default async function ShowsPage() {
                 <th scope="col" className="px-4 py-3 font-medium">Tickets</th>
                 <th scope="col" className="px-4 py-3 font-medium">Value / Deposit / Payment</th>
                 <th scope="col" className="px-4 py-3 font-medium">Status</th>
+                <th scope="col" className="px-4 py-3 font-medium sr-only">Actions</th>
               </tr>
             </thead>
             <tbody>
@@ -94,6 +97,17 @@ export default async function ShowsPage() {
                     </td>
                     <td className="px-4 py-3">
                       <StatusBadge {...SHOW_STATUS_META[show.status]} />
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="flex items-center justify-end gap-1">
+                        {show.status === "published" ? (
+                          <ShareButton path={`/invite/show/${show.id}`} />
+                        ) : null}
+                        <DeleteShowButton
+                          showId={show.id}
+                          showLabel={`${show.artists?.name ?? "this show"} on ${formatShowDate(show.date)}`}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );
