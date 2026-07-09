@@ -57,6 +57,24 @@ Langley** (Dandelion Tour), with photos on cards.
   artist+tour) or standalone from the Shows list. Artists only surface once they
   have a tour (intentional — discovery only ever showed artists with published shows).
 
+## Label create / manage flows (this session)
+- **Create dialog** (`tours/create-dialog.tsx`): the tours-page "Create" button opens
+  a tabbed dialog — **Tour** (`TourCreateForm`) or **Pop-up show** (`PopupShowForm`,
+  a standalone tour-less show published instantly via `createPopupShowAction`). Shared
+  existing/new-artist picker extracted to `tours/artist-selector.tsx`.
+- **Delete**: `deleteTour`/`deleteShow` (`catalog.ts`, admin-only actions) — hard
+  delete, but **refuse when a show has bookings** (also FK-restricted at the DB).
+  `DeleteTourButton` on tour cards, `DeleteShowButton` on the shows table.
+- **Shareable invite pages**: public `/invite/[kind]/[id]` (kind = tour|show), no
+  login — artist hero, dates, "Apply for free tickets" CTA, "How ShowUp works". Only
+  renders when a published opportunity exists. `ShareButton` (copy/native-share) on
+  tour cards + show rows. Apply CTA → `/sign-up?role=creator&next=/creator/shows/<id>`.
+- **Auth `next`**: `signIn`/`signUp` now honor a safe `next` form field (forwarded by
+  the sign-in/up pages), so invite → sign-up lands on the event.
+- e2e: `e2e/popup-show.spec.ts` (pop-up publish). Delete/invite dialogs verified via
+  typecheck + the public invite page rendered in-browser; AlertDialog confirms open
+  in a real browser (harness can't drive Radix dialogs).
+
 ## Spotify artist picker (built this session)
 Adding an artist can auto-fill from Spotify instead of manual entry:
 - `SpotifyArtistPicker` (`src/app/label/tours/spotify-artist-picker.tsx`) — debounced
