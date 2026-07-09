@@ -27,7 +27,7 @@ test("label creates an artist (via a tour) and a show with an opportunity", asyn
 
   // Tours-first: create the artist inline while creating their tour.
   await page.goto("/label/tours");
-  await page.getByRole("button", { name: "New tour" }).first().click();
+  await page.getByRole("button", { name: "Create" }).first().click();
   await page.getByRole("tab", { name: "New artist" }).click();
   await page.getByLabel("Name", { exact: true }).fill(ARTIST);
   await page.getByLabel("Genre").fill("Synthwave");

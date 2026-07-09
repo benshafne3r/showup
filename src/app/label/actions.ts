@@ -390,6 +390,117 @@ export async function saveShowAction(
   redirect(`/label/shows/${showId}?saved=1`);
 }
 
+// One-off pop-up: a standalone show (no tour) in a city, published instantly.
+// Everything not asked here uses a sensible default.
+const CONTENT_PLATFORMS = [
+  "instagram_reel",
+  "instagram_story",
+  "instagram_post",
+  "tiktok_video",
+] as const;
+
+const popupSchema = z.object({
+  artistId: z.string().uuid().optional().or(z.literal("")),
+  newArtistName: z.string().max(120).optional().or(z.literal("")),
+  newArtistGenre: z.string().max(60).optional().or(z.literal("")),
+  newArtistBio: z.string().max(1000).optional().or(z.literal("")),
+  newArtistInstagram: z.string().max(60).optional().or(z.literal("")),
+  newArtistSpotifyUrl: z.string().url().or(z.literal("")).optional(),
+  newArtistImageUrl: z.string().url().or(z.literal("")).optional(),
+  venueName: z.string().min(1, "Venue name is required").max(160),
+  venueCity: z.string().min(1, "City is required").max(80),
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
+  ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
+  statedTicketValue: z.string().min(1, "Enter the ticket value"),
+  creatorPayment: z.string().optional(),
+  applicationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a deadline date"),
+  // A content platform, or "none"/"" for attend-only.
+  contentPlatform: z.string().optional(),
+});
+
+export async function createPopupShowAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  let showId = "";
+  try {
+    const context = await requireLabelWithCompany();
+    const parsed = popupSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const data = parsed.data;
+    const actor = { id: context.user.id, role: "label" as const };
+
+    // Resolve the artist: existing selection, or create one inline (Spotify).
+    let artistId = data.artistId || "";
+    if (!artistId) {
+      const name = data.newArtistName?.trim();
+      if (!name) return { error: "Pick an artist or add a new one" };
+      const image = formData.get("image");
+      const created = await upsertArtist({
+        companyId: context.companyId,
+        actor,
+        name,
+        genre: data.newArtistGenre ?? "",
+        bio: data.newArtistBio ?? "",
+        instagramHandle: (data.newArtistInstagram ?? "").replace(/^@/, ""),
+        spotifyUrl: data.newArtistSpotifyUrl ?? "",
+        imageFile: image instanceof File ? image : null,
+        remoteImageUrl: data.newArtistImageUrl || undefined,
+      });
+      if (!created.ok) return { error: created.error };
+      artistId = created.artistId;
+    }
+
+    let statedTicketValueCents: number;
+    let creatorPaymentCents: number;
+    try {
+      statedTicketValueCents = parseDollarsToCents(data.statedTicketValue);
+      creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
+    } catch {
+      return { error: "Enter dollar amounts like 120 or 120.50" };
+    }
+
+    const platform = CONTENT_PLATFORMS.find((p) => p === data.contentPlatform);
+    const deliverables = platform ? [{ platform, quantity: 1, description: "" }] : [];
+
+    const showResult = await upsertShow({
+      companyId: context.companyId,
+      actor,
+      artistId,
+      tourId: undefined,
+      venue: { name: data.venueName, city: data.venueCity },
+      date: data.date,
+      ticketDeliveryMethod: "guest_list",
+      imageFile: null,
+    });
+    if (!showResult.ok) return { error: showResult.error };
+    showId = showResult.showId;
+
+    const oppResult = await upsertOpportunity({
+      companyId: context.companyId,
+      actor,
+      showId,
+      statedTicketValueCents,
+      depositPercentage: 100,
+      creatorPaymentCents,
+      plusOneAllowed: false,
+      ticketsTotal: data.ticketsTotal,
+      // Deadline is a date → treat as end of that day.
+      applicationDeadline: new Date(`${data.applicationDeadline}T23:59:59`).toISOString(),
+      contentDeadlineDays: 2,
+      notes: "",
+      deliverables,
+      publish: true,
+    });
+    if (!oppResult.ok) return { error: oppResult.error };
+  } catch (err) {
+    return fail(err);
+  }
+  revalidatePath("/label/shows");
+  revalidatePath("/label/tours");
+  redirect(`/label/shows/${showId}?saved=1`);
+}
+
 export async function cancelShowAction(
   _prev: ActionState,
   formData: FormData,

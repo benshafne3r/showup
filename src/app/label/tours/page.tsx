@@ -6,7 +6,7 @@ import { serviceDb } from "@/server/db/service";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
-import { TourFormDialog } from "./tour-form";
+import { CreateDialog } from "./create-dialog";
 import { TourEditDialog } from "./tour-edit-dialog";
 import { formatShowDate } from "@/lib/dates";
 import { CalendarPlus, Route } from "lucide-react";
@@ -51,14 +51,14 @@ export default async function ToursPage({
       <PageHeader
         title="Tours"
         description="Every tour, grouped by artist. Add a new artist while you create their tour."
-        action={<TourFormDialog artists={artistOptions} />}
+        action={<CreateDialog artists={artistOptions} />}
       />
       {!tours?.length ? (
         <EmptyState
           icon={Route}
           title="No tours yet"
           description="Create your first tour — you can add the artist right in the same step, then add show dates to it."
-          action={<TourFormDialog artists={artistOptions} />}
+          action={<CreateDialog artists={artistOptions} />}
         />
       ) : (
         <div className="space-y-4">
