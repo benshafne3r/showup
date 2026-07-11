@@ -53,7 +53,7 @@ export default async function AdminPaymentsPage() {
           <CardTitle className="text-base">Authorizations (holds)</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground uppercase">
@@ -91,6 +91,33 @@ export default async function AdminPaymentsPage() {
               </tbody>
             </table>
           </div>
+          {/* Mobile: stacked cards */}
+          <ul className="space-y-3 md:hidden">
+            {(holds ?? []).map((hold) => (
+              <li key={hold.id} className="rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{hold.users?.full_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{hold.companies?.name}</p>
+                  </div>
+                  <StatusBadge {...AUTHORIZATION_STATUS_META[hold.status]} />
+                </div>
+                <p className="mt-2 text-sm">
+                  {formatCents(hold.capture_amount_cents ?? hold.amount_cents)}
+                </p>
+                {hold.status === "scheduled" && hold.scheduled_for ? (
+                  <p className="text-xs text-muted-foreground">places {formatDateTime(hold.scheduled_for)}</p>
+                ) : hold.status === "failed" ? (
+                  <p className="text-xs text-muted-foreground">{hold.failure_reason ?? "failed"}</p>
+                ) : null}
+                {hold.status === "authorized" ? (
+                  <div className="mt-3 border-t pt-3">
+                    <HoldActions authorizationId={hold.id} />
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
 
@@ -99,7 +126,7 @@ export default async function AdminPaymentsPage() {
           <CardTitle className="text-base">Creator payouts</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[820px] text-sm">
               <thead>
                 <tr className="border-b text-left text-xs text-muted-foreground uppercase">
@@ -153,6 +180,49 @@ export default async function AdminPaymentsPage() {
               </tbody>
             </table>
           </div>
+          {/* Mobile: stacked cards */}
+          <ul className="space-y-3 md:hidden">
+            {(payouts ?? []).map((payout) => (
+              <li key={payout.id} className="rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <p className="truncate font-medium">{payout.users?.full_name}</p>
+                    <p className="truncate text-xs text-muted-foreground">{payout.companies?.name}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    <StatusBadge {...CREATOR_PAYMENT_STATUS_META[payout.status]} />
+                    {payout.paused_at ? <StatusBadge label="paused" tone="warning" /> : null}
+                  </div>
+                </div>
+                <p className="mt-2 text-sm">{formatCents(payout.amount_cents)}</p>
+                {(["ready", "failed"].includes(payout.status) && !payout.paused_at) ||
+                ["pending_fulfillment", "ready", "failed", "disputed"].includes(payout.status) ? (
+                  <div className="mt-3 flex flex-wrap items-center gap-1 border-t pt-3">
+                    {["ready", "failed"].includes(payout.status) && !payout.paused_at ? (
+                      <PayoutActions bookingId={payout.booking_id} />
+                    ) : null}
+                    {["pending_fulfillment", "ready", "failed", "disputed"].includes(payout.status) ? (
+                      <>
+                        <form action={adminTogglePayoutPauseAction}>
+                          <input type="hidden" name="recordId" value={payout.id} />
+                          <input type="hidden" name="pause" value={payout.paused_at ? "0" : "1"} />
+                          <Button variant="ghost" size="sm" type="submit">
+                            {payout.paused_at ? "Unpause" : "Pause"}
+                          </Button>
+                        </form>
+                        <form action={adminCancelPayoutAction}>
+                          <input type="hidden" name="recordId" value={payout.id} />
+                          <Button variant="ghost" size="sm" type="submit" className="text-red-300">
+                            Cancel
+                          </Button>
+                        </form>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </li>
+            ))}
+          </ul>
         </CardContent>
       </Card>
     </div>

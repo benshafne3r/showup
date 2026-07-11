@@ -52,7 +52,7 @@ export default async function AuditLogsPage({
           Filter
         </button>
       </form>
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
@@ -88,6 +88,31 @@ export default async function AuditLogsPage({
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: stacked cards */}
+      <ul className="space-y-3 md:hidden">
+        {(logs ?? []).map((log) => (
+          <li key={log.id} className="rounded-xl border p-4">
+            <div className="flex items-start justify-between gap-3">
+              <p className="font-mono text-xs break-all">{log.action}</p>
+              <span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">
+                {formatDateTime(log.created_at)}
+              </span>
+            </div>
+            <p className="mt-2 text-sm">
+              {log.users?.full_name ?? "System"}
+              <span className="text-xs text-muted-foreground"> · {log.actor_role}</span>
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {log.entity_type}
+              {log.entity_id ? ` · ${log.entity_id.slice(0, 8)}…` : ""}
+            </p>
+            <code className="mt-2 block overflow-x-auto rounded-md bg-muted/40 p-2 text-xs text-muted-foreground">
+              {JSON.stringify(log.metadata)}
+            </code>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

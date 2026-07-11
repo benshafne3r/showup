@@ -60,7 +60,7 @@ export default async function ShowsPage() {
           }
         />
       ) : (
-        <div className="overflow-x-auto rounded-xl border">
+        <div className="hidden overflow-x-auto rounded-xl border md:block">
           <table className="w-full min-w-[720px] text-sm">
             <thead>
               <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
@@ -116,6 +116,52 @@ export default async function ShowsPage() {
           </table>
         </div>
       )}
+
+      {/* Mobile: stacked cards so status + actions stay visible without side-scrolling */}
+      {shows?.length ? (
+        <ul className="space-y-3 md:hidden">
+          {shows.map((show) => {
+            const opp = show.show_opportunities;
+            return (
+              <li key={show.id} className="rounded-xl border p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <Link href={`/label/shows/${show.id}`} className="font-medium hover:underline">
+                    {formatShowDate(show.date)}
+                  </Link>
+                  <StatusBadge {...SHOW_STATUS_META[show.status]} />
+                </div>
+                <p className="mt-1 text-sm">{show.artists?.name}</p>
+                <p className="text-sm text-muted-foreground">
+                  {show.venues?.name} · {show.venues?.city}
+                </p>
+                <dl className="mt-3 space-y-1 text-sm">
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">Tickets</dt>
+                    <dd>{opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "—"}</dd>
+                  </div>
+                  <div className="flex justify-between gap-3">
+                    <dt className="text-muted-foreground">Terms</dt>
+                    <dd className="text-right">
+                      {opp
+                        ? `${formatCents(opp.stated_ticket_value_cents)} · ${opp.deposit_percentage}% · ${opp.creator_payment_cents > 0 ? formatCents(opp.creator_payment_cents) : "attend-only"}`
+                        : "no opportunity"}
+                    </dd>
+                  </div>
+                </dl>
+                <div className="mt-3 flex items-center gap-2 border-t pt-3">
+                  {show.status === "published" ? (
+                    <ShareButton path={`/invite/show/${show.id}`} />
+                  ) : null}
+                  <DeleteShowButton
+                    showId={show.id}
+                    showLabel={`${show.artists?.name ?? "this show"} on ${formatShowDate(show.date)}`}
+                  />
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      ) : null}
     </div>
   );
 }

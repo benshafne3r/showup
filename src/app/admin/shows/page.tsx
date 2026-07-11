@@ -31,7 +31,7 @@ export default async function AdminShowsPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Shows" description="Every show across every company." />
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
@@ -74,6 +74,41 @@ export default async function AdminShowsPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: stacked cards */}
+      <ul className="space-y-3 md:hidden">
+        {(shows ?? []).map((show) => {
+          const opp = show.show_opportunities;
+          return (
+            <li key={show.id} className="rounded-xl border p-4">
+              <div className="flex items-start justify-between gap-3">
+                <p className="font-medium">{formatShowDate(show.date)}</p>
+                <StatusBadge label={show.status} tone={TONE[show.status] ?? "neutral"} />
+              </div>
+              <p className="mt-1 text-sm">{show.artists?.name}</p>
+              <p className="text-sm text-muted-foreground">
+                {show.venues?.name} · {show.venues?.city}
+              </p>
+              <p className="text-xs text-muted-foreground">{show.companies?.name}</p>
+              <dl className="mt-3 space-y-1 text-sm">
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Tickets</dt>
+                  <dd>{opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "—"}</dd>
+                </div>
+                <div className="flex justify-between gap-3">
+                  <dt className="text-muted-foreground">Bookings</dt>
+                  <dd>{show.bookings?.length ?? 0}</dd>
+                </div>
+              </dl>
+              {["draft", "published", "postponed"].includes(show.status) ? (
+                <div className="mt-3 border-t pt-3">
+                  <AdminCancelShow showId={show.id} />
+                </div>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

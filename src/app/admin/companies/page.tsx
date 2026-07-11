@@ -21,7 +21,7 @@ export default async function AdminCompaniesPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Companies" description="Labels, managers, and agencies on the platform." />
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
@@ -82,6 +82,53 @@ export default async function AdminCompaniesPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: stacked cards */}
+      <ul className="space-y-3 md:hidden">
+        {(companies ?? []).map((company) => (
+          <li key={company.id} className="rounded-xl border p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-medium">{company.name}</p>
+                <p className="text-xs text-muted-foreground capitalize">{company.kind}</p>
+              </div>
+              <StatusBadge
+                label={company.suspended_at ? "suspended" : company.verified_at ? "verified" : "unverified"}
+                tone={company.suspended_at ? "danger" : company.verified_at ? "success" : "warning"}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              {company.company_members?.length ?? 0} members · {company.shows?.length ?? 0} shows · created{" "}
+              {formatDateTime(company.created_at)}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-1 border-t pt-3">
+              {!company.verified_at ? (
+                <form action={setCompanyStatusAction}>
+                  <input type="hidden" name="companyId" value={company.id} />
+                  <input type="hidden" name="action" value="verify" />
+                  <Button variant="ghost" size="sm" type="submit">Verify</Button>
+                </form>
+              ) : null}
+              <form action={setCompanyStatusAction}>
+                <input type="hidden" name="companyId" value={company.id} />
+                <input
+                  type="hidden"
+                  name="action"
+                  value={company.suspended_at ? "reinstate" : "suspend"}
+                />
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  type="submit"
+                  className={company.suspended_at ? "text-emerald-300" : "text-red-300"}
+                >
+                  {company.suspended_at ? "Reinstate" : "Suspend"}
+                </Button>
+              </form>
+            </div>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

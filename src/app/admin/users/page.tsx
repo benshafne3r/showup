@@ -21,7 +21,7 @@ export default async function AdminUsersPage() {
   return (
     <div className="space-y-6">
       <PageHeader title="Users" description="Verify or suspend creator and label accounts." />
-      <div className="overflow-x-auto rounded-xl border">
+      <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead>
             <tr className="border-b bg-muted/40 text-left text-xs text-muted-foreground uppercase">
@@ -88,6 +88,62 @@ export default async function AdminUsersPage() {
           </tbody>
         </table>
       </div>
+
+      {/* Mobile: stacked cards */}
+      <ul className="space-y-3 md:hidden">
+        {(users ?? []).map((user) => (
+          <li key={user.id} className="rounded-xl border p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="min-w-0">
+                <p className="truncate font-medium">
+                  {user.full_name}
+                  {user.verified_at ? (
+                    <span className="ml-1 text-xs text-sky-300" title="Verified">✓</span>
+                  ) : null}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+              </div>
+              <StatusBadge
+                label={user.status}
+                tone={user.status === "active" ? "success" : "danger"}
+              />
+            </div>
+            <p className="mt-2 text-xs text-muted-foreground">
+              <span className="capitalize">{user.role}</span> · joined {formatDateTime(user.created_at)}
+            </p>
+            {!user.verified_at || user.role !== "admin" ? (
+              <div className="mt-3 flex flex-wrap gap-1 border-t pt-3">
+                {!user.verified_at ? (
+                  <form action={verifyUserAction}>
+                    <input type="hidden" name="userId" value={user.id} />
+                    <Button variant="ghost" size="sm" type="submit">
+                      Verify
+                    </Button>
+                  </form>
+                ) : null}
+                {user.role !== "admin" ? (
+                  <form action={setUserStatusAction}>
+                    <input type="hidden" name="userId" value={user.id} />
+                    <input
+                      type="hidden"
+                      name="status"
+                      value={user.status === "active" ? "suspended" : "active"}
+                    />
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      type="submit"
+                      className={user.status === "active" ? "text-red-300" : "text-emerald-300"}
+                    >
+                      {user.status === "active" ? "Suspend" : "Reinstate"}
+                    </Button>
+                  </form>
+                ) : null}
+              </div>
+            ) : null}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

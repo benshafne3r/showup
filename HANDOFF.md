@@ -1,6 +1,21 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-07_
+_Last updated: 2026-07-11_
+
+## Mobile-friendly pass (this session)
+Audited the whole app at 375px. It was already ~90% responsive — the shared
+`AppShell` has a sheet nav + collapsing sidebar, inputs are 16px (no iOS zoom),
+detail pages collapse to one column, card grids stack. The **one real defect was
+data tables**: 7 of them rendered at `min-w-[720–900px]` and scrolled horizontally
+on phones, hiding the Status + **Actions** columns off-screen. Fixed all 7 with the
+**desktop-table / mobile-card** pattern — the `overflow-x-auto` table wrapper is now
+`hidden md:block`, plus a `md:hidden` stacked-card `<ul>` that surfaces every field
+and action. Files: `label/shows`, `admin/{bookings,payments,shows,users,companies,audit-logs}/page.tsx`.
+Verified in-browser at 375px (no horizontal overflow anywhere) and at 1280px (tables
+unchanged). typecheck clean; lint 0 errors (only pre-existing warnings).
+- Not changed: base control density (`h-8` buttons/inputs, ~32px). Usable on mobile
+  but below the 44px tap-target ideal — bumping to `h-10 md:h-8` is a possible
+  follow-up if the compact feel isn't wanted on phones.
 
 ## Current state
 ShowUp is a marketplace where music labels offer free concert tickets to creators
