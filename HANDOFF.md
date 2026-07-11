@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-06_
+_Last updated: 2026-07-07_
 
 ## Current state
 ShowUp is a marketplace where music labels offer free concert tickets to creators
@@ -9,7 +9,8 @@ temporary hold, released on verified attendance; content earns a fixed payment).
 All build phases are done and committed. The app runs end-to-end on demo data with
 mock payments/email. Branding is an indify-style **red** theme, a flat ticket
 **logo** (`src/components/logo.tsx`), no "test mode" banner. Tests: Vitest **39** unit
-green; Playwright e2e covers the golden path + admin dispute + permissions.
+green; Playwright e2e covers golden path + admin dispute + permissions + password
+reset + pop-up show. **Live on Railway** (see Deploy status).
 
 ## Production-readiness pass — in progress (this session)
 Working the pass in order: security → integrations → resilience.
@@ -50,12 +51,13 @@ Langley** (Dandelion Tour), with photos on cards.
   Team & permissions + Invite); `/label/team` redirects to it. `homeHref=/label/tours`.
 - The **Artists** nav item/page were removed. **Tours** is the artist-forward
   catalog: each tour card shows its artist (photo + name + genre), dates, and shows.
-- Create/edit an artist **inline** in the tour flow: "New tour" has an
-  Existing/New-artist toggle (`src/app/label/tours/tour-form.tsx`); per-tour
-  "Edit artist" reuses `tours/artist-form.tsx`.
+- **Artist create/edit** lives in the tabbed **Create** dialog and the per-tour
+  merged **Edit** popup (`tours/tour-edit-dialog.tsx` = artist + tour in one save)
+  — the old separate "Edit artist"/"Edit tour" buttons and `artist-form.tsx` were
+  **removed**. See "Label create / manage flows" below.
 - Create a show via a tour's **"Add a date"** (`/label/shows/new?tour=<id>` prefills
-  artist+tour) or standalone from the Shows list. Artists only surface once they
-  have a tour (intentional — discovery only ever showed artists with published shows).
+  artist+tour), the **Create → Pop-up** tab (standalone), or the Shows list. Artists
+  only surface once they have a tour/show (discovery only shows published ones).
 
 ## Label create / manage flows (this session)
 - **Create dialog** (`tours/create-dialog.tsx`): the tours-page "Create" button opens
@@ -79,17 +81,29 @@ Langley** (Dandelion Tour), with photos on cards.
 Adding an artist can auto-fill from Spotify instead of manual entry:
 - `SpotifyArtistPicker` (`src/app/label/tours/spotify-artist-picker.tsx`) — debounced
   type-ahead calling `searchSpotifyArtistsAction`. On select it fills name + genre +
-  Spotify URL and captures the profile photo URL.
-- On save, `upsertArtist` (`catalog.ts`) fetches that photo and **stores it in our
-  `artist-images` bucket** (via `fetchRemoteImage` + the existing `uploadFile`), so we
-  own the asset — not a hot-link. Fields stay editable; manual entry + file upload
-  remain as fallback.
-- Wired into both `tours/tour-form.tsx` (new-artist step) and `tours/artist-form.tsx`
-  (edit). Provider: `src/server/providers/spotify/` (Client Credentials flow, token
-  cached ~1h); `spotifyConfigured()` gates it.
+  Spotify URL + photo, then **enriches bio + Instagram** (Spotify has neither) via
+  `enrichArtistAction` → `src/server/providers/artist-enrich/` (bio = Wikipedia
+  summary, Instagram = MusicBrainz URL relations; best-effort, keyless).
+- On save, `upsertArtist` (`catalog.ts`) fetches the photo and **stores it in our
+  `artist-images` bucket** (via `fetchRemoteImage` + `uploadFile`), so we own the
+  asset — not a hot-link. Fields stay editable; manual entry + file upload remain.
+- Lives in the shared `tours/artist-selector.tsx` (used by the Create dialog + the
+  merged Edit popup). Provider: `src/server/providers/spotify/` (Client Credentials
+  flow, token cached ~1h); `spotifyConfigured()` gates it.
 - **Needs creds:** `SPOTIFY_CLIENT_ID` + `SPOTIFY_CLIENT_SECRET` (free app at
   developer.spotify.com/dashboard). Unset → picker returns nothing, manual entry works
   (verified). Real search + photo-pull needs the keys → verify once added.
+
+## Branding & link previews (this session)
+- **Favicon:** `src/app/icon.svg` (the red ticket mark on a dark tile). The default
+  Next.js `favicon.ico` was removed. Browsers cache favicons hard → hard-refresh.
+- **Link-preview / Open Graph card:** `src/app/opengraph-image.tsx` (generated via
+  `next/og` — ticket + tagline on the brand background) shows when the site link is
+  shared (Messenger/iMessage/Slack/etc.). `layout.tsx` sets `metadataBase` (from
+  `NEXT_PUBLIC_APP_URL` — must be the real domain for the image URL to resolve) +
+  openGraph/twitter fields.
+- **Tried + reverted:** a full-width artist-photo *banner* on the tour cards — the
+  user preferred the original side-strip layout, so it was reverted (commit history).
 
 ## Tour-date import
 `/label/shows/new` has an **Import a tour date** panel: pick an artist → fetch →
