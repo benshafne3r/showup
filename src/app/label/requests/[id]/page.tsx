@@ -64,7 +64,7 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
-            <Link href="/label/requests" className="hover:underline">Requests</Link> / review
+            <Link href="/label/messages?tab=requests" className="hover:underline">Requests</Link> / review
           </p>
           <h1 className="text-2xl font-bold tracking-tight">
             {creator?.fullName ?? "Creator"} → {request.shows.artists?.name}

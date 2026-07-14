@@ -153,7 +153,7 @@ export async function expireBooking(bookingId: string): Promise<boolean> {
     type: "booking_canceled",
     title: "Your approval expired",
     body: "The 24-hour acceptance window passed, so the spot was released. You can request other shows anytime.",
-    link: "/creator/requests",
+    link: "/creator/messages?tab=requests",
   });
   await audit({
     action: "booking.expire",

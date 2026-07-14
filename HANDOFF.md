@@ -1,8 +1,21 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-11_
+_Last updated: 2026-07-14_
 
-## Mobile-friendly pass (this session)
+## Requests merged into Messages (this session)
+Both roles: the separate **Requests** and **Messages** nav items are now one
+**Messages** tab. `/label/messages` and `/creator/messages` are outer `Tabs`
+(**Requests | Chats**); the requests list moved in verbatim (label keeps its inner
+Pending/Waitlist/Decided tabs). Deep-linkable via `?tab=requests|messages`. Old list
+routes `/label/requests` + `/creator/requests` are now redirect stubs → the merged
+page (creator forwards `submitted=1`). Detail route `/label/requests/[id]` kept
+(breadcrumb repointed). Badges combined: label Messages badge = pendingRequests +
+unreadMessages; creator = unreadMessages. Updated notification links + revalidatePaths
+(`services/requests.ts`, `bookings.ts`, both `actions.ts`) and e2e assertions
+(golden-path new URLs). typecheck + lint clean (0 errors). Verified both roles in-browser
+at 1280px + 375px (tabs, redirects, `submitted` banner, no overflow).
+
+## Mobile-friendly pass (previous session)
 Audited the whole app at 375px. It was already ~90% responsive — the shared
 `AppShell` has a sheet nav + collapsing sidebar, inputs are 16px (no iOS zoom),
 detail pages collapse to one column, card grids stack. The **one real defect was

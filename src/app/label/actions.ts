@@ -587,7 +587,7 @@ export async function approveRequestAction(
         : undefined,
     });
     if (!result.ok) return { error: result.error };
-    revalidatePath("/label/requests");
+    revalidatePath("/label/messages");
     return { success: "Approved — the creator has 24 hours to accept" };
   } catch (err) {
     return fail(err);
@@ -607,7 +607,7 @@ export async function rejectRequestAction(
       companyId: context.companyId,
     });
     if (!result.ok) return { error: result.error };
-    revalidatePath("/label/requests");
+    revalidatePath("/label/messages");
     return { success: "Request declined" };
   } catch (err) {
     return fail(err);
@@ -627,7 +627,7 @@ export async function waitlistRequestAction(
       companyId: context.companyId,
     });
     if (!result.ok) return { error: result.error };
-    revalidatePath("/label/requests");
+    revalidatePath("/label/messages");
     return { success: "Moved to waitlist" };
   } catch (err) {
     return fail(err);

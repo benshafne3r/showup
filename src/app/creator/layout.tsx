@@ -25,7 +25,6 @@ export default async function CreatorLayout({ children }: { children: React.Reac
       unreadNotifications={unreadNotifs}
       navItems={[
         { href: "/creator", label: "Discover", exact: true },
-        { href: "/creator/requests", label: "My requests" },
         { href: "/creator/bookings", label: "Bookings" },
         { href: "/creator/messages", label: "Messages", badge: unreadMessages },
         { href: "/creator/payments", label: "Payments" },

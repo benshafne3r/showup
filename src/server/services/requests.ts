@@ -282,7 +282,7 @@ export async function rejectRequest(input: {
     type: "request_rejected",
     title: "Request update",
     body: `Your request for ${claimed.shows?.artists?.name ?? "a show"} wasn't selected this time. Keep exploring — new shows are added all the time.`,
-    link: "/creator/requests",
+    link: "/creator/messages?tab=requests",
   });
   await audit({
     actorId: input.reviewer.id,
@@ -316,7 +316,7 @@ export async function waitlistRequest(input: {
     type: "request_waitlisted",
     title: "You're on the waitlist",
     body: `You've been waitlisted for ${claimed.shows?.artists?.name ?? "a show"}. If a spot opens up, the team can approve you from the waitlist.`,
-    link: "/creator/requests",
+    link: "/creator/messages?tab=requests",
   });
   await audit({
     actorId: input.reviewer.id,

@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Image from "next/image";
+import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
 import { requireCreator } from "@/server/auth/guards";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
@@ -214,9 +215,9 @@ export default async function ShowDetailPage({
               {existingRequest ? (
                 <div className="flex items-center justify-between gap-3">
                   <StatusBadge {...REQUEST_STATUS_META[existingRequest.status]} />
-                  <a href="/creator/requests" className="text-sm text-primary hover:underline">
+                  <Link href="/creator/messages?tab=requests" className="text-sm text-primary hover:underline">
                     View request
-                  </a>
+                  </Link>
                 </div>
               ) : deadlinePassed ? (
                 <p className="text-sm font-medium text-muted-foreground">

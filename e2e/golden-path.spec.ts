@@ -79,14 +79,14 @@ test("creator discovers the show and requests a ticket", async ({ page }) => {
   await page.getByLabel("Message or content idea (optional)").fill("E2E: recap reel within 48h.");
   await page.getByRole("button", { name: "Send request" }).click();
 
-  await expect(page).toHaveURL(/\/creator\/requests\?submitted=1/);
+  await expect(page).toHaveURL(/\/creator\/messages\?tab=requests&submitted=1/);
   await expect(page.getByText("Request sent!")).toBeVisible();
   await signOut(page);
 });
 
 test("label approves the request", async ({ page }) => {
   await signIn(page, ACCOUNTS.labelOwner);
-  await page.goto("/label/requests");
+  await page.goto("/label/messages?tab=requests");
   await page.getByRole("link", { name: new RegExp(`Leo Martins.*${ARTIST}`) }).click();
 
   await expect(page.getByText("Terms if approved")).toBeVisible();

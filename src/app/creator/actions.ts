@@ -162,8 +162,8 @@ export async function requestAccess(
     return fail(err);
   }
   if (requestOk) {
-    revalidatePath("/creator/requests");
-    redirect("/creator/requests?submitted=1");
+    revalidatePath("/creator/messages");
+    redirect("/creator/messages?tab=requests&submitted=1");
   }
   return null;
 }
@@ -172,7 +172,7 @@ export async function withdrawRequestAction(formData: FormData): Promise<void> {
   const user = await requireCreator();
   const requestId = z.string().uuid().parse(formData.get("requestId"));
   await withdrawRequest(user.id, requestId);
-  revalidatePath("/creator/requests");
+  revalidatePath("/creator/messages");
 }
 
 // ── Payment method + booking acceptance ─────────────────────────────────
