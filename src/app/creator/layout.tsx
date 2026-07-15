@@ -29,7 +29,7 @@ export default async function CreatorLayout({ children }: { children: React.Reac
         { href: "/creator/messages", label: "Messages", badge: unreadMessages },
         { href: "/creator/payments", label: "Payments" },
         { href: "/creator/notifications", label: "Notifications", badge: unreadNotifs },
-        { href: "/creator/settings", label: "Settings" },
+        { href: "/creator/settings", label: "Profile" },
       ]}
     >
       {children}

@@ -4,7 +4,7 @@ import { getCreatorProfile } from "@/server/services/profiles";
 import { PageHeader } from "@/components/page-header";
 import { OnboardingForm } from "../onboarding/onboarding-form";
 
-export const metadata: Metadata = { title: "Settings" };
+export const metadata: Metadata = { title: "Profile" };
 export const dynamic = "force-dynamic";
 
 export default async function CreatorSettingsPage() {
@@ -14,7 +14,7 @@ export default async function CreatorSettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
-        title="Account settings"
+        title="Profile"
         description={`Signed in as ${user.email}. Your email stays private — teams only see your display name and socials.`}
       />
       <OnboardingForm
