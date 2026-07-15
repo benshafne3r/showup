@@ -10,7 +10,7 @@ test("label creates a one-off pop-up show", async ({ page }) => {
   await page.goto("/label/tours");
 
   await page.getByRole("button", { name: "Create" }).first().click();
-  await page.getByRole("tab", { name: "Pop-up show" }).click();
+  await page.getByRole("tab", { name: "Event" }).click();
 
   // Existing artist is the default selection; just fill the show details.
   await page.getByLabel("Venue").fill("The Echoplex");
@@ -19,7 +19,7 @@ test("label creates a one-off pop-up show", async ({ page }) => {
   await page.getByLabel("Apply by").fill("2026-12-14");
   await page.getByLabel("Ticket value (USD)").fill("90");
 
-  await page.getByRole("button", { name: "Publish pop-up" }).click();
+  await page.getByRole("button", { name: "Publish event" }).click();
 
   await expect(page).toHaveURL(/\/label\/shows\/[0-9a-f-]+\?saved=1/);
   await expect(page.getByText("Show saved.")).toBeVisible();

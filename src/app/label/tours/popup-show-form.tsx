@@ -87,7 +87,7 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
         Publishes immediately so creators can request it right away.
       </p>
       <SubmitButton className="w-full" pendingLabel="Publishing…">
-        Publish pop-up
+        Publish event
       </SubmitButton>
     </form>
   );

@@ -34,7 +34,7 @@ export function CreateDialog({ artists }: { artists: { id: string; name: string 
           {(
             [
               ["tour", "Tour"],
-              ["popup", "Pop-up show"],
+              ["popup", "Event"],
             ] as const
           ).map(([value, label]) => (
             <button
@@ -57,7 +57,7 @@ export function CreateDialog({ artists }: { artists: { id: string; name: string 
         <p className="text-xs text-muted-foreground">
           {tab === "tour"
             ? "A tour with an artist — add show dates to it afterward."
-            : "A single last-minute show in a city — no tour needed, published instantly."}
+            : "A single event in a city — no tour needed, published instantly."}
         </p>
 
         {tab === "tour" ? (
