@@ -1,6 +1,20 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-14_
+_Last updated: 2026-07-15_
+
+## Small UX tweaks (latest)
+- **Create dialog:** the "Pop-up show" tab is now **"Event"** (label only; the
+  `popup` route/action/schema identifiers are unchanged). e2e updated.
+- **Creator nav:** "Settings" → **"Profile"** (nav label, page title, metadata;
+  route stays `/creator/settings`).
+- **Discover city filter:** was built only from cities that had published shows.
+  Added `src/lib/cities.ts` (`MAJOR_CITIES`) and unioned it with live-show cities
+  in `creator/page.tsx`, so the dropdown always offers major markets. Edit that
+  list to add/remove cities. (Venue/profile city fields are free-text, unchanged.)
+- **Stripe deposit/hold is already built** (`providers/payment/stripe.ts`): manual-
+  capture auth `authorize()` places a hold → `release()` cancels on confirmed
+  attendance → `capture()` charges on no-show. Live-blocked on real keys (mock only;
+  adapter refuses non-`sk_test_`). 7-day auth window caveat noted in that file.
 
 ## Requests merged into Messages (this session)
 Both roles: the separate **Requests** and **Messages** nav items are now one
