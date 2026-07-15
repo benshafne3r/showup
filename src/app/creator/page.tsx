@@ -7,6 +7,7 @@ import { ShowCard, type ShowCardData } from "@/components/show-card";
 import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { DiscoverFilters } from "./discover-filters";
+import { MAJOR_CITIES } from "@/lib/cities";
 import { CalendarX2 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Discover shows" };
@@ -58,8 +59,9 @@ export default async function DiscoverPage({
     .order("date", { ascending: true })
     .limit(60);
 
+  // Curated major markets, plus any city that currently has a published show.
   const allCities = Array.from(
-    new Set((rows ?? []).map((r) => r.venues.city)),
+    new Set([...MAJOR_CITIES, ...(rows ?? []).map((r) => r.venues.city)]),
   ).sort();
 
   const shows: ShowCardData[] = (rows ?? [])
