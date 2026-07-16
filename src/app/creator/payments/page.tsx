@@ -121,6 +121,12 @@ export default async function CreatorPaymentsPage({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm">
+            {params.onboarding === "error" ? (
+              <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-300">
+                We couldn't start payout setup just now. Please try again in a bit — if it keeps
+                happening, the payouts service may still be finishing activation.
+              </p>
+            ) : null}
             {payoutStatus.payoutsEnabled ? (
               <p className="flex items-center gap-2 text-emerald-300">
                 <CheckCircle2 className="size-4" aria-hidden />

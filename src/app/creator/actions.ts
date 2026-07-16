@@ -13,6 +13,7 @@ import {
   retryAuthorizationForBooking,
 } from "@/server/services/payments";
 import { createOnboardingLink } from "@/server/services/connect";
+import { log, errorFields } from "@/server/log";
 import { submitAttendance } from "@/server/services/attendance";
 import { submitContent } from "@/server/services/content";
 import { sendMessage, markThreadRead } from "@/server/services/messaging";
@@ -387,6 +388,14 @@ export async function markAllNotificationsReadAction(): Promise<void> {
 /** Start (or resume) Stripe Connect payout onboarding → redirect to Stripe. */
 export async function startPayoutOnboardingAction(): Promise<void> {
   const user = await requireCreator();
-  const url = await createOnboardingLink(user.id);
+  let url: string;
+  try {
+    url = await createOnboardingLink(user.id);
+  } catch (err) {
+    // Surface a friendly message instead of the global error boundary — the
+    // usual cause is the platform's live Connect profile not being finished.
+    log.error("Payout onboarding failed to start", { userId: user.id, ...errorFields(err) });
+    redirect("/creator/payments?onboarding=error");
+  }
   redirect(url);
 }
