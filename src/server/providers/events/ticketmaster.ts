@@ -42,18 +42,37 @@ export class TicketmasterProvider implements EventProvider {
               state?: { stateCode?: string };
               country?: { countryCode?: string };
             }>;
+            attractions?: Array<{ name?: string }>;
           };
-          _embedded_attractions?: unknown;
         }>;
       };
     };
 
     const wanted = artistName.trim().toLowerCase();
+    const seen = new Set<string>();
     return (payload._embedded?.events ?? [])
       .map((event): ExternalEvent | null => {
         const venue = event._embedded?.venues?.[0];
         const date = event.dates?.start?.localDate;
         if (!venue?.name || !venue.city?.name || !date) return null;
+
+        // Keyword search is fuzzy (tribute acts, festivals, unrelated bills).
+        // If the event lists attractions, keep it only when one matches the
+        // artist we asked for; events with no attractions pass through.
+        const attractions = event._embedded?.attractions ?? [];
+        if (attractions.length > 0) {
+          const match = attractions.some((a) => {
+            const name = a.name?.trim().toLowerCase();
+            return !!name && (name === wanted || name.includes(wanted) || wanted.includes(name));
+          });
+          if (!match) return null;
+        }
+
+        // Collapse duplicate listings for the same show (multiple ticket types).
+        const key = `${date}|${venue.name.toLowerCase()}|${venue.city.name.toLowerCase()}`;
+        if (seen.has(key)) return null;
+        seen.add(key);
+
         return {
           artistName: wanted,
           venueName: venue.name,
