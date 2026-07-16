@@ -48,3 +48,9 @@ next-env.d.ts
 /test-results/
 /playwright-report/
 /e2e/.auth/
+
+# agent skills (local dev tooling — installed via `npx skills add`)
+/.agents/
+/.claude/skills/
+/.continue/
+/skills-lock.json
