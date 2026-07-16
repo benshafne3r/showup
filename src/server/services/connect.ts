@@ -42,21 +42,43 @@ async function readProfile(userId: string) {
   return data;
 }
 
+/** True once a v2 account's transfers capability is `active`. */
+function transfersActive(account: Stripe.V2.Core.Account): boolean {
+  return (
+    account.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status ===
+    "active"
+  );
+}
+
 /**
- * Return the creator's connected-account id, creating a recipient Express
- * account on first call. The account can only *receive transfers* — it never
- * accepts card payments (no `card_payments` capability).
+ * Return the creator's connected-account id, creating a v2 `recipient` account
+ * on first call. It can only *receive transfers* (`stripe_balance.stripe_transfers`)
+ * — never accept card payments. Platform owns fees + losses (separate charges
+ * and transfers).
  */
 export async function ensureConnectedAccount(userId: string): Promise<string> {
   const profile = await readProfile(userId);
   if (profile?.stripe_account_id) return profile.stripe_account_id;
 
-  const account = await stripe().accounts.create({
-    type: "express",
-    country: "US",
-    capabilities: { transfers: { requested: true } },
-    business_type: "individual",
+  const { data: user } = await serviceDb()
+    .from("users")
+    .select("email, full_name")
+    .eq("id", userId)
+    .maybeSingle();
+
+  const account = await stripe().v2.core.accounts.create({
+    contact_email: user?.email ?? undefined,
+    display_name: user?.full_name ?? undefined,
+    identity: { country: "US", entity_type: "individual" },
+    dashboard: "express",
+    defaults: {
+      responsibilities: { fees_collector: "application", losses_collector: "application" },
+    },
+    configuration: {
+      recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
+    },
     metadata: { showup_user_id: userId },
+    include: ["configuration.recipient", "requirements"],
   });
 
   await serviceDb()
@@ -69,18 +91,25 @@ export async function ensureConnectedAccount(userId: string): Promise<string> {
 }
 
 /**
- * A hosted Stripe onboarding link (Account Link). The creator completes KYC on
- * Stripe's pages, then returns to `returnUrl`. `refreshUrl` is used if the link
- * expires before they finish.
+ * A hosted Stripe onboarding link (v2 Account Link). The creator completes KYC
+ * on Stripe's pages, then returns to `returnUrl`. Both URLs must be HTTPS — the
+ * link fails to create over plain HTTP, so this can't be exercised against a
+ * bare `http://localhost`.
  */
 export async function createOnboardingLink(userId: string): Promise<string> {
   const accountId = await ensureConnectedAccount(userId);
   const base = publicEnv.appUrl;
-  const link = await stripe().accountLinks.create({
+  const link = await stripe().v2.core.accountLinks.create({
     account: accountId,
-    refresh_url: `${base}/creator/payments?onboarding=refresh`,
-    return_url: `${base}/creator/payments?onboarding=done`,
-    type: "account_onboarding",
+    use_case: {
+      type: "account_onboarding",
+      account_onboarding: {
+        configurations: ["recipient"],
+        return_url: `${base}/creator/payments?onboarding=done`,
+        refresh_url: `${base}/creator/payments?onboarding=refresh`,
+        collection_options: { fields: "eventually_due" },
+      },
+    },
   });
   return link.url;
 }
@@ -88,15 +117,17 @@ export async function createOnboardingLink(userId: string): Promise<string> {
 /**
  * Retrieve the account from Stripe and persist whether transfers are active.
  * Called after the creator returns from onboarding and from the
- * `account.updated` webhook. Idempotent.
+ * `v2.core.account…updated` webhook. Idempotent.
  */
 export async function syncPayoutStatus(userId: string): Promise<PayoutStatus> {
   const profile = await readProfile(userId);
   if (!profile?.stripe_account_id) {
     return { accountId: null, payoutsEnabled: false, detailsSubmitted: false };
   }
-  const account = await stripe().accounts.retrieve(profile.stripe_account_id);
-  const enabled = account.capabilities?.transfers === "active" && account.payouts_enabled === true;
+  const account = await stripe().v2.core.accounts.retrieve(profile.stripe_account_id, {
+    include: ["configuration.recipient", "requirements"],
+  });
+  const enabled = transfersActive(account);
 
   const patch: { stripe_payouts_enabled: boolean; stripe_onboarded_at?: string } = {
     stripe_payouts_enabled: enabled,
@@ -107,7 +138,8 @@ export async function syncPayoutStatus(userId: string): Promise<PayoutStatus> {
   return {
     accountId: account.id,
     payoutsEnabled: enabled,
-    detailsSubmitted: account.details_submitted === true,
+    // No outstanding requirements → they finished the form.
+    detailsSubmitted: (account.requirements?.summary?.minimum_deadline?.status ?? "") !== "currently_due",
   };
 }
 
