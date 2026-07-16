@@ -14,11 +14,12 @@ CLI + MCP paired to **Show Up LLC** (`acct_1TqDXl2KxMbOZ5Hd`). See memory
   `services/connect.ts` (v2 recipient accounts + hosted onboarding) + `payout()` transfer +
   "Getting paid" card. Fully gated on `PAYMENT_PROVIDER=stripe`, so mock (prod today/dev/e2e)
   is unchanged. Validated in test mode up to the human KYC step (has a CAPTCHA; can't automate).
-  **Before prod goes Stripe:** (a) apply migration 0007 to the **prod** Supabase
-  (`mpcjunweelepgcglolvx`) — dev has it, prod doesn't; safe in mock mode since the new columns
-  are only read in stripe mode; (b) complete one live onboarding + confirm a transfer;
-  (c) wire the v2 `account[requirements].updated` webhook backstop (return-URL sync covers the happy path).
-- ⚠️ `.env.local` is on `PAYMENT_PROVIDER=stripe`; set back to `mock` before `npm run test:e2e`.
+  **Before prod goes Stripe:** (a) ~~migration 0007 on prod~~ **DONE** (ran in prod SQL editor);
+  (b) complete one live onboarding + confirm a transfer; (c) wire the v2
+  `account[requirements].updated` webhook backstop (return-URL sync covers the happy path).
+- **Live-key safety rail** now gated behind `STRIPE_LIVE_OK=true` (`env.ts` + `stripe.ts`): test
+  keys always work; an `sk_live_` key only starts with the flag set. See `docs/GO_LIVE.md`.
+- ⚠️ `.env.local` is back on `PAYMENT_PROVIDER=mock` (safe for tests/seed).
 
 
 ## Small UX tweaks (latest)
