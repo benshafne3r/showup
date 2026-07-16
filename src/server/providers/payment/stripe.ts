@@ -191,21 +191,37 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
-  async payout(_input: {
+  async payout(input: {
     creatorUserId: string;
     amountCents: number;
     idempotencyKey: string;
     metadata: Record<string, string>;
+    destinationAccountId?: string;
   }): Promise<PayoutResult> {
-    // Production path: Stripe Connect transfer to the creator's connected
-    // account (requires Express onboarding). Not available until creators
-    // have connected accounts — return a clear error instead of pretending.
-    return {
-      ok: false,
-      failureReason:
-        "Stripe payouts require Connect onboarding (not part of this MVP). " +
-        "Use PAYMENT_PROVIDER=mock to exercise payout flows.",
-    };
+    // Connect "separate charges and transfers": move funds from the platform
+    // balance to the creator's connected account after content is approved.
+    // The service layer only supplies a destination once the creator's
+    // transfers capability is active, so a missing id is a real setup gap.
+    if (!input.destinationAccountId) {
+      return {
+        ok: false,
+        failureReason: "Creator has not finished payout onboarding (no connected account).",
+      };
+    }
+    try {
+      const transfer = await this.stripe.transfers.create(
+        {
+          amount: input.amountCents,
+          currency: "usd",
+          destination: input.destinationAccountId,
+          metadata: input.metadata,
+        },
+        { idempotencyKey: input.idempotencyKey },
+      );
+      return { ok: true, providerTransferId: transfer.id };
+    } catch (err) {
+      return { ok: false, failureReason: err instanceof Error ? err.message : "Payout failed" };
+    }
   }
 
   async verifyWebhook(rawBody: string, signature: string | null): Promise<WebhookEvent | null> {

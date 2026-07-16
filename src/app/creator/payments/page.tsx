@@ -13,15 +13,35 @@ import { formatDateTime } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { AddCardForm } from "./add-card-form";
 import { StripeCardForm } from "./stripe-card-form";
+import { SubmitButton } from "@/components/submit-button";
 import { publicEnv, serverEnv } from "@/lib/env";
-import { CreditCard, Landmark } from "lucide-react";
+import {
+  payoutsConfigured,
+  getStoredPayoutStatus,
+  syncPayoutStatus,
+} from "@/server/services/connect";
+import { startPayoutOnboardingAction } from "../actions";
+import { CreditCard, Landmark, Banknote, CheckCircle2 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments" };
 export const dynamic = "force-dynamic";
 
-export default async function CreatorPaymentsPage() {
+export default async function CreatorPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ onboarding?: string }>;
+}) {
   const user = await requireCreator();
+  const params = await searchParams;
   const db = await userDb();
+
+  // Payout onboarding status. Refresh from Stripe when the creator just
+  // returned from the hosted flow; otherwise read our stored flags.
+  const payoutStatus = payoutsConfigured()
+    ? params.onboarding
+      ? await syncPayoutStatus(user.id)
+      : await getStoredPayoutStatus(user.id)
+    : null;
 
   const [{ data: methods }, { data: authorizations }, { data: payments }] = await Promise.all([
     db
@@ -92,6 +112,42 @@ export default async function CreatorPaymentsPage() {
           )}
         </CardContent>
       </Card>
+
+      {payoutStatus ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Banknote className="size-4 text-primary" aria-hidden /> Getting paid
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {payoutStatus.payoutsEnabled ? (
+              <p className="flex items-center gap-2 text-emerald-300">
+                <CheckCircle2 className="size-4" aria-hidden />
+                Payouts are active — approved creator payments go straight to your bank.
+              </p>
+            ) : (
+              <>
+                <p className="text-muted-foreground">
+                  {payoutStatus.accountId
+                    ? "Your payout setup is almost done — finish verifying with Stripe to receive payments."
+                    : "Set up payouts with Stripe to receive your creator payments. It takes a couple of minutes."}
+                </p>
+                <form action={startPayoutOnboardingAction}>
+                  <SubmitButton pendingLabel="Opening Stripe…">
+                    {payoutStatus.accountId ? "Finish payout setup" : "Set up payouts"}
+                  </SubmitButton>
+                </form>
+                {params.onboarding === "done" ? (
+                  <p className="text-xs text-muted-foreground">
+                    Still finishing up? Stripe can take a moment to verify — refresh this page shortly.
+                  </p>
+                ) : null}
+              </>
+            )}
+          </CardContent>
+        </Card>
+      ) : null}
 
       <section className="space-y-3" aria-label="Temporary holds">
         <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">

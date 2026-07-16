@@ -90,6 +90,12 @@ export interface PaymentProvider {
     amountCents: number;
     idempotencyKey: string;
     metadata: Record<string, string>;
+    /**
+     * Stripe Connect destination account (`acct_…`) to transfer to. Resolved by
+     * the service layer from the creator's onboarding status; omitted in mock
+     * mode (the mock simulates a payout without a real destination).
+     */
+    destinationAccountId?: string;
   }): Promise<PayoutResult>;
 
   /** Verify a webhook signature; returns the event or null if invalid. */

@@ -773,6 +773,9 @@ export type Database = {
           example_work: Json
           id: string
           onboarded_at: string | null
+          stripe_account_id: string | null
+          stripe_onboarded_at: string | null
+          stripe_payouts_enabled: boolean
           updated_at: string
           user_id: string
           verified_at: string | null
@@ -788,6 +791,9 @@ export type Database = {
           example_work?: Json
           id?: string
           onboarded_at?: string | null
+          stripe_account_id?: string | null
+          stripe_onboarded_at?: string | null
+          stripe_payouts_enabled?: boolean
           updated_at?: string
           user_id: string
           verified_at?: string | null
@@ -803,6 +809,9 @@ export type Database = {
           example_work?: Json
           id?: string
           onboarded_at?: string | null
+          stripe_account_id?: string | null
+          stripe_onboarded_at?: string | null
+          stripe_payouts_enabled?: boolean
           updated_at?: string
           user_id?: string
           verified_at?: string | null
