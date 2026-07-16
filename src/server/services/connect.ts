@@ -75,10 +75,15 @@ export async function ensureConnectedAccount(userId: string): Promise<string> {
       responsibilities: { fees_collector: "application", losses_collector: "application" },
     },
     configuration: {
+      // Live Connect requires the merchant `card_payments` capability to be
+      // requested alongside recipient `stripe_transfers` (test mode allowed
+      // recipient-only). We never charge the creator's account — it exists
+      // only to receive payout transfers — but Stripe couples the two.
+      merchant: { capabilities: { card_payments: { requested: true } } },
       recipient: { capabilities: { stripe_balance: { stripe_transfers: { requested: true } } } },
     },
     metadata: { showup_user_id: userId },
-    include: ["configuration.recipient", "requirements"],
+    include: ["configuration.merchant", "configuration.recipient", "requirements"],
   });
 
   await serviceDb()
@@ -104,7 +109,7 @@ export async function createOnboardingLink(userId: string): Promise<string> {
     use_case: {
       type: "account_onboarding",
       account_onboarding: {
-        configurations: ["recipient"],
+        configurations: ["merchant", "recipient"],
         return_url: `${base}/creator/payments?onboarding=done`,
         refresh_url: `${base}/creator/payments?onboarding=refresh`,
         collection_options: { fields: "eventually_due" },
