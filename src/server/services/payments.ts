@@ -7,6 +7,8 @@ import { audit } from "./audit";
 import { notify } from "./notifications";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
+import { payoutDestinationFor, syncPayoutStatusByAccount } from "./connect";
+import { serverEnv } from "@/lib/env";
 import { formatCents } from "@/lib/money";
 
 /**
@@ -424,11 +426,34 @@ export async function payoutCreatorPayment(
     return { ok: false, error: "Creator payment is not ready to pay (or is paused)" };
   }
 
+  // In Stripe mode we can only transfer to a creator whose connected account
+  // has the transfers capability active. Resolve it first and fail cleanly
+  // (rolling the claim back) if they haven't finished payout onboarding.
+  let destinationAccountId: string | undefined;
+  if (serverEnv.paymentProvider === "stripe") {
+    const dest = await payoutDestinationFor(claimed.creator_id);
+    if (!dest) {
+      await db
+        .from("creator_payment_records")
+        .update({
+          status: "failed",
+          paid_at: null,
+          failed_at: new Date().toISOString(),
+          failure_reason: "Creator hasn't finished payout setup",
+        })
+        .eq("id", claimed.id)
+        .eq("status", "paid");
+      return { ok: false, error: "Creator hasn't finished payout setup" };
+    }
+    destinationAccountId = dest;
+  }
+
   const result = await paymentProvider().payout({
     creatorUserId: claimed.creator_id,
     amountCents: claimed.amount_cents,
     idempotencyKey: `payout:${bookingId}`,
     metadata: { bookingId },
+    destinationAccountId,
   });
   if (!result.ok) {
     await db
@@ -487,6 +512,14 @@ export async function handleWebhookEvent(event: {
     payload: event.data as never,
   });
   if (dedupeError) return { processed: false }; // duplicate delivery
+
+  // Connect: a creator's account finished onboarding (or a capability
+  // changed) → refresh whether they can receive transfers.
+  if (event.type === "account.updated") {
+    const accountId = event.data.id as string | undefined;
+    if (accountId?.startsWith("acct_")) await syncPayoutStatusByAccount(accountId);
+    return { processed: true };
+  }
 
   // Reconcile: if the provider says an intent changed state but our record
   // is stale (e.g. process died mid-call), advance it.

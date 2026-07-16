@@ -12,6 +12,7 @@ import {
   attachPaymentMethodByToken,
   retryAuthorizationForBooking,
 } from "@/server/services/payments";
+import { createOnboardingLink } from "@/server/services/connect";
 import { submitAttendance } from "@/server/services/attendance";
 import { submitContent } from "@/server/services/content";
 import { sendMessage, markThreadRead } from "@/server/services/messaging";
@@ -381,4 +382,11 @@ export async function markAllNotificationsReadAction(): Promise<void> {
   await markAllNotificationsRead(user.id);
   revalidatePath("/creator/notifications");
   revalidatePath("/label/notifications");
+}
+
+/** Start (or resume) Stripe Connect payout onboarding → redirect to Stripe. */
+export async function startPayoutOnboardingAction(): Promise<void> {
+  const user = await requireCreator();
+  const url = await createOnboardingLink(user.id);
+  redirect(url);
 }

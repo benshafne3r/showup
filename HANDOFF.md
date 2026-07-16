@@ -1,6 +1,22 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-15_
+_Last updated: 2026-07-16_
+
+## Stripe integration (this session)
+CLI + MCP paired to **Show Up LLC** (`acct_1TqDXl2KxMbOZ5Hd`). See memory
+`stripe-setup.md` for full details.
+- **Phase 1 DONE — deposit holds validated in test mode.** `.env.local` re-aligned to
+  Show Up LLC test keys (secret was empty + pk was a different account); `PAYMENT_PROVIDER=stripe`.
+  authorize→release / authorize→capture all succeed on the real test account; every
+  webhook returns 200 via `stripe listen`. Not verifiable headless: typing into the
+  Stripe Elements card iframe (user does that once in a real browser).
+- **Phase 2 BUILT on branch `stripe-connect-payouts` (untested).** Connect Express
+  creator payouts: migration 0007 + `services/connect.ts` + `payout()` transfer +
+  "Getting paid" onboarding card. **BLOCKED:** accept loss-liability at
+  dashboard.stripe.com/settings/connect/platform-profile before connected accounts can
+  be created → then test end-to-end + merge.
+- ⚠️ `.env.local` is on `PAYMENT_PROVIDER=stripe`; set back to `mock` before `npm run test:e2e`.
+
 
 ## Small UX tweaks (latest)
 - **Create dialog:** the "Pop-up show" tab is now **"Event"** (label only; the

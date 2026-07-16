@@ -238,6 +238,7 @@ export class MockPaymentProvider implements PaymentProvider {
     amountCents: number;
     idempotencyKey: string;
     metadata: Record<string, string>;
+    destinationAccountId?: string;
   }): Promise<PayoutResult> {
     const existing = await findByIdempotencyKey<{ status: string }>("transfer", input.idempotencyKey);
     if (existing) return { ok: true, providerTransferId: existing.id }; // idempotent
