@@ -10,11 +10,14 @@ CLI + MCP paired to **Show Up LLC** (`acct_1TqDXl2KxMbOZ5Hd`). See memory
   authorize→release / authorize→capture all succeed on the real test account; every
   webhook returns 200 via `stripe listen`. Not verifiable headless: typing into the
   Stripe Elements card iframe (user does that once in a real browser).
-- **Phase 2 BUILT on branch `stripe-connect-payouts` (untested).** Connect Express
-  creator payouts: migration 0007 + `services/connect.ts` + `payout()` transfer +
-  "Getting paid" onboarding card. **BLOCKED:** accept loss-liability at
-  dashboard.stripe.com/settings/connect/platform-profile before connected accounts can
-  be created → then test end-to-end + merge.
+- **Phase 2 MERGED to main — Connect creator payouts (Accounts v2).** migration 0007 +
+  `services/connect.ts` (v2 recipient accounts + hosted onboarding) + `payout()` transfer +
+  "Getting paid" card. Fully gated on `PAYMENT_PROVIDER=stripe`, so mock (prod today/dev/e2e)
+  is unchanged. Validated in test mode up to the human KYC step (has a CAPTCHA; can't automate).
+  **Before prod goes Stripe:** (a) apply migration 0007 to the **prod** Supabase
+  (`mpcjunweelepgcglolvx`) — dev has it, prod doesn't; safe in mock mode since the new columns
+  are only read in stripe mode; (b) complete one live onboarding + confirm a transfer;
+  (c) wire the v2 `account[requirements].updated` webhook backstop (return-URL sync covers the happy path).
 - ⚠️ `.env.local` is on `PAYMENT_PROVIDER=stripe`; set back to `mock` before `npm run test:e2e`.
 
 
