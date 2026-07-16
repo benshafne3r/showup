@@ -30,22 +30,30 @@ import type {
  *   6. Webhook signatures + event types (payment_intent.*, transfer.*).
  *   7. Dispute/refund handling and how it maps to our `disputed` states.
  *
- * MVP guard: this adapter refuses to construct with a non-test key so real
- * money can never move from this codebase until the checklist is done.
+ * Live-key guard: test keys (`sk_test_`) are always allowed. A live key
+ * (`sk_live_`) moves REAL money, so it only starts when `STRIPE_LIVE_OK=true`
+ * is explicitly set — a stray live key alone can never turn on real charges.
  */
 export class StripePaymentProvider implements PaymentProvider {
   readonly name = "stripe" as const;
-  readonly testMode = true;
+  readonly testMode: boolean;
   private stripe: Stripe;
 
   constructor() {
     const key = serverEnv.stripeSecretKey;
-    if (!key.startsWith("sk_test_")) {
+    if (!key.startsWith("sk_")) {
       throw new Error(
-        "StripePaymentProvider requires a sk_test_ sandbox key in this MVP. " +
-          "Set PAYMENT_PROVIDER=mock or provide Stripe test credentials.",
+        "STRIPE_SECRET_KEY must be a Stripe secret key (sk_test_… or sk_live_…).",
       );
     }
+    const isTest = key.startsWith("sk_test_");
+    if (!isTest && !serverEnv.stripeLiveOk) {
+      throw new Error(
+        "Refusing to start with a live Stripe key. Set STRIPE_LIVE_OK=true to " +
+          "enable real charges and payouts (see docs/GO_LIVE.md).",
+      );
+    }
+    this.testMode = isTest;
     this.stripe = new Stripe(key);
   }
 

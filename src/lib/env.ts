@@ -41,6 +41,10 @@ export const serverEnv = {
   get stripeWebhookSecret() {
     return process.env.STRIPE_WEBHOOK_SECRET ?? "";
   },
+  /** Explicit opt-in required before a live (`sk_live_`) Stripe key can start. */
+  get stripeLiveOk() {
+    return process.env.STRIPE_LIVE_OK === "true";
+  },
   get emailProvider(): "console" | "resend" {
     return process.env.EMAIL_PROVIDER === "resend" ? "resend" : "console";
   },
