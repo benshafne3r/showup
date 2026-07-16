@@ -390,6 +390,128 @@ export async function saveShowAction(
   redirect(`/label/shows/${showId}?saved=1`);
 }
 
+// ── Bulk import: create + publish a show for every selected tour date ──────
+const bulkImportSchema = z.object({
+  artistId: z.string().uuid(),
+  tourId: z.string().uuid().optional().or(z.literal("")),
+  dates: z.string(), // JSON array of imported dates
+  statedTicketValue: z.string().min(1, "Enter the stated ticket value"),
+  depositPercentage: z.coerce.number().int(),
+  creatorPayment: z.string(),
+  ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
+  plusOneAllowed: z.string().optional(),
+  deadlineDaysBefore: z.coerce.number().int().min(0).max(120),
+  contentDeadlineDays: z.coerce.number().int().min(0).max(90),
+  contentPlatform: z.enum([
+    "none", "instagram_story", "instagram_reel", "instagram_post",
+    "tiktok_video", "youtube_short", "youtube_video", "twitter_post", "other",
+  ]),
+  ticketDeliveryMethod: z.enum(["will_call", "digital_transfer", "guest_list", "box_office"]),
+});
+
+const importedDatesSchema = z
+  .array(
+    z.object({
+      venueName: z.string().min(1).max(160),
+      venueCity: z.string().min(1).max(80),
+      venueState: z.string().max(40).optional().default(""),
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      startTime: z.string().optional(),
+    }),
+  )
+  .min(1, "Select at least one date to import")
+  .max(60, "Import up to 60 dates at a time");
+
+export async function bulkImportShowsAction(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  let created = 0;
+  try {
+    const context = await requireLabelWithCompany();
+    const parsed = bulkImportSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const data = parsed.data;
+
+    let dates: z.infer<typeof importedDatesSchema>;
+    try {
+      dates = importedDatesSchema.parse(JSON.parse(data.dates || "[]"));
+    } catch (err) {
+      return { error: err instanceof z.ZodError ? err.issues[0].message : "Select at least one date" };
+    }
+
+    let statedTicketValueCents: number;
+    let creatorPaymentCents: number;
+    try {
+      statedTicketValueCents = parseDollarsToCents(data.statedTicketValue);
+      creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
+    } catch {
+      return { error: "Enter dollar amounts like 120 or 120.50" };
+    }
+
+    const deliverables =
+      data.contentPlatform === "none"
+        ? []
+        : [{ platform: data.contentPlatform, quantity: 1, description: "" }];
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    let firstError: string | null = null;
+
+    for (const ev of dates) {
+      // Skip dates already in the past — you can't publish a past opportunity.
+      if (new Date(`${ev.date}T23:59:59`).getTime() < now) {
+        firstError ??= `${ev.date} is in the past — skipped`;
+        continue;
+      }
+      const showResult = await upsertShow({
+        companyId: context.companyId,
+        actor: { id: context.user.id, role: "label" },
+        artistId: data.artistId,
+        tourId: data.tourId || undefined,
+        venue: { name: ev.venueName, city: ev.venueCity, state: ev.venueState || undefined },
+        date: ev.date,
+        startTime: ev.startTime || undefined,
+        ticketDeliveryMethod: data.ticketDeliveryMethod,
+      });
+      if (!showResult.ok) {
+        firstError ??= `${ev.date}: ${showResult.error}`;
+        continue;
+      }
+      // Applications close N days before each show, but never in the past.
+      const dl = new Date(`${ev.date}T20:00:00`);
+      dl.setDate(dl.getDate() - data.deadlineDaysBefore);
+      const applicationDeadline = new Date(Math.max(dl.getTime(), now + dayMs)).toISOString();
+
+      const oppResult = await upsertOpportunity({
+        companyId: context.companyId,
+        actor: { id: context.user.id, role: "label" },
+        showId: showResult.showId,
+        statedTicketValueCents,
+        depositPercentage: data.depositPercentage,
+        creatorPaymentCents,
+        plusOneAllowed: data.plusOneAllowed === "on",
+        ticketsTotal: data.ticketsTotal,
+        applicationDeadline,
+        contentDeadlineDays: data.contentDeadlineDays,
+        deliverables,
+        publish: true,
+      });
+      if (!oppResult.ok) {
+        firstError ??= `${ev.date}: ${oppResult.error}`;
+        continue;
+      }
+      created += 1;
+    }
+
+    if (created === 0) return { error: firstError ?? "No shows were created." };
+  } catch (err) {
+    return fail(err);
+  }
+  revalidatePath("/label/shows");
+  redirect(`/label/shows?imported=${created}`);
+}
+
 // One-off pop-up: a standalone show (no tour) in a city, published instantly.
 // Everything not asked here uses a sensible default.
 const CONTENT_PLATFORMS = [

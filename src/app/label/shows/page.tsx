@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatShowDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
-import { CalendarPlus } from "lucide-react";
+import { CalendarPlus, CalendarArrowDown } from "lucide-react";
 import type { ShowStatus } from "@/lib/statuses";
 import { ShareButton } from "../tours/share-button";
 import { DeleteShowButton } from "./delete-show-button";
@@ -24,8 +24,13 @@ const SHOW_STATUS_META: Record<ShowStatus, { label: string; tone: "neutral" | "i
   completed: { label: "Completed", tone: "info" },
 };
 
-export default async function ShowsPage() {
+export default async function ShowsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ imported?: string }>;
+}) {
   const context = await requireLabelPage();
+  const { imported } = await searchParams;
   const { data: shows } = await serviceDb()
     .from("shows")
     .select(
@@ -41,13 +46,25 @@ export default async function ShowsPage() {
         title="Shows"
         description="Every date across your artists."
         action={
-          <Button asChild>
-            <Link href="/label/shows/new">
-              <CalendarPlus className="size-4" aria-hidden /> New show
-            </Link>
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/label/shows/import">
+                <CalendarArrowDown className="size-4" aria-hidden /> Import dates
+              </Link>
+            </Button>
+            <Button asChild>
+              <Link href="/label/shows/new">
+                <CalendarPlus className="size-4" aria-hidden /> New show
+              </Link>
+            </Button>
+          </div>
         }
       />
+      {imported ? (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">
+          Published {imported} show{imported === "1" ? "" : "s"} from the tour import.
+        </div>
+      ) : null}
       {!shows?.length ? (
         <EmptyState
           icon={CalendarPlus}
