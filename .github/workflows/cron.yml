@@ -1,0 +1,32 @@
+name: Scheduled jobs
+
+# Runs the ShowUp scheduled jobs (place/release card holds, expire acceptance
+# deadlines, send reminders) by POSTing to the app's /api/cron/run endpoint.
+# An alternative to a Railway cron service — no extra infra, runs on GitHub.
+#
+# Setup: add a repo secret CRON_SECRET matching the app's CRON_SECRET env var
+# (Settings → Secrets and variables → Actions → New repository secret).
+#
+# Note: GitHub's scheduled runs are best-effort and can be delayed a few minutes
+# under load; fine for hold placement (7-day window). GitHub also disables
+# schedules after ~60 days with no repo activity — if the repo goes quiet, use
+# the "Run workflow" button or a Railway cron service instead.
+
+on:
+  schedule:
+    - cron: "*/10 * * * *" # every 10 minutes
+  workflow_dispatch: {} # manual "Run workflow" button
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger scheduled jobs
+        env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          curl -fsS -X POST \
+            "https://showup-production-05d8.up.railway.app/api/cron/run" \
+            -H "x-cron-secret: ${CRON_SECRET}" \
+            -H "content-type: application/json" \
+            --max-time 120

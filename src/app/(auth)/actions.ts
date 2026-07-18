@@ -12,6 +12,20 @@ export type AuthFormState = { error: string } | null;
 export type SignUpState = { error: string } | { pending: string } | null;
 export type ResetRequestState = { error: string } | { sent: true } | null;
 
+/**
+ * The seeded demo accounts (`*@demo.showup.test`, shared password) are handy in
+ * dev + e2e but must not be reachable in production. Blocked in production
+ * unless DEMO_ACCOUNTS_ENABLED=true is explicitly set (e.g. a demo deployment).
+ */
+const DEMO_EMAIL_SUFFIX = "@demo.showup.test";
+function demoAccountBlocked(email: string): boolean {
+  return (
+    email.toLowerCase().endsWith(DEMO_EMAIL_SUFFIX) &&
+    process.env.NODE_ENV === "production" &&
+    process.env.DEMO_ACCOUNTS_ENABLED !== "true"
+  );
+}
+
 const signInSchema = z.object({
   email: z.string().email("Enter a valid email address"),
   password: z.string().min(1, "Enter your password"),
@@ -28,6 +42,8 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
   const parsed = signInSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { email, password } = parsed.data;
+  // Same generic error as bad credentials — don't reveal the account exists.
+  if (demoAccountBlocked(email)) return { error: "Incorrect email or password" };
 
   try {
     await enforceRateLimit("auth.sign_in", email.toLowerCase());
@@ -63,6 +79,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
   const { fullName, email, password, role } = parsed.data;
+  if (demoAccountBlocked(email)) return { error: "Please use a different email address." };
 
   try {
     await enforceRateLimit("auth.sign_up", email.toLowerCase());
