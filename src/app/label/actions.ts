@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser, requireLabelWithCompany, requireCompanyRole } from "@/server/auth/guards";
 import { createCompany, inviteMember, removeMember, changeMemberRole } from "@/server/services/companies";
+import { serviceDb } from "@/server/db/service";
 import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
 import { upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
@@ -458,12 +459,35 @@ export async function bulkImportShowsAction(
     const dayMs = 24 * 60 * 60 * 1000;
     let firstError: string | null = null;
 
+    // Dedup: skip any date this artist already has a show for at the same
+    // venue+city (existing shows, plus dupes within this same batch).
+    const { data: existingShows } = await serviceDb()
+      .from("shows")
+      .select("date, venues(name, city)")
+      .eq("company_id", context.companyId)
+      .eq("artist_id", data.artistId);
+    const key = (date: string, venue: string, city: string) =>
+      `${date}|${venue.trim().toLowerCase()}|${city.trim().toLowerCase()}`;
+    const seen = new Set(
+      (existingShows ?? []).map((s) =>
+        key(s.date, s.venues?.name ?? "", s.venues?.city ?? ""),
+      ),
+    );
+
     for (const ev of dates) {
       // Skip dates already in the past — you can't publish a past opportunity.
       if (new Date(`${ev.date}T23:59:59`).getTime() < now) {
         firstError ??= `${ev.date} is in the past — skipped`;
         continue;
       }
+      // Skip if this artist already has this exact date+venue.
+      const evKey = key(ev.date, ev.venueName, ev.venueCity);
+      if (seen.has(evKey)) {
+        firstError ??= `${ev.date} at ${ev.venueName} already exists — skipped`;
+        continue;
+      }
+      seen.add(evKey);
+
       const showResult = await upsertShow({
         companyId: context.companyId,
         actor: { id: context.user.id, role: "label" },
