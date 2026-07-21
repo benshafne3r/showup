@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { publicEnv } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "How it works" };
@@ -40,7 +41,7 @@ export default function HowItWorksPage() {
       </ol>
       <div className="mt-12 flex gap-3">
         <Button asChild>
-          <Link href="/sign-up">Get started</Link>
+          <Link href={`${publicEnv.appUrl}/sign-up`}>Get started</Link>
         </Button>
         <Button asChild variant="outline">
           <Link href="/for-creators">Creator details</Link>

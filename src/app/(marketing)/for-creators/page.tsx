@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { publicEnv } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { CheckCircle2 } from "lucide-react";
@@ -61,7 +62,7 @@ export default function ForCreatorsPage() {
       </div>
 
       <Button asChild size="lg" className="mt-10">
-        <Link href="/sign-up">Create your creator account</Link>
+        <Link href={`${publicEnv.appUrl}/sign-up`}>Create your creator account</Link>
       </Button>
     </div>
   );

@@ -60,7 +60,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
             <Button asChild size="lg" className="rounded-full px-7">
-              <Link href="/sign-up">Join as a creator</Link>
+              <Link href={`${publicEnv.appUrl}/sign-up`}>Join as a creator</Link>
             </Button>
             <Button
               asChild
@@ -68,7 +68,7 @@ export default function LandingPage() {
               variant="outline"
               className="rounded-full border-white/40 bg-white/5 px-7 text-white backdrop-blur hover:bg-white/15 hover:text-white"
             >
-              <Link href="/sign-up?role=label">Join as a label</Link>
+              <Link href={`${publicEnv.appUrl}/sign-up?role=label`}>Join as a label</Link>
             </Button>
           </div>
         </div>
@@ -308,7 +308,7 @@ export default function LandingPage() {
                   "In-app messaging with artist teams",
                 ],
                 cta: "Apply as a creator",
-                href: "/sign-up",
+                href: `${publicEnv.appUrl}/sign-up`,
               },
               {
                 audience: "Labels & managers",
@@ -320,7 +320,7 @@ export default function LandingPage() {
                   "Pay only for approved content",
                 ],
                 cta: "Join as a label",
-                href: "/sign-up?role=label",
+                href: `${publicEnv.appUrl}/sign-up?role=label`,
               },
             ].map((plan) => (
               <div

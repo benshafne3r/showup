@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { BRAND } from "@/lib/brand";
+import { publicEnv } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/logo";
 
@@ -26,10 +27,10 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           </nav>
           <div className="ml-auto flex items-center gap-2">
             <Button asChild variant="ghost" size="sm">
-              <Link href="/sign-in">Sign in</Link>
+              <Link href={`${publicEnv.appUrl}/sign-in`}>Sign in</Link>
             </Button>
             <Button asChild size="sm">
-              <Link href="/sign-up">Get started</Link>
+              <Link href={`${publicEnv.appUrl}/sign-up`}>Get started</Link>
             </Button>
           </div>
         </div>

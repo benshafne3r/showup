@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { publicEnv } from "@/lib/env";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "For labels & managers" };
@@ -47,7 +48,7 @@ export default function ForLabelsPage() {
       </div>
 
       <Button asChild size="lg" className="mt-10">
-        <Link href="/sign-up?role=label">Create your company account</Link>
+        <Link href={`${publicEnv.appUrl}/sign-up?role=label`}>Create your company account</Link>
       </Button>
     </div>
   );
