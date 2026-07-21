@@ -1,6 +1,43 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-16_
+_Last updated: 2026-07-17_
+
+## 🚦 LIVE STATE (read this first)
+Prod is **live for real** on a real domain with real payments. Owner account:
+**ben@50-50ventures.com** (label). Legal entity **Show Up LLC**, California, in
+`src/lib/brand.ts` (used by Terms/Privacy).
+
+**Domains (GoDaddy DNS):**
+- `www.showuptickets.com` → marketing site (Railway). `app.showuptickets.com` → sign-in + portal.
+- Host split in **`src/proxy.ts`** (Next 16 renamed middleware→**proxy**), gated on
+  **`PORTAL_SPLIT=on`**. Marketing auth buttons link to `NEXT_PUBLIC_APP_URL` (=`https://app.showuptickets.com`).
+- Bare `showuptickets.com` needs GoDaddy **Forwarding → https://www.showuptickets.com**
+  (⚠️ may still show the GoDaddy WebsiteBuilder site until that's set).
+- Railway `NEXT_PUBLIC_APP_URL=https://app.showuptickets.com`. Custom-domain target **port 8080**.
+
+**Payments — LIVE (Stripe, Show Up LLC `acct_1TqDXl2KxMbOZ5Hd`):** deposit holds + Connect
+payouts both confirmed working on the live site. Live key gated behind `STRIPE_LIVE_OK=true`.
+Live webhook registered → `app.showuptickets.com/api/webhooks/payments` (Your account + Snapshot).
+Live-mode Connect requires **both** `card_payments` + `stripe_transfers` capabilities (see
+`services/connect.ts` + memory `stripe-setup.md`).
+
+**Cron:** GitHub Actions `.github/workflows/cron.yml` (`*/10`) hits `/api/cron/run`; needs
+`CRON_SECRET` repo secret (set) — verified running.
+
+**Ticketmaster:** real tour-date import live; `TICKETMASTER_API_KEY` set in Railway (key valid).
+Bulk import (`/label/shows/import`) dedupes by artist+date+venue.
+
+**Demo data:** WIPED from prod. Demo `*@demo.showup.test` logins also code-gated in prod
+(`DEMO_ACCOUNTS_ENABLED=true` to re-enable).
+
+**⬜ Last real blocker — email (Resend):** domain `showuptickets.com` verified in Resend (DNS in).
+Still to set: Railway `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` + `EMAIL_FROM=ShowUp <notifications@showuptickets.com>`
+(app notifications/invites), AND Supabase Auth → Custom SMTP (host `smtp.resend.com`, port 465,
+user `resend`, pass = Resend key) for password-reset/verification. Rotate the Resend key that was
+pasted in chat.
+
+**Optional:** promote ben to `admin` (one-line SQL) for the admin dashboard; wire Sentry; wire the
+v2 `account[requirements].updated` webhook backstop.
 
 ## Stripe integration (this session)
 CLI + MCP paired to **Show Up LLC** (`acct_1TqDXl2KxMbOZ5Hd`). See memory
