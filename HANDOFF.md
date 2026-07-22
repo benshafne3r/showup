@@ -45,8 +45,19 @@ must include `https://app.showuptickets.com/**` (wildcard) or Supabase drops the
 link-prefetch by a mail scanner; if it recurs, disable Resend click/open tracking. Rotate the Resend
 keys pasted in chat.
 
+**⬜ PENDING PROD MIGRATION — `0008_hide_venue.sql`:** run on prod SQL editor
+(`add column if not exists hide_venue_until_approved boolean not null default false` on
+`public.shows`). The deployed code selects this column on creator Discover/show pages — they
+error until it's applied. Dev Supabase project is deleted, so all prod DB changes are hand-run SQL.
+
+**Secret-location feature (Events):** event form has a "Venue / Address" field + "Hide exact
+location until approved" checkbox → `shows.hide_venue_until_approved`. Creators see city-only
+(venue/address stripped from the payload) on discover/show-detail/requests until their request is
+`approved`; labels always see it. Events-only for now (not tour shows).
+
 **Optional:** promote ben to `admin` (one-line SQL) for the admin dashboard; wire Sentry; wire the
-v2 `account[requirements].updated` webhook backstop.
+v2 `account[requirements].updated` webhook backstop; harden the creator booking-dispute dialog
+against the same mid-form close bug fixed on the tour create/edit dialogs.
 
 ## Stripe integration (this session)
 CLI + MCP paired to **Show Up LLC** (`acct_1TqDXl2KxMbOZ5Hd`). See memory
