@@ -8,6 +8,9 @@ import { ArrowRight, BadgeCheck, Check, Plus } from "lucide-react";
 
 const DEMO_IMAGES = `${publicEnv.supabaseUrl}/storage/v1/object/public/artist-images/demo`;
 
+/** Labels reach out by email rather than self-serve sign-up. */
+const LABEL_CONTACT = "mailto:benshafner@gmail.com?subject=Join%20ShowUp%20as%20a%20label";
+
 /** FanMoments-style fading name wall — real Columbia roster, loud to ghosted. */
 const ARTIST_WALL: Array<{ names: string[]; className: string }> = [
   { names: ["Baby Keem", "Ella Langley"], className: "text-4xl md:text-6xl opacity-100" },
@@ -68,7 +71,7 @@ export default function LandingPage() {
               variant="outline"
               className="rounded-full border-white/40 bg-white/5 px-7 text-white backdrop-blur hover:bg-white/15 hover:text-white"
             >
-              <Link href={`${publicEnv.appUrl}/sign-up?role=label`}>Join as a label</Link>
+              <a href={LABEL_CONTACT}>Join as a label</a>
             </Button>
           </div>
         </div>
@@ -307,20 +310,22 @@ export default function LandingPage() {
                   "Keep 100% of your creator payments",
                   "In-app messaging with artist teams",
                 ],
+                note: null,
                 cta: "Apply as a creator",
                 href: `${publicEnv.appUrl}/sign-up`,
               },
               {
-                audience: "Labels & managers",
-                price: "Free in beta",
+                audience: "Labels & agencies",
+                price: "By invite",
                 features: [
                   "Unlimited shows and opportunities",
                   "Audience metrics on every request",
                   "Deposit holds keep creators reliable",
                   "Pay only for approved content",
                 ],
-                cta: "Join as a label",
-                href: `${publicEnv.appUrl}/sign-up?role=label`,
+                note: "Contact us if you'd like access.",
+                cta: "Contact us",
+                href: LABEL_CONTACT,
               },
             ].map((plan) => (
               <div
@@ -342,8 +347,15 @@ export default function LandingPage() {
                     </li>
                   ))}
                 </ul>
-                <Button asChild className="mt-8 rounded-full">
-                  <Link href={plan.href}>{plan.cta}</Link>
+                {plan.note && (
+                  <p className="mt-6 text-sm text-muted-foreground">{plan.note}</p>
+                )}
+                <Button asChild className={plan.note ? "mt-3 rounded-full" : "mt-8 rounded-full"}>
+                  {plan.href.startsWith("mailto:") ? (
+                    <a href={plan.href}>{plan.cta}</a>
+                  ) : (
+                    <Link href={plan.href}>{plan.cta}</Link>
+                  )}
                 </Button>
               </div>
             ))}
