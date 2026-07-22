@@ -1466,6 +1466,7 @@ export type Database = {
           created_at: string
           date: string
           doors_time: string | null
+          hide_venue_until_approved: boolean
           id: string
           image_url: string | null
           postponed_from: string | null
@@ -1485,6 +1486,7 @@ export type Database = {
           created_at?: string
           date: string
           doors_time?: string | null
+          hide_venue_until_approved?: boolean
           id?: string
           image_url?: string | null
           postponed_from?: string | null
@@ -1504,6 +1506,7 @@ export type Database = {
           created_at?: string
           date?: string
           doors_time?: string | null
+          hide_venue_until_approved?: boolean
           id?: string
           image_url?: string | null
           postponed_from?: string | null

@@ -39,6 +39,7 @@ export default async function ShowDetailPage({
     .from("shows")
     .select(
       `id, date, doors_time, start_time, status, image_url, ticket_delivery_method,
+       hide_venue_until_approved,
        artists!inner(name, genre, bio, image_url, instagram_handle),
        venues!inner(name, city, state, address),
        companies!inner(name),
@@ -68,6 +69,17 @@ export default async function ShowDetailPage({
 
   const holdOne = authorizationAmountCents(opp.stated_ticket_value_cents, 1, opp.deposit_percentage);
   const holdTwo = authorizationAmountCents(opp.stated_ticket_value_cents, 2, opp.deposit_percentage);
+
+  // Secret location: withhold the venue/address until this creator is approved.
+  const locationHidden =
+    show.hide_venue_until_approved && existingRequest?.status !== "approved";
+  if (locationHidden) {
+    // Strip the secret venue from the data entirely so it never reaches the
+    // client payload — the city stays visible.
+    show.venues.name = "";
+    show.venues.state = null;
+    show.venues.address = null;
+  }
 
   return (
     <div className="space-y-6">
@@ -115,9 +127,21 @@ export default async function ShowDetailPage({
               </p>
               <p className="flex items-center gap-2 sm:col-span-2">
                 <MapPin className="size-4 text-primary" aria-hidden />
-                {show.venues.name}, {show.venues.city}
-                {show.venues.state ? `, ${show.venues.state}` : ""}
-                {show.venues.address ? ` — ${show.venues.address}` : ""}
+                {locationHidden ? (
+                  <span>
+                    {show.venues.city}
+                    <span className="text-muted-foreground">
+                      {" "}
+                      · Secret location — revealed once you're approved
+                    </span>
+                  </span>
+                ) : (
+                  <>
+                    {show.venues.name}, {show.venues.city}
+                    {show.venues.state ? `, ${show.venues.state}` : ""}
+                    {show.venues.address ? ` — ${show.venues.address}` : ""}
+                  </>
+                )}
               </p>
               <p className="flex items-center gap-2">
                 <Ticket className="size-4 text-primary" aria-hidden />

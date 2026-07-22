@@ -43,7 +43,7 @@ export default async function DiscoverPage({
   const { data: rows } = await db
     .from("shows")
     .select(
-      `id, date, image_url, status,
+      `id, date, image_url, status, hide_venue_until_approved,
        artists!inner(name, genre, image_url),
        venues!inner(name, city),
        show_opportunities!inner(
@@ -70,7 +70,9 @@ export default async function DiscoverPage({
       if (cityFilter && cityFilter !== "all" && r.venues.city !== cityFilter) return false;
       if (paidOnly && opp.creator_payment_cents <= 0) return false;
       if (q) {
-        const haystack = `${r.artists.name} ${r.venues.name} ${r.venues.city}`.toLowerCase();
+        // Don't let a secret venue be confirmed via search — omit its name.
+        const venueTerm = r.hide_venue_until_approved ? "" : r.venues.name;
+        const haystack = `${r.artists.name} ${venueTerm} ${r.venues.city}`.toLowerCase();
         if (!haystack.includes(q.toLowerCase())) return false;
       }
       return true;
@@ -83,7 +85,7 @@ export default async function DiscoverPage({
         artistName: r.artists.name,
         artistGenre: r.artists.genre,
         imageUrl: r.image_url ?? r.artists.image_url,
-        venueName: r.venues.name,
+        venueName: r.hide_venue_until_approved ? "Secret location" : r.venues.name,
         city: r.venues.city,
         date: r.date,
         creatorPaymentCents: opp.creator_payment_cents,

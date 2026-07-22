@@ -32,7 +32,7 @@ export default async function ShowDashboardPage({
   const { data: show } = await db
     .from("shows")
     .select(
-      `id, date, status, cancel_reason, artists(name), venues(name, city, state),
+      `id, date, status, cancel_reason, hide_venue_until_approved, artists(name), venues(name, city, state),
        show_opportunities(
          id, stated_ticket_value_cents, deposit_percentage, creator_payment_cents,
          plus_one_allowed, tickets_total, tickets_claimed, application_deadline, published_at
@@ -74,7 +74,7 @@ export default async function ShowDashboardPage({
       ) : null}
       <PageHeader
         title={`${show.artists?.name} — ${show.venues?.city}`}
-        description={`${formatShowDateLong(show.date)} · ${show.venues?.name}${show.status !== "published" ? ` · ${show.status.toUpperCase()}` : ""}`}
+        description={`${formatShowDateLong(show.date)} · ${show.venues?.name}${show.hide_venue_until_approved ? " · 🔒 Secret location (hidden until approved)" : ""}${show.status !== "published" ? ` · ${show.status.toUpperCase()}` : ""}`}
         action={
           <div className="flex gap-2">
             <Button asChild variant="outline" size="sm">

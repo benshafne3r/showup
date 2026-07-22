@@ -203,6 +203,8 @@ export async function upsertShow(input: {
   title?: string;
   ticketDeliveryMethod: "will_call" | "digital_transfer" | "guest_list" | "box_office";
   imageFile?: File | null;
+  // When true, creators see only the city until they're approved for the show.
+  hideVenueUntilApproved?: boolean;
 }): Promise<{ ok: true; showId: string } | { ok: false; error: string }> {
   const db = serviceDb();
 
@@ -233,6 +235,10 @@ export async function upsertShow(input: {
     start_time: input.startTime || null,
     ticket_delivery_method: input.ticketDeliveryMethod,
     ...(imageUrl ? { image_url: imageUrl } : {}),
+    // Only write when explicitly set, so edits that omit it don't reset the flag.
+    ...(input.hideVenueUntilApproved !== undefined
+      ? { hide_venue_until_approved: input.hideVenueUntilApproved }
+      : {}),
   };
 
   if (input.showId) {

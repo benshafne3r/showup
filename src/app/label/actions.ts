@@ -618,6 +618,7 @@ export async function createPopupShowAction(
       date: data.date,
       ticketDeliveryMethod: "guest_list",
       imageFile: null,
+      hideVenueUntilApproved: formData.get("hideLocation") === "on",
     });
     if (!showResult.ok) return { error: showResult.error };
     showId = showResult.showId;

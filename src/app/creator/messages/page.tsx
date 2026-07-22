@@ -32,7 +32,7 @@ export default async function CreatorMessagesPage({
       .from("show_requests")
       .select(
         `id, status, ticket_count, includes_plus_one, message, created_at,
-         shows!inner(id, date, artists(name), venues(name, city)),
+         shows!inner(id, date, hide_venue_until_approved, artists(name), venues(name, city)),
          bookings(id, status)`,
       )
       .eq("creator_id", user.id)
@@ -72,6 +72,8 @@ export default async function CreatorMessagesPage({
               {requests.map((request) => {
                 const booking = request.bookings;
                 const meta = REQUEST_STATUS_META[request.status as RequestStatus];
+                const hideLoc =
+                  request.shows.hide_venue_until_approved && request.status !== "approved";
                 return (
                   <li
                     key={request.id}
@@ -81,7 +83,9 @@ export default async function CreatorMessagesPage({
                       <p className="font-medium">
                         {request.shows.artists?.name}{" "}
                         <span className="text-muted-foreground">
-                          · {request.shows.venues?.name}, {request.shows.venues?.city}
+                          {hideLoc
+                            ? `· ${request.shows.venues?.city} · Secret location`
+                            : `· ${request.shows.venues?.name}, ${request.shows.venues?.city}`}
                         </span>
                       </p>
                       <p className="text-sm text-muted-foreground">

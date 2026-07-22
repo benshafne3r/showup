@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { createPopupShowAction, type ActionState } from "../actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -27,14 +28,33 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
-          <Label htmlFor="pop-venue">Venue</Label>
-          <Input id="pop-venue" name="venueName" placeholder="The Echoplex" required />
+          <Label htmlFor="pop-venue">Venue / Address</Label>
+          <Input
+            id="pop-venue"
+            name="venueName"
+            placeholder="The Echoplex — or 1155 Sunset Blvd"
+            required
+          />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pop-city">City</Label>
           <Input id="pop-city" name="venueCity" placeholder="Los Angeles" required />
         </div>
       </div>
+
+      <label
+        htmlFor="pop-hide"
+        className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3"
+      >
+        <Checkbox id="pop-hide" name="hideLocation" value="on" className="mt-0.5" />
+        <span>
+          <span className="block text-sm font-medium">Hide exact location until approved</span>
+          <span className="mt-0.5 block text-xs text-muted-foreground">
+            Creators see only the city — the venue/address is revealed once you approve
+            them. Good for secret pop-ups.
+          </span>
+        </span>
+      </label>
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
