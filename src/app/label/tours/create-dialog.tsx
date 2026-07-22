@@ -25,7 +25,14 @@ export function CreateDialog({ artists }: { artists: { id: string; name: string 
           <Plus className="size-4" aria-hidden /> Create
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto sm:max-w-md"
+        // Data-entry form: don't let a native date-picker click, a portaled
+        // Select, a stray backdrop click, or Escape collapse a half-filled form.
+        // Close only via the X button or a successful submit.
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Create</DialogTitle>
         </DialogHeader>

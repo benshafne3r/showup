@@ -50,7 +50,13 @@ export function TourEditDialog({
           <Pencil className="size-3.5" aria-hidden /> Edit
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
+      <DialogContent
+        className="max-h-[85vh] overflow-y-auto sm:max-w-md"
+        // Don't let a date-picker click, portaled Select, stray backdrop click,
+        // or Escape collapse a half-edited form. Close via the X or a save.
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
         <DialogHeader>
           <DialogTitle>Edit {tour.name}</DialogTitle>
         </DialogHeader>
