@@ -27,8 +27,16 @@ Live-mode Connect requires **both** `card_payments` + `stripe_transfers` capabil
 **Ticketmaster:** real tour-date import live; `TICKETMASTER_API_KEY` set in Railway (key valid).
 Bulk import (`/label/shows/import`) dedupes by artist+date+venue.
 
-**Demo data:** WIPED from prod. Demo `*@demo.showup.test` logins also code-gated in prod
-(`DEMO_ACCOUNTS_ENABLED=true` to re-enable).
+**Demo data:** An orphaned 2nd "Columbia Records" demo company (no members, 18 artists/14
+shows) survived the first wipe and was fully deleted 2026-07-22. Real company is
+`f46d4a76…` (member ben@50-50ventures.com, 2 artists/19 shows). NOTE: 3 demo creator users
+(`creator.jay/mia/zoe@demo.showup.test`) still exist but are login-gated in prod
+(`DEMO_ACCOUNTS_ENABLED=true` to re-enable); left in place intentionally.
+
+**Prod DB access:** The Supabase MCP can now reach prod project `mpcjunweelepgcglolvx`
+(org `xdhgsplrxsdvjvtwyoir`) — run SQL directly via `execute_sql`/`apply_migration`, no more
+hand-pasting into the SQL editor. Dev project `mvtmomgepsgrqptsfqak` was deleted (local
+`.env.local` still points at it, so local dev can't hit a live DB).
 
 **✅ Email — LIVE (Resend):** password reset delivers end-to-end with the correct
 `app.showuptickets.com` link. Two independent keys, both must come from the Resend **team
