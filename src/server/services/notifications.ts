@@ -2,6 +2,7 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { emailProvider } from "@/server/providers/email";
+import { notificationEmailHtml } from "@/server/providers/email/template";
 import { publicEnv } from "@/lib/env";
 import { BRAND } from "@/lib/brand";
 import type { Database } from "@/lib/database.types";
@@ -49,11 +50,18 @@ export async function notify(input: NotifyInput): Promise<void> {
     .maybeSingle();
   if (!user?.email) return;
 
-  const linkLine = input.link ? `\n\nOpen ${BRAND.name}: ${publicEnv.appUrl}${input.link}` : "";
+  const href = input.link ? `${publicEnv.appUrl}${input.link}` : null;
+  const linkLine = href ? `\n\nOpen ${BRAND.name}: ${href}` : "";
   const result = await emailProvider().send({
     to: user.email,
     subject: `${BRAND.name} — ${input.title}`,
     text: `Hi ${user.full_name || "there"},\n\n${input.body || input.title}${linkLine}\n\n— The ${BRAND.name} team`,
+    html: notificationEmailHtml({
+      name: user.full_name || "there",
+      title: input.title,
+      body: input.body || input.title,
+      href,
+    }),
   });
   if (result.ok) {
     await db.from("notifications").update({ emailed_at: new Date().toISOString() }).eq("id", row.id);
