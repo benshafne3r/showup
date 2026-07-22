@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { userDb } from "@/server/db/server-client";
 import { destinationFor } from "@/server/auth/destination";
 import { log, errorFields } from "@/server/log";
+import { publicEnv } from "@/lib/env";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,10 @@ export const dynamic = "force-dynamic";
  * failure it sends them back to the reset flow with a friendly message.
  */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = request.nextUrl;
+  const { searchParams } = request.nextUrl;
+  // Build redirects from the configured public URL, not request.nextUrl.origin:
+  // behind Railway's proxy the request origin is the internal host (localhost:8080).
+  const origin = publicEnv.appUrl;
   const code = searchParams.get("code");
   const nextParam = searchParams.get("next");
   // Only ever honor a same-origin relative path.
