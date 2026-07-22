@@ -30,11 +30,20 @@ Bulk import (`/label/shows/import`) dedupes by artist+date+venue.
 **Demo data:** WIPED from prod. Demo `*@demo.showup.test` logins also code-gated in prod
 (`DEMO_ACCOUNTS_ENABLED=true` to re-enable).
 
-**⬜ Last real blocker — email (Resend):** domain `showuptickets.com` verified in Resend (DNS in).
-Still to set: Railway `EMAIL_PROVIDER=resend` + `RESEND_API_KEY` + `EMAIL_FROM=ShowUp <notifications@showuptickets.com>`
-(app notifications/invites), AND Supabase Auth → Custom SMTP (host `smtp.resend.com`, port 465,
-user `resend`, pass = Resend key) for password-reset/verification. Rotate the Resend key that was
-pasted in chat.
+**✅ Email — LIVE (Resend):** password reset delivers end-to-end with the correct
+`app.showuptickets.com` link. Two independent keys, both must come from the Resend **team
+where `showuptickets.com` is verified** (team mismatch → `403 domain not verified`):
+- **Supabase Auth → Custom SMTP** (host `smtp.resend.com`, port 465, user `resend`, pass = Resend
+  key, sender `notifications@showuptickets.com`) → auth emails (reset/verify).
+- **Railway `RESEND_API_KEY`** (+ `EMAIL_PROVIDER=resend`, `EMAIL_FROM`) → app notifications/invites.
+  ⬜ Confirm this key is from the verified team + redeploy, or invites will 403.
+
+Gotchas fixed: (1) Supabase **Site URL** must be `https://app.showuptickets.com` + **Redirect URLs**
+must include `https://app.showuptickets.com/**` (wildcard) or Supabase drops the app's redirectTo.
+(2) `auth/callback/route.ts` now builds redirects from `publicEnv.appUrl`, not `request.nextUrl.origin`
+(Railway proxy origin = internal `localhost:8080`). (3) `otp_expired` on click = stale/old email or
+link-prefetch by a mail scanner; if it recurs, disable Resend click/open tracking. Rotate the Resend
+keys pasted in chat.
 
 **Optional:** promote ben to `admin` (one-line SQL) for the admin dashboard; wire Sentry; wire the
 v2 `account[requirements].updated` webhook backstop.
