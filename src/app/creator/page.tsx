@@ -35,7 +35,9 @@ export default async function DiscoverPage({
 
   const params = await searchParams;
   const q = params.q?.trim() ?? "";
-  const cityFilter = params.city ?? profile.city ?? "";
+  // Default to every city: a creator whose city has no shows yet would otherwise
+  // land on an empty Discover. They can still narrow to their city in the filter.
+  const cityFilter = params.city ?? "all";
   const paidOnly = params.paid === "1";
 
   const db = await userDb();
