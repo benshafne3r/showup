@@ -27,11 +27,21 @@ Live-mode Connect requires **both** `card_payments` + `stripe_transfers` capabil
 **Ticketmaster:** real tour-date import live; `TICKETMASTER_API_KEY` set in Railway (key valid).
 Bulk import (`/label/shows/import`) dedupes by artist+date+venue.
 
-**Demo data:** An orphaned 2nd "Columbia Records" demo company (no members, 18 artists/14
-shows) survived the first wipe and was fully deleted 2026-07-22. Real company is
-`f46d4a76…` (member ben@50-50ventures.com, 2 artists/19 shows). NOTE: 3 demo creator users
-(`creator.jay/mia/zoe@demo.showup.test`) still exist but are login-gated in prod
-(`DEMO_ACCOUNTS_ENABLED=true` to re-enable); left in place intentionally.
+**Demo data: FULLY GONE (2026-07-22).** The orphaned 2nd "Columbia Records" demo company
+(18 artists/14 shows, no members) was deleted, then all 4 demo accounts
+(`admin` + `creator.jay/mia/zoe@demo.showup.test`) and the 3 past-dated shows. Prod now has
+exactly one company `f46d4a76…` (16 shows) and two users: `ben@50-50ventures.com` (label) +
+`benshafner@gmail.com` (creator).
+
+**⬜ Pre-creator-launch, still open:**
+- **Paste the auth email templates** → `supabase/email-templates/` (see its README). New
+  signups still get Supabase's default-styled confirm email until then.
+- **4 shows are future-dated but their apply-by deadline already passed** (Pikeville 7/23,
+  Cary 7/24, N. Charleston 7/25, Shenseea LA 7/29) → invisible in Discover. Bulk import sets
+  the deadline 3 days pre-show, so near-term imports expire instantly. User chose not to extend.
+- **Deposit is 100% of a $400 stated value ⇒ a $400 card hold per creator.** Flagged as the
+  biggest signup deterrent; user deliberately kept 100%.
+- Shenseea show has a `$2` creator payment (looks like a test value).
 
 **Prod DB access:** The Supabase MCP can now reach prod project `mpcjunweelepgcglolvx`
 (org `xdhgsplrxsdvjvtwyoir`) — run SQL directly via `execute_sql`/`apply_migration`, no more
