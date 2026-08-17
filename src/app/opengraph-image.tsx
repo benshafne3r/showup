@@ -35,7 +35,7 @@ export default function Image() {
         </div>
         <div
           style={{
-            fontSize: 78,
+            fontSize: 88,
             fontWeight: 800,
             color: "#fafafa",
             lineHeight: 1.04,
@@ -43,10 +43,7 @@ export default function Image() {
             letterSpacing: "-2px",
           }}
         >
-          Free tickets for creators who show up.
-        </div>
-        <div style={{ fontSize: 34, color: "#f0a6a6", marginTop: 40, maxWidth: 900, lineHeight: 1.3 }}>
-          Labels give creators complimentary concert access — for showing up and posting.
+          Free Tickets for Creators
         </div>
       </div>
     ),
