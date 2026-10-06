@@ -16,7 +16,7 @@ export default function ForLabelsPage() {
         <div>
           <h2 className="text-base font-semibold text-foreground">Accountable comps</h2>
           <p className="mt-1">
-            You choose a deposit percentage (25–100%) of the stated ticket value. Creators
+            You choose the deposit per ticket. Creators
             agree to a temporary card hold across every ticket they take (including a +1),
             so no-shows have real consequences and reliable creators are never charged.
           </p>

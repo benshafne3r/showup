@@ -299,8 +299,7 @@ const showSchema = z.object({
   startTime: z.string().optional().or(z.literal("")),
   ticketDeliveryMethod: z.enum(["will_call", "digital_transfer", "guest_list", "box_office"]),
   // opportunity fields
-  statedTicketValue: z.string().min(1, "Enter the stated ticket value"),
-  depositPercentage: z.coerce.number().int(),
+  depositPerTicket: z.string().min(1, "Set the deposit per ticket"),
   creatorPayment: z.string(),
   plusOneAllowed: z.string().optional(),
   ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
@@ -343,7 +342,7 @@ export async function saveShowAction(
     let statedTicketValueCents: number;
     let creatorPaymentCents: number;
     try {
-      statedTicketValueCents = parseDollarsToCents(data.statedTicketValue);
+      statedTicketValueCents = parseDollarsToCents(data.depositPerTicket);
       creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
     } catch {
       return { error: "Enter dollar amounts like 120 or 120.50" };
@@ -376,7 +375,7 @@ export async function saveShowAction(
       actor: { id: context.user.id, role: "label" },
       showId,
       statedTicketValueCents,
-      depositPercentage: data.depositPercentage,
+      depositPercentage: 100,
       creatorPaymentCents,
       plusOneAllowed: data.plusOneAllowed === "on",
       ticketsTotal: data.ticketsTotal,
@@ -399,8 +398,7 @@ const bulkImportSchema = z.object({
   artistId: z.string().uuid(),
   tourId: z.string().uuid().optional().or(z.literal("")),
   dates: z.string(), // JSON array of imported dates
-  statedTicketValue: z.string().min(1, "Enter the stated ticket value"),
-  depositPercentage: z.coerce.number().int(),
+  depositPerTicket: z.string().min(1, "Set the deposit per ticket"),
   creatorPayment: z.string(),
   ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
   plusOneAllowed: z.string().optional(),
@@ -447,7 +445,7 @@ export async function bulkImportShowsAction(
     let statedTicketValueCents: number;
     let creatorPaymentCents: number;
     try {
-      statedTicketValueCents = parseDollarsToCents(data.statedTicketValue);
+      statedTicketValueCents = parseDollarsToCents(data.depositPerTicket);
       creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
     } catch {
       return { error: "Enter dollar amounts like 120 or 120.50" };
@@ -515,7 +513,7 @@ export async function bulkImportShowsAction(
         actor: { id: context.user.id, role: "label" },
         showId: showResult.showId,
         statedTicketValueCents,
-        depositPercentage: data.depositPercentage,
+        depositPercentage: 100,
         creatorPaymentCents,
         plusOneAllowed: data.plusOneAllowed === "on",
         ticketsTotal: data.ticketsTotal,
@@ -560,7 +558,7 @@ const popupSchema = z.object({
   venueCity: z.string().min(1, "City is required").max(80),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
-  statedTicketValue: z.string().min(1, "Enter the ticket value"),
+  depositPerTicket: z.string().min(1, "Set the deposit per ticket"),
   creatorPayment: z.string().optional(),
   applicationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a deadline date"),
   // A content platform, or "none"/"" for attend-only.
@@ -603,7 +601,7 @@ export async function createPopupShowAction(
     let statedTicketValueCents: number;
     let creatorPaymentCents: number;
     try {
-      statedTicketValueCents = parseDollarsToCents(data.statedTicketValue);
+      statedTicketValueCents = parseDollarsToCents(data.depositPerTicket);
       creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
     } catch {
       return { error: "Enter dollar amounts like 120 or 120.50" };

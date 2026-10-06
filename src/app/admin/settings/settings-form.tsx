@@ -11,7 +11,6 @@ export function SettingsForm({
   initial,
 }: {
   initial: {
-    depositPercentageTemplates: string;
     acceptanceWindowHours: number;
     authorizationWindowDays: number;
     paymentMethodGraceDays: number;
@@ -24,19 +23,6 @@ export function SettingsForm({
     <form action={formAction}>
       <Card>
         <CardContent className="space-y-5 pt-6">
-          <div className="space-y-1.5">
-            <Label htmlFor="deposit-templates">Deposit percentage templates</Label>
-            <Input
-              id="deposit-templates"
-              name="depositPercentageTemplates"
-              defaultValue={initial.depositPercentageTemplates}
-              aria-describedby="deposit-templates-hint"
-            />
-            <p id="deposit-templates-hint" className="text-xs text-muted-foreground">
-              Comma-separated percentages offered to labels (e.g. 25, 50, 75, 100). Flat fees are
-              never allowed.
-            </p>
-          </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <Label htmlFor="acceptance-hours">Acceptance window (hours)</Label>

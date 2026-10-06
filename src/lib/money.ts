@@ -10,6 +10,17 @@
  * The hold applies to every requested ticket, including a +1.
  * Example: $100.00 ticket × 2 tickets × 50% → $100.00 hold (10000 cents).
  */
+/**
+ * The deposit for a single ticket. Labels now set this directly (stored as the
+ * stated value at 100%); older opportunities still derive it from value × %.
+ */
+export function depositPerTicketCents(
+  statedTicketValueCents: number,
+  depositPercentage: number,
+): number {
+  return authorizationAmountCents(statedTicketValueCents, 1, depositPercentage);
+}
+
 export function authorizationAmountCents(
   statedTicketValueCents: number,
   ticketCount: number,

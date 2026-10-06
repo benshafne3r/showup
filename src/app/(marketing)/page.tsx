@@ -22,7 +22,7 @@ const ARTIST_WALL: Array<{ names: string[]; className: string }> = [
 const HOW_IT_WORKS: Array<[string, string]> = [
   [
     "1. Labels post shows",
-    "Artist teams list tour dates and set aside complimentary tickets, with a stated ticket value, deliverables, and a fixed creator payment.",
+    "Artist teams list tour dates and set aside complimentary tickets, with a deposit per ticket, deliverables, and a fixed creator payment.",
   ],
   [
     "2. Creators request access",
@@ -30,7 +30,7 @@ const HOW_IT_WORKS: Array<[string, string]> = [
   ],
   [
     "3. Attend, and the hold is released",
-    "A temporary card hold (a percentage of the ticket value) keeps everyone reliable. Check in at the show and it's released in full. Attend and you are never charged.",
+    "A temporary card hold (the deposit the artist team sets) keeps everyone reliable. Check in at the show and it's released in full. Attend and you are never charged.",
   ],
   [
     "4. Post and get paid",
@@ -202,8 +202,8 @@ export default function LandingPage() {
             </div>
             <dl className="divide-y text-sm">
               {[
-                ["Ticket value", "$100 · comped", ""],
-                ["Temporary hold", "released at check-in", "text-emerald-400"],
+                ["Ticket", "comped", ""],
+                ["$50 deposit hold", "released at check-in", "text-emerald-400"],
                 ["You were charged", "$0.00", "text-emerald-400"],
                 ["Creator payment", "+$150.00 paid", "text-emerald-400"],
               ].map(([label, value, tone]) => (

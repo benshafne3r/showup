@@ -4,7 +4,7 @@ import { requireLabelPage } from "../../require-label";
 import { serviceDb } from "@/server/db/service";
 import { getCreatorPublicProfile } from "@/server/services/profiles";
 import { agencyForCreator } from "@/server/services/agencies";
-import { authorizationAmountCents, formatCents } from "@/lib/money";
+import { authorizationAmountCents, depositPerTicketCents, formatCents } from "@/lib/money";
 import { formatShowDateLong, formatDateTime } from "@/lib/dates";
 import { StatusBadge } from "@/components/status-badge";
 import { REQUEST_STATUS_META } from "@/lib/statuses";
@@ -206,12 +206,8 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
             </CardHeader>
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between">
-                <span className="text-muted-foreground">Stated ticket value</span>
-                <span>{formatCents(opp.stated_ticket_value_cents)} / ticket</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Deposit</span>
-                <span>{opp.deposit_percentage}%</span>
+                <span className="text-muted-foreground">Deposit per ticket</span>
+                <span>{formatCents(depositPerTicketCents(opp.stated_ticket_value_cents, opp.deposit_percentage))}</span>
               </div>
               <div className="flex justify-between font-medium">
                 <span>Hold ({request.ticket_count} tickets)</span>

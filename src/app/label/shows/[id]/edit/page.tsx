@@ -5,7 +5,7 @@ import { serviceDb } from "@/server/db/service";
 import { getPlatformSettings } from "@/server/services/settings";
 import { PageHeader } from "@/components/page-header";
 import { ShowForm } from "../../show-form";
-import { formatCents } from "@/lib/money";
+import { depositPerTicketCents, formatCents } from "@/lib/money";
 
 export const metadata: Metadata = { title: "Edit show" };
 export const dynamic = "force-dynamic";
@@ -42,9 +42,7 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
   if (!show) notFound();
 
   const opp = show.show_opportunities;
-  const templates = settings.depositPercentageTemplates.includes(opp?.deposit_percentage ?? -1)
-    ? settings.depositPercentageTemplates
-    : [...settings.depositPercentageTemplates, ...(opp ? [opp.deposit_percentage] : [])].sort((a, b) => a - b);
+  const deposit = opp ? depositPerTicketCents(opp.stated_ticket_value_cents, opp.deposit_percentage) : null;
 
   const bookedNote =
     opp && opp.published_at
@@ -57,7 +55,6 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
       <ShowForm
         artists={artists ?? []}
         tours={(tours ?? []).map((t) => ({ id: t.id, name: t.name, artistId: t.artist_id }))}
-        depositTemplates={templates}
         initial={{
           showId: show.id,
           artistId: show.artist_id,
@@ -70,8 +67,7 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
           doorsTime: show.doors_time?.slice(0, 5) ?? "",
           startTime: show.start_time?.slice(0, 5) ?? "",
           ticketDeliveryMethod: show.ticket_delivery_method,
-          statedTicketValue: opp ? centsToDollarString(opp.stated_ticket_value_cents) : "",
-          depositPercentage: opp?.deposit_percentage,
+          depositPerTicket: deposit !== null ? centsToDollarString(deposit) : "",
           creatorPayment: opp && opp.creator_payment_cents > 0 ? centsToDollarString(opp.creator_payment_cents) : "",
           plusOneAllowed: opp?.plus_one_allowed ?? true,
           ticketsTotal: opp?.tickets_total,
@@ -90,7 +86,7 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
       />
       {opp ? (
         <p className="text-xs text-muted-foreground">
-          Current terms: {formatCents(opp.stated_ticket_value_cents)} value · {opp.deposit_percentage}% deposit ·{" "}
+          Current terms: {formatCents(deposit ?? 0)} deposit per ticket ·{" "}
           {opp.creator_payment_cents > 0 ? `${formatCents(opp.creator_payment_cents)} creator payment` : "attend-only"}.
         </p>
       ) : null}

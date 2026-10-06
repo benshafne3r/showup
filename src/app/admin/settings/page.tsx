@@ -19,7 +19,6 @@ export default async function AdminSettingsPage() {
       />
       <SettingsForm
         initial={{
-          depositPercentageTemplates: settings.depositPercentageTemplates.join(", "),
           acceptanceWindowHours: settings.acceptanceWindowHours,
           authorizationWindowDays: settings.authorizationWindowDays,
           paymentMethodGraceDays: settings.paymentMethodGraceDays,

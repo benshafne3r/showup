@@ -17,7 +17,7 @@ test("label creates a one-off pop-up show", async ({ page }) => {
   await page.getByRole("textbox", { name: "City" }).fill("Los Angeles");
   await page.getByLabel("Show date").fill("2026-12-15");
   await page.getByLabel("Apply by").fill("2026-12-14");
-  await page.getByLabel("Ticket value (USD)").fill("90");
+  await page.getByLabel("Deposit per ticket (USD)").fill("45");
 
   await page.getByRole("button", { name: "Publish event" }).click();
 

@@ -59,8 +59,8 @@ export default function TermsPage() {
           <p>
             To confirm a booking, a Creator authorizes a <strong className="text-foreground">refundable
             hold</strong> (a temporary authorization, not a charge) on their payment method. The hold
-            equals the stated ticket value × the number of tickets requested × the deposit percentage
-            set by the Organizer, and applies to every requested ticket, including any guest (+1)
+            equals the deposit per ticket set by the Organizer × the number of tickets requested, and
+            applies to every requested ticket, including any guest (+1)
             ticket.
           </p>
           <p>

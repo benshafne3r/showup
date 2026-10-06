@@ -57,6 +57,22 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Deposit per ticket (2026-10-06, user decision)
+Ticket value + deposit % are gone from the UI. Labels set one **deposit per ticket ($)**; it's
+stored as `stated_ticket_value_cents = deposit`, `deposit_percentage = 100`, so hold math and
+bookings are unchanged. Older shows display `depositPerTicketCents(value, pct)` (`lib/money.ts`).
+Validation: $1–$2,000 per ticket (`opportunities.ts`). Admin "deposit % templates" setting removed
+from the UI (key still in `platform_settings`, unused). Terms page §4 reworded to match.
+
+## Emails (2026-10-06)
+New-request emails to labels carry show/date/tickets/creator city+audience+socials and the
+creator's pitch (`EmailExtras` in `providers/email/template.ts`); chat emails carry the full message.
+Resend key on Railway is valid and `showuptickets.com` is verified in that team.
+
+## Private partner landing pages (2026-10-06)
+A partner invite link (`/join/<token>`) is the landing page: pitch for labels or management + sign-up
+on the page (`src/app/join/[token]/partner-landing.tsx`). Unindexed. Mint with `npm run invite`.
+
 ## Management companies + invite-only partners (built 2026-10-06)
 New role **`manager`** with its own portal at `/manager` (Roster · Shows · Messages · Payments ·
 Settings). Decisions (user's): label↔creator chats for a managed creator go to the **manager only**

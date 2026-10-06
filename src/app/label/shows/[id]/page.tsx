@@ -11,7 +11,7 @@ import {
   REQUEST_STATUS_META,
 } from "@/lib/statuses";
 import { formatShowDateLong } from "@/lib/dates";
-import { formatCents } from "@/lib/money";
+import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { CancelShowDialog } from "./cancel-show-dialog";
 import { Pencil } from "lucide-react";
 
@@ -128,12 +128,8 @@ export default async function ShowDashboardPage({
           </CardHeader>
           <CardContent className="flex flex-wrap gap-x-8 gap-y-2 text-sm">
             <p>
-              <span className="text-muted-foreground">Stated ticket value:</span>{" "}
-              <strong>{formatCents(opp.stated_ticket_value_cents)}</strong>
-            </p>
-            <p>
-              <span className="text-muted-foreground">Deposit:</span>{" "}
-              <strong>{opp.deposit_percentage}%</strong>
+              <span className="text-muted-foreground">Deposit per ticket:</span>{" "}
+              <strong>{formatCents(depositPerTicketCents(opp.stated_ticket_value_cents, opp.deposit_percentage))}</strong>
             </p>
             <p>
               <span className="text-muted-foreground">Creator payment:</span>{" "}

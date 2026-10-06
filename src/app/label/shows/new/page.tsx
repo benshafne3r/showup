@@ -53,7 +53,6 @@ export default async function NewShowPage({
       <ImportableShowForm
         artists={artists}
         tours={(tours ?? []).map((t) => ({ id: t.id, name: t.name, artistId: t.artist_id }))}
-        depositTemplates={settings.depositPercentageTemplates}
         baseInitial={{
           contentDeadlineDays: settings.contentDeadlineDefaultDays,
           ...(fromTour ? { tourId: fromTour.id, artistId: fromTour.artist_id } : {}),

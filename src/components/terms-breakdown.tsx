@@ -1,13 +1,13 @@
-import { formatCents } from "@/lib/money";
+import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ShieldCheck, Ticket, Wallet } from "lucide-react";
 
 /**
  * The canonical economics breakdown, shown on show detail pages and again
- * before a creator accepts a booking. Always distinguishes the three
- * numbers — ticket value, temporary hold, creator payment — and never frames
- * the hold as earnings.
+ * before a creator accepts a booking. Shows the deposit per ticket, the
+ * resulting temporary hold, and the creator payment, and never frames the
+ * hold as earnings. (Ticket value isn't shown; labels set the deposit.)
  */
 export function TermsBreakdown({
   statedTicketValueCents,
@@ -24,31 +24,25 @@ export function TermsBreakdown({
   creatorPaymentCents: number;
   className?: string;
 }) {
+  const deposit = depositPerTicketCents(statedTicketValueCents, depositPercentage);
   return (
     <Card className={className}>
       <CardHeader>
-        <CardTitle className="text-base">Ticket &amp; hold details</CardTitle>
+        <CardTitle className="text-base">Tickets &amp; deposit</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex items-start justify-between gap-4">
           <span className="flex items-center gap-2 text-muted-foreground">
             <Ticket className="size-4" aria-hidden />
-            Stated ticket value
+            Deposit per ticket
           </span>
-          <span className="font-medium">
-            {formatCents(statedTicketValueCents)}
-            <span className="text-muted-foreground"> / ticket</span>
-          </span>
+          <span className="font-medium">{formatCents(deposit)}</span>
         </div>
         <div className="flex items-start justify-between gap-4">
           <span className="text-muted-foreground">Tickets</span>
           <span className="font-medium">
             {ticketCount} {ticketCount === 2 ? "(you + guest)" : ""}
           </span>
-        </div>
-        <div className="flex items-start justify-between gap-4">
-          <span className="text-muted-foreground">Deposit percentage</span>
-          <span className="font-medium">{depositPercentage}%</span>
         </div>
         <Separator />
         <div className="flex items-start justify-between gap-4">
@@ -59,8 +53,8 @@ export function TermsBreakdown({
           <span className="font-semibold">{formatCents(authorizationAmountCents)}</span>
         </div>
         <p className="text-xs text-muted-foreground">
-          {formatCents(statedTicketValueCents)} × {ticketCount} ticket
-          {ticketCount > 1 ? "s" : ""} × {depositPercentage}%. This is a temporary card
+          {formatCents(deposit)} × {ticketCount} ticket
+          {ticketCount > 1 ? "s" : ""}. This is a temporary card
           hold covering every ticket you request. It is <strong>not</strong> a charge and{" "}
           <strong>not</strong> money you earn. Attend the show and it is released in full.
         </p>

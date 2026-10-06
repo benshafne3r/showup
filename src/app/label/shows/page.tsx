@@ -7,7 +7,7 @@ import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatShowDate } from "@/lib/dates";
-import { formatCents } from "@/lib/money";
+import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { CalendarPlus, CalendarArrowDown } from "lucide-react";
 import type { ShowStatus } from "@/lib/statuses";
 import { ShareButton } from "../tours/share-button";
@@ -109,7 +109,7 @@ export default async function ShowsPage({
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                       {opp
-                        ? `${formatCents(opp.stated_ticket_value_cents)} · ${opp.deposit_percentage}% · ${opp.creator_payment_cents > 0 ? formatCents(opp.creator_payment_cents) : "attend-only"}`
+                        ? `${formatCents(depositPerTicketCents(opp.stated_ticket_value_cents, opp.deposit_percentage))} deposit · ${opp.creator_payment_cents > 0 ? formatCents(opp.creator_payment_cents) : "attend-only"}`
                         : "no opportunity"}
                     </td>
                     <td className="px-4 py-3">
@@ -160,7 +160,7 @@ export default async function ShowsPage({
                     <dt className="text-muted-foreground">Terms</dt>
                     <dd className="text-right">
                       {opp
-                        ? `${formatCents(opp.stated_ticket_value_cents)} · ${opp.deposit_percentage}% · ${opp.creator_payment_cents > 0 ? formatCents(opp.creator_payment_cents) : "attend-only"}`
+                        ? `${formatCents(depositPerTicketCents(opp.stated_ticket_value_cents, opp.deposit_percentage))} deposit · ${opp.creator_payment_cents > 0 ? formatCents(opp.creator_payment_cents) : "attend-only"}`
                         : "no opportunity"}
                     </dd>
                   </div>

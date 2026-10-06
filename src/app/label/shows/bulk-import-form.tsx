@@ -30,12 +30,10 @@ type Tour = { id: string; name: string; artistId: string };
 export function BulkImportForm({
   artists,
   tours,
-  depositTemplates,
   contentDeadlineDefaultDays,
 }: {
   artists: Artist[];
   tours: Tour[];
-  depositTemplates: number[];
   contentDeadlineDefaultDays: number;
 }) {
   const [artistId, setArtistId] = useState(artists[0]?.id ?? "");
@@ -182,25 +180,12 @@ export function BulkImportForm({
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="bulk-value">Ticket value (USD)</Label>
-            <Input id="bulk-value" name="statedTicketValue" inputMode="decimal" placeholder="120" required />
+            <Label htmlFor="bulk-deposit">Deposit per ticket (USD)</Label>
+            <Input id="bulk-deposit" name="depositPerTicket" inputMode="decimal" placeholder="50" required />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bulk-tickets">Tickets per show</Label>
             <Input id="bulk-tickets" name="ticketsTotal" type="number" min={1} max={500} defaultValue={4} required />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="bulk-deposit">Deposit %</Label>
-            <Select name="depositPercentage" defaultValue={String(depositTemplates[0] ?? 50)}>
-              <SelectTrigger id="bulk-deposit" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {depositTemplates.map((p) => (
-                  <SelectItem key={p} value={String(p)}>{p}%</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bulk-pay">Creator payment (USD)</Label>

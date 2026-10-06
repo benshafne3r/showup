@@ -70,7 +70,7 @@ const PITCHES: Record<"label" | "manager", Pitch> = {
       {
         icon: ShieldCheck,
         title: "Accountable comps",
-        body: "Creators agree to a temporary card hold: a percentage of the ticket value you choose. No-shows have consequences; reliable creators are never charged.",
+        body: "Creators agree to a temporary card hold: a deposit per ticket that you choose. No-shows have consequences; reliable creators are never charged.",
       },
       {
         icon: Users,

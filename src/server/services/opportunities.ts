@@ -14,8 +14,8 @@ export type DeliverableInput = {
 };
 
 /**
- * One opportunity per show. The deposit percentage must match one of the
- * platform's active templates — arbitrary flat fees are not allowed.
+ * One opportunity per show. Labels set a deposit per ticket, stored as the
+ * stated value at 100% so the hold math (value × tickets × %) is unchanged.
  */
 export async function upsertOpportunity(input: {
   companyId: string;
@@ -35,11 +35,10 @@ export async function upsertOpportunity(input: {
   const db = serviceDb();
 
   const settings = await getPlatformSettings();
-  if (!settings.depositPercentageTemplates.includes(input.depositPercentage)) {
-    return {
-      ok: false,
-      error: `Deposit percentage must be one of the platform templates: ${settings.depositPercentageTemplates.join("%, ")}%`,
-    };
+  const depositCents = Math.round((input.statedTicketValueCents * input.depositPercentage) / 100);
+  // Stripe can't hold less than $0.50; keep holds in a sane range.
+  if (depositCents < 100 || depositCents > 200_000) {
+    return { ok: false, error: "Set a deposit between $1 and $2,000 per ticket" };
   }
 
   const { data: show } = await db

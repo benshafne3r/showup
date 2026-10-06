@@ -12,12 +12,10 @@ import { ImportPanel, type ImportedShow } from "./import-panel";
 export function ImportableShowForm({
   artists,
   tours,
-  depositTemplates,
   baseInitial,
 }: {
   artists: { id: string; name: string }[];
   tours: { id: string; name: string; artistId: string }[];
-  depositTemplates: number[];
   baseInitial: ShowFormInitial;
 }) {
   const [initial, setInitial] = useState<ShowFormInitial>(baseInitial);
@@ -46,7 +44,6 @@ export function ImportableShowForm({
           key={version}
           artists={artists}
           tours={tours}
-          depositTemplates={depositTemplates}
           initial={initial}
         />
       </div>

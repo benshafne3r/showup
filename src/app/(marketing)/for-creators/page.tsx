@@ -37,8 +37,8 @@ export default function ForCreatorsPage() {
         <div>
           <h2 className="text-base font-semibold text-foreground">What you'll see before you commit</h2>
           <p className="mt-1">
-            Every show lists the artist, venue, date, ticket availability, the stated ticket
-            value, the deposit percentage, the exact hold for one or two tickets, the
+            Every show lists the artist, venue, date, ticket availability, the deposit per
+            ticket, the exact hold for one or two tickets, the
             deliverables, and the creator payment. You see the full breakdown again before you
             accept a booking. Nothing is hidden.
           </p>

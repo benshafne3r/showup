@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
-import { cn } from "@/lib/utils";
 import { Plus, Trash2 } from "lucide-react";
 
 type Deliverable = {
@@ -51,8 +50,7 @@ export type ShowFormInitial = {
   doorsTime?: string;
   startTime?: string;
   ticketDeliveryMethod?: string;
-  statedTicketValue?: string;
-  depositPercentage?: number;
+  depositPerTicket?: string;
   creatorPayment?: string;
   plusOneAllowed?: boolean;
   ticketsTotal?: number;
@@ -66,18 +64,15 @@ export type ShowFormInitial = {
 export function ShowForm({
   artists,
   tours,
-  depositTemplates,
   initial,
 }: {
   artists: { id: string; name: string }[];
   tours: { id: string; name: string; artistId: string }[];
-  depositTemplates: number[];
   initial: ShowFormInitial;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveShowAction, null);
   const [artistId, setArtistId] = useState(initial.artistId ?? artists[0]?.id ?? "");
-  const [depositPct, setDepositPct] = useState(initial.depositPercentage ?? depositTemplates[1] ?? 50);
-  const [ticketValue, setTicketValue] = useState(initial.statedTicketValue ?? "");
+  const [deposit, setDeposit] = useState(initial.depositPerTicket ?? "");
   const [plusOne, setPlusOne] = useState(initial.plusOneAllowed ?? true);
   const [deliverables, setDeliverables] = useState<Deliverable[]>(initial.deliverables ?? []);
 
@@ -85,15 +80,15 @@ export function ShowForm({
 
   const holdPreview = useMemo(() => {
     try {
-      const cents = parseDollarsToCents(ticketValue || "0");
+      const cents = parseDollarsToCents(deposit || "0");
       return {
-        one: authorizationAmountCents(cents, 1, depositPct),
-        two: authorizationAmountCents(cents, 2, depositPct),
+        one: authorizationAmountCents(cents, 1, 100),
+        two: authorizationAmountCents(cents, 2, 100),
       };
     } catch {
       return null;
     }
-  }, [ticketValue, depositPct]);
+  }, [deposit]);
 
   const patchDeliverable = (index: number, patch: Partial<Deliverable>) =>
     setDeliverables((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
@@ -197,19 +192,22 @@ export function ShowForm({
         <CardContent className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="ticket-value">Stated ticket value (USD, per ticket)</Label>
+              <Label htmlFor="deposit-per-ticket">Deposit per ticket (USD)</Label>
               <Input
-                id="ticket-value"
-                name="statedTicketValue"
+                id="deposit-per-ticket"
+                name="depositPerTicket"
                 inputMode="decimal"
-                placeholder="120"
-                value={ticketValue}
-                onChange={(event) => setTicketValue(event.target.value)}
+                placeholder="50"
+                value={deposit}
+                onChange={(event) => setDeposit(event.target.value)}
                 required
-                aria-describedby="ticket-value-hint"
+                aria-describedby="deposit-hint"
               />
-              <p id="ticket-value-hint" className="text-xs text-muted-foreground">
-                Shown to creators as the "stated ticket value".
+              <p id="deposit-hint" className="text-xs text-muted-foreground" role="status">
+                A temporary hold on the creator&apos;s card for each ticket, released when they attend.
+                {holdPreview && deposit
+                  ? ` Hold: ${formatCents(holdPreview.one)} for 1 ticket${plusOne ? `, ${formatCents(holdPreview.two)} with a +1` : ""}.`
+                  : ""}
               </p>
             </div>
             <div className="space-y-1.5">
@@ -225,40 +223,6 @@ export function ShowForm({
               />
             </div>
           </div>
-
-          <fieldset className="space-y-2">
-            <legend className="text-sm font-medium">Deposit percentage</legend>
-            <p className="text-xs text-muted-foreground">
-              The temporary hold = stated value × tickets × this percentage. Platform templates
-              only, no arbitrary flat fees.
-            </p>
-            <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Deposit percentage">
-              {depositTemplates.map((pct) => (
-                <button
-                  key={pct}
-                  type="button"
-                  role="radio"
-                  aria-checked={depositPct === pct}
-                  onClick={() => setDepositPct(pct)}
-                  className={cn(
-                    "rounded-lg border px-4 py-2 text-sm font-medium transition-colors",
-                    depositPct === pct
-                      ? "border-primary bg-primary/15 text-foreground"
-                      : "text-muted-foreground hover:border-muted-foreground/50",
-                  )}
-                >
-                  {pct}%
-                </button>
-              ))}
-            </div>
-            <input type="hidden" name="depositPercentage" value={depositPct} />
-            {holdPreview && ticketValue ? (
-              <p className="text-xs text-muted-foreground" role="status">
-                Hold preview: {formatCents(holdPreview.one)} for 1 ticket
-                {plusOne ? ` · ${formatCents(holdPreview.two)} with a +1` : ""}
-              </p>
-            ) : null}
-          </fieldset>
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">

@@ -45,7 +45,6 @@ export default async function ImportShowsPage() {
       <BulkImportForm
         artists={artists}
         tours={(tours ?? []).map((t) => ({ id: t.id, name: t.name, artistId: t.artist_id }))}
-        depositTemplates={settings.depositPercentageTemplates}
         contentDeadlineDefaultDays={settings.contentDeadlineDefaultDays}
       />
     </div>

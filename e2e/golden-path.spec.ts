@@ -44,9 +44,8 @@ test("label creates an artist (via a tour) and a show with an opportunity", asyn
   await page.getByLabel("Venue name").fill(`E2E Hall ${runId}`);
   await page.getByLabel("City", { exact: true }).fill("Austin");
   await page.getByLabel("Date").fill(todayISO());
-  await page.getByLabel("Stated ticket value (USD, per ticket)").fill("80");
+  await page.getByLabel("Deposit per ticket (USD)").fill("40");
   await page.getByLabel("Tickets available to creators").fill("4");
-  await page.getByRole("radio", { name: "50%" }).click();
   await page.getByLabel("Creator payment (USD, 0 = attend-only)").fill("50");
   await page.getByLabel("Application deadline").fill(todayDeadlineLocal());
   await page.getByRole("button", { name: "Publish show" }).click();
@@ -70,10 +69,10 @@ test("creator discovers the show and requests a ticket", async ({ page }) => {
   await page.waitForURL(/\/creator\/shows\//);
 
   // Show detail: economics must be visible before requesting.
-  await expect(page.getByText("Stated ticket value")).toBeVisible();
-  await expect(page.getByText("$80.00", { exact: false }).first()).toBeVisible();
+  await expect(page.getByText("Deposit per ticket")).toBeVisible();
+  await expect(page.getByText("Stated ticket value")).toHaveCount(0);
   await expect(page.getByText("Temporary hold", { exact: true })).toBeVisible();
-  await expect(page.getByText("$40.00").first()).toBeVisible(); // 80 × 1 × 50%
+  await expect(page.getByText("$40.00").first()).toBeVisible(); // $40 deposit × 1 ticket
 
   await page.getByRole("button", { name: "Request free ticket" }).click();
   await page.getByLabel("Message or content idea (optional)").fill("E2E: recap reel within 48h.");
@@ -104,7 +103,7 @@ test("creator accepts within 24h: card verified, terms agreed, booking confirmed
   await page.getByRole("link", { name: new RegExp(ARTIST) }).first().click();
 
   // Final terms are shown again before acceptance.
-  await expect(page.getByText("Ticket & hold details", { exact: true })).toBeVisible();
+  await expect(page.getByText("Tickets & deposit", { exact: true })).toBeVisible();
   await expect(page.getByText("$40.00").first()).toBeVisible();
   await expect(page.getByText(/\d+ (hours?|minutes?) left/)).toBeVisible();
 

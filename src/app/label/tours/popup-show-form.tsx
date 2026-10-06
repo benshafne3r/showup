@@ -73,8 +73,8 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
           <Input id="pop-tickets" name="ticketsTotal" type="number" min={1} max={500} defaultValue={4} required />
         </div>
         <div className="space-y-1.5">
-          <Label htmlFor="pop-value">Ticket value (USD)</Label>
-          <Input id="pop-value" name="statedTicketValue" inputMode="decimal" placeholder="120" required />
+          <Label htmlFor="pop-deposit">Deposit per ticket (USD)</Label>
+          <Input id="pop-deposit" name="depositPerTicket" inputMode="decimal" placeholder="50" required />
         </div>
       </div>
 

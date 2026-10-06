@@ -261,10 +261,6 @@ export async function resolveDisputeAction(
 // ── Platform settings & jobs ────────────────────────────────────────────
 
 const settingsSchema = z.object({
-  depositPercentageTemplates: z
-    .string()
-    .transform((s) => s.split(",").map((x) => parseInt(x.trim(), 10)))
-    .pipe(z.array(z.number().int().min(1).max(100)).min(1).max(8)),
   acceptanceWindowHours: z.coerce.number().int().min(1).max(168),
   authorizationWindowDays: z.coerce.number().int().min(0).max(30),
   paymentMethodGraceDays: z.coerce.number().int().min(0).max(30),
@@ -281,7 +277,6 @@ export async function updateSettingsAction(
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const settings = parsed.data;
     await Promise.all([
-      updatePlatformSetting("depositPercentageTemplates", settings.depositPercentageTemplates, admin.id),
       updatePlatformSetting("acceptanceWindowHours", settings.acceptanceWindowHours, admin.id),
       updatePlatformSetting("authorizationWindowDays", settings.authorizationWindowDays, admin.id),
       updatePlatformSetting("paymentMethodGraceDays", settings.paymentMethodGraceDays, admin.id),
