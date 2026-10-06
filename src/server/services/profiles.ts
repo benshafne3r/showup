@@ -23,6 +23,8 @@ export async function upsertCreatorProfile(input: {
   exampleWork: string[]; // urls
   socialAccounts: SocialAccountInput[];
   markOnboarded?: boolean;
+  /** Email me when a new show is posted in my city. Unchanged when omitted. */
+  newShowAlerts?: boolean;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = serviceDb();
 
@@ -41,6 +43,7 @@ export async function upsertCreatorProfile(input: {
     audience_size: input.audienceSize,
     avg_views: input.avgViews,
     example_work: input.exampleWork as never,
+    ...(input.newShowAlerts === undefined ? {} : { new_show_alerts: input.newShowAlerts }),
   };
 
   let profileId: string;
@@ -83,6 +86,10 @@ export async function upsertCreatorProfile(input: {
     if (error) return { ok: false, error: error.message };
   }
   return { ok: true };
+}
+
+export async function setShowAlerts(userId: string, enabled: boolean): Promise<void> {
+  await serviceDb().from("creator_profiles").update({ new_show_alerts: enabled }).eq("user_id", userId);
 }
 
 export async function getCreatorProfile(userId: string) {

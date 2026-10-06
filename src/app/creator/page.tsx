@@ -8,6 +8,8 @@ import { EmptyState } from "@/components/empty-state";
 import { PageHeader } from "@/components/page-header";
 import { DiscoverFilters } from "./discover-filters";
 import { MAJOR_CITIES } from "@/lib/cities";
+import { enableShowAlertsAction } from "./actions";
+import { Button } from "@/components/ui/button";
 import { CalendarX2 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Discover shows" };
@@ -118,6 +120,20 @@ export default async function DiscoverPage({
             : "Complimentary access in every city"
         }
       />
+      {!profile.new_show_alerts && profile.city ? (
+        <form
+          action={enableShowAlertsAction}
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-card px-4 py-3 text-sm"
+        >
+          <span>
+            Get an email when labels post new shows in{" "}
+            <span className="font-medium">{profile.city}</span>.
+          </span>
+          <Button type="submit" size="sm" variant="outline">
+            Turn on alerts
+          </Button>
+        </form>
+      ) : null}
       <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} paidOnly={paidOnly} />
       {shows.length === 0 ? (
         <EmptyState

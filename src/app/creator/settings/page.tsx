@@ -63,6 +63,7 @@ export default async function CreatorSettingsPage({
       <OnboardingForm
         mode="settings"
         initial={{
+          newShowAlerts: profile?.new_show_alerts ?? false,
           city: profile?.city ?? "",
           bio: profile?.bio ?? "",
           categories: (profile?.categories ?? []).join(", "),

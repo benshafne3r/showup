@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireCreator, requireUser } from "@/server/auth/guards";
-import { upsertCreatorProfile } from "@/server/services/profiles";
+import { setShowAlerts, upsertCreatorProfile } from "@/server/services/profiles";
 import { createRequest, withdrawRequest } from "@/server/services/requests";
 import { acceptBooking } from "@/server/services/bookings";
 import {
@@ -41,6 +41,7 @@ const profileSchema = z.object({
   avgViews: z.coerce.number().int().min(0).max(1_000_000_000),
   exampleWork: z.string().max(2000),
   socials: z.string(), // JSON payload from the client form
+  newShowAlerts: z.string().optional(), // checkbox: "on" when ticked
 });
 
 const socialsSchema = z.array(
@@ -86,6 +87,7 @@ export async function saveCreatorProfile(
         .slice(0, 6),
       socialAccounts: socials,
       markOnboarded: true,
+      newShowAlerts: parsed.data.newShowAlerts === "on",
     });
     if (!result.ok) return { error: result.error };
   } catch (err) {
@@ -127,6 +129,7 @@ export async function updateCreatorProfile(
         .slice(0, 6),
       socialAccounts: socials,
       markOnboarded: true,
+      newShowAlerts: parsed.data.newShowAlerts === "on",
     });
     if (!result.ok) return { error: result.error };
     revalidatePath("/creator/settings");
@@ -134,6 +137,13 @@ export async function updateCreatorProfile(
   } catch (err) {
     return fail(err);
   }
+}
+
+/** One-click opt-in to new-show emails (Discover banner). */
+export async function enableShowAlertsAction(): Promise<void> {
+  const user = await requireCreator();
+  await setShowAlerts(user.id, true);
+  revalidatePath("/creator");
 }
 
 // ── Requests ────────────────────────────────────────────────────────────

@@ -991,6 +991,7 @@ export type Database = {
           created_at: string
           example_work: Json
           id: string
+          new_show_alerts: boolean
           onboarded_at: string | null
           stripe_account_id: string | null
           stripe_onboarded_at: string | null
@@ -1009,6 +1010,7 @@ export type Database = {
           created_at?: string
           example_work?: Json
           id?: string
+          new_show_alerts?: boolean
           onboarded_at?: string | null
           stripe_account_id?: string | null
           stripe_onboarded_at?: string | null
@@ -1027,6 +1029,7 @@ export type Database = {
           created_at?: string
           example_work?: Json
           id?: string
+          new_show_alerts?: boolean
           onboarded_at?: string | null
           stripe_account_id?: string | null
           stripe_onboarded_at?: string | null
@@ -1577,6 +1580,7 @@ export type Database = {
       show_opportunities: {
         Row: {
           application_deadline: string
+          city_alerts_sent_at: string | null
           company_id: string
           content_deadline_days: number
           created_at: string
@@ -1594,6 +1598,7 @@ export type Database = {
         }
         Insert: {
           application_deadline: string
+          city_alerts_sent_at?: string | null
           company_id: string
           content_deadline_days?: number
           created_at?: string
@@ -1611,6 +1616,7 @@ export type Database = {
         }
         Update: {
           application_deadline?: string
+          city_alerts_sent_at?: string | null
           company_id?: string
           content_deadline_days?: number
           created_at?: string
@@ -2108,6 +2114,7 @@ export type Database = {
         | "dispute_resolved"
         | "invite_received"
         | "account_verified"
+        | "new_show_nearby"
       request_status:
         | "pending"
         | "approved"
@@ -2356,6 +2363,7 @@ export const Constants = {
         "dispute_resolved",
         "invite_received",
         "account_verified",
+        "new_show_nearby",
       ],
       request_status: [
         "pending",

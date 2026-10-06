@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Plus, Trash2 } from "lucide-react";
 
 type Social = {
@@ -46,6 +47,7 @@ export function OnboardingForm({
     avgViews: number;
     exampleWork: string;
     socials: Social[];
+    newShowAlerts: boolean;
   };
 }) {
   const action = mode === "onboarding" ? saveCreatorProfile : updateCreatorProfile;
@@ -229,6 +231,27 @@ export function OnboardingForm({
             defaultValue={initial.exampleWork}
             placeholder={"https://www.tiktok.com/@you/video/123\nhttps://instagram.com/p/abc"}
           />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Show alerts</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <label className="flex cursor-pointer items-start gap-3 text-sm">
+            <Checkbox
+              name="newShowAlerts"
+              defaultChecked={initial.newShowAlerts}
+              className="mt-0.5"
+            />
+            <span>
+              Email me when a label posts a new show in my city
+              <span className="block text-xs text-muted-foreground">
+                One email per batch of new shows. Turn it off here anytime.
+              </span>
+            </span>
+          </label>
         </CardContent>
       </Card>
 

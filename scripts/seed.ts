@@ -361,6 +361,8 @@ async function main() {
         content_deadline_days: 7,
         notes: def.notes ?? (def.payCents === 0 ? "Attend-only opportunity — no content required." : ""),
         published_at: def.status === "draft" ? null : iso(daysFromNow(-14)),
+        // Seeded shows are old news: never announce them in city alerts.
+        city_alerts_sent_at: iso(new Date()),
       })
       .select("id").single();
     if (def.deliverables.length) {

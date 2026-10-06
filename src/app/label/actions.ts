@@ -7,13 +7,13 @@ import { requireUser, requireLabelWithCompany, requireCompanyRole } from "@/serv
 import { createCompany, inviteMember, removeMember, changeMemberRole } from "@/server/services/companies";
 import { serviceDb } from "@/server/db/service";
 import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
-import { upsertOpportunity } from "@/server/services/opportunities";
+import { setTourDeposit, upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
 import { sendTicketInstructions, cancelBooking } from "@/server/services/bookings";
 import { approveAttendance, rejectAttendance, resolveNoShow } from "@/server/services/attendance";
 import { reviewContent } from "@/server/services/content";
 import { payoutCreatorPayment } from "@/server/services/payments";
-import { parseDollarsToCents } from "@/lib/money";
+import { formatCents, parseDollarsToCents } from "@/lib/money";
 import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
 import { enrichArtist } from "@/server/providers/artist-enrich";
 import { toActionError } from "@/server/action-error";
@@ -238,6 +238,8 @@ const tourEditSchema = z.object({
   description: z.string().max(1000),
   startsOn: z.string().optional().or(z.literal("")),
   endsOn: z.string().optional().or(z.literal("")),
+  // Blank = leave each date's deposit as it is.
+  tourDeposit: z.string().max(12).optional().or(z.literal("")),
 });
 
 export async function saveTourEditAction(
@@ -277,8 +279,27 @@ export async function saveTourEditAction(
     });
     if (!tour.ok) return { error: tour.error };
 
+    let depositNote = "";
+    if (parsed.data.tourDeposit?.trim()) {
+      let depositCents: number;
+      try {
+        depositCents = parseDollarsToCents(parsed.data.tourDeposit);
+      } catch {
+        return { error: "Enter the deposit as a dollar amount, like 50" };
+      }
+      const result = await setTourDeposit({
+        companyId: context.companyId,
+        actor,
+        tourId: parsed.data.tourId,
+        depositCents,
+      });
+      if (!result.ok) return { error: result.error };
+      depositNote = ` Deposit set to ${formatCents(depositCents)} on ${result.updated} date${result.updated === 1 ? "" : "s"}.`;
+      revalidatePath("/label/shows");
+    }
+
     revalidatePath("/label/tours");
-    return { success: "Changes saved" };
+    return { success: `Changes saved.${depositNote}` };
   } catch (err) {
     return fail(err);
   }

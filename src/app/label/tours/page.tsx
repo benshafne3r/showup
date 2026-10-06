@@ -11,9 +11,33 @@ import { TourEditDialog } from "./tour-edit-dialog";
 import { DeleteTourButton } from "./delete-tour-button";
 import { ShareButton } from "./share-button";
 import { formatShowDate } from "@/lib/dates";
+import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { CalendarPlus, Route } from "lucide-react";
 
 export const metadata: Metadata = { title: "Tours" };
+
+type OppTerms = { stated_ticket_value_cents: number; deposit_percentage: number };
+const depositOf = (o: OppTerms) => depositPerTicketCents(o.stated_ticket_value_cents, o.deposit_percentage);
+const dollars = (cents: number) => (cents % 100 === 0 ? String(cents / 100) : (cents / 100).toFixed(2));
+
+/** What the Edit popup says about the tour's current deposit. */
+function tourDepositSummary(
+  shows: Array<{ status: string; show_opportunities: OppTerms | null }>,
+): { uniform: string | null; summary: string } {
+  const amounts = shows
+    .filter((s) => !["canceled", "completed"].includes(s.status) && s.show_opportunities)
+    .map((s) => depositOf(s.show_opportunities!));
+  if (!amounts.length) return { uniform: null, summary: "No upcoming dates yet." };
+  const min = Math.min(...amounts);
+  const max = Math.max(...amounts);
+  if (min === max) {
+    return {
+      uniform: dollars(min),
+      summary: `Currently ${formatCents(min)} on ${amounts.length === 1 ? "the 1 upcoming date" : `all ${amounts.length} upcoming dates`}.`,
+    };
+  }
+  return { uniform: null, summary: `Currently varies (${formatCents(min)} to ${formatCents(max)}).` };
+}
 export const dynamic = "force-dynamic";
 
 export default async function ToursPage({
@@ -29,7 +53,7 @@ export default async function ToursPage({
     .select(
       `id, name, description, starts_on, ends_on, artist_id,
        artists(id, name, genre, image_url, bio, instagram_handle, spotify_url),
-       shows(id, date, status, venues(city))`,
+       shows(id, date, status, venues(city), show_opportunities(stated_ticket_value_cents, deposit_percentage))`,
     )
     .eq("company_id", context.companyId)
     .order("created_at", { ascending: false });
@@ -111,6 +135,7 @@ export default async function ToursPage({
                               startsOn: tour.starts_on ?? "",
                               endsOn: tour.ends_on ?? "",
                             }}
+                            deposit={tourDepositSummary(shows)}
                             artist={{
                               id: artist.id,
                               name: artist.name,
@@ -144,6 +169,11 @@ export default async function ToursPage({
                               className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/60"
                             >
                               {formatShowDate(show.date)} · {show.venues?.city}
+                              {show.show_opportunities ? (
+                                <span className="text-muted-foreground">
+                                  · {formatCents(depositOf(show.show_opportunities))}
+                                </span>
+                              ) : null}
                               {show.status !== "published" ? (
                                 <span className="text-muted-foreground">({show.status})</span>
                               ) : null}

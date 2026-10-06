@@ -21,8 +21,11 @@ import { Pencil } from "lucide-react";
 export function TourEditDialog({
   tour,
   artist,
+  deposit,
 }: {
   tour: { id: string; name: string; description: string; startsOn: string; endsOn: string };
+  /** Current deposit across the tour's dates: one amount, or a range when they differ. */
+  deposit: { uniform: string | null; summary: string };
   artist: {
     id: string;
     name: string;
@@ -157,6 +160,25 @@ export function TourEditDialog({
                 <Label htmlFor="te-end">Ends</Label>
                 <Input id="te-end" name="endsOn" type="date" defaultValue={tour.endsOn} />
               </div>
+            </div>
+          </fieldset>
+
+          <fieldset className="space-y-2 border-t pt-4">
+            <legend className="text-sm font-semibold">Deposit</legend>
+            <div className="space-y-1.5">
+              <Label htmlFor="te-deposit">Deposit per ticket for every date (USD)</Label>
+              <Input
+                id="te-deposit"
+                name="tourDeposit"
+                inputMode="decimal"
+                placeholder={deposit.uniform ?? "Leave blank to keep each date's deposit"}
+                defaultValue={deposit.uniform ?? ""}
+                aria-describedby="te-deposit-hint"
+              />
+              <p id="te-deposit-hint" className="text-xs text-muted-foreground">
+                {deposit.summary} Applies to every upcoming date; to change one date, open it and
+                choose Edit. Confirmed bookings keep the deposit they agreed to.
+              </p>
             </div>
           </fieldset>
 

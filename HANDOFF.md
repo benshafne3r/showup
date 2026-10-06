@@ -57,6 +57,15 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## City alerts + tour deposits (2026-10-06)
+- **New-show city alerts:** creators opt in (`creator_profiles.new_show_alerts`; checkbox on
+  onboarding [pre-ticked] + Profile, one-click banner on Discover). Cron step 8
+  (`services/show-alerts.ts`) claims newly published opportunities (`city_alerts_sent_at`), groups
+  by city (`cityKey()` in `lib/cities.ts` handles "LA", "Los Angeles, CA"), sends one email per
+  creator per batch, ~2/sec. Migration **0014** (stamps all existing opportunities as announced).
+- **Tour-wide deposit:** Edit tour popup has "Deposit per ticket for every date" →
+  `setTourDeposit()`. Per-date deposit: open the date → Edit. Tour cards show each date's deposit.
+
 ## Reliability tooling (2026-10-06)
 - **Migrations are tracked.** Prod `supabase_migrations.schema_migrations` now has all of
   0001–0013 (0001–0006/0008/0009 backfilled). `npm run db:status [-- --prod]` lists what's

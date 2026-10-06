@@ -23,6 +23,8 @@ export default async function CreatorOnboardingPage() {
       <OnboardingForm
         mode="onboarding"
         initial={{
+          // Pre-ticked at sign-up; the creator can untick before finishing.
+          newShowAlerts: profile?.new_show_alerts ?? true,
           city: profile?.city ?? "",
           bio: profile?.bio ?? "",
           categories: (profile?.categories ?? []).join(", "),

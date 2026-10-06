@@ -5,6 +5,7 @@ import { expireBooking, cancelBooking } from "./bookings";
 import { placeAuthorization } from "./payments";
 import { notify } from "./notifications";
 import { verifyContentSubmissions } from "./content-verification";
+import { sendNewShowAlerts } from "./show-alerts";
 import { log, errorFields } from "@/server/log";
 
 export type JobResults = Record<string, number> & { errors: number };
@@ -34,6 +35,8 @@ export async function runScheduledJobs(): Promise<JobResults> {
     contentUnknown: 0,
     contentUnsupported: 0,
     contentCheckFailed: 0,
+    newShowsAnnounced: 0,
+    newShowAlertsSent: 0,
     errors: 0,
   };
   const db = serviceDb();
@@ -173,6 +176,13 @@ export async function runScheduledJobs(): Promise<JobResults> {
     results.contentUnknown += counts.unknown;
     results.contentUnsupported += counts.unsupported;
     results.contentCheckFailed += counts.failed;
+  });
+
+  // 8. Email opted-in creators about shows newly published in their city.
+  await step("newShowAlerts", async () => {
+    const counts = await sendNewShowAlerts(db);
+    results.newShowsAnnounced += counts.shows;
+    results.newShowAlertsSent += counts.alerts;
   });
 
   return results;

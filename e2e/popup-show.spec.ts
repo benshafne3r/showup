@@ -24,3 +24,13 @@ test("label creates a one-off pop-up show", async ({ page }) => {
   await expect(page).toHaveURL(/\/label\/shows\/[0-9a-f-]+\?saved=1/);
   await expect(page.getByText("Show saved.")).toBeVisible();
 });
+
+/** One deposit for a whole tour, from the tour's Edit popup. */
+test("label sets one deposit for every date on a tour", async ({ page }) => {
+  await signIn(page, ACCOUNTS.labelOwner);
+  await page.goto("/label/tours");
+  await page.getByRole("button", { name: "Edit" }).first().click();
+  await page.getByLabel("Deposit per ticket for every date (USD)").fill("35");
+  await page.getByRole("button", { name: "Save changes" }).click();
+  await expect(page.getByText(/Deposit set to \$35\.00 on \d+ dates?/)).toBeVisible();
+});
