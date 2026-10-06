@@ -57,6 +57,15 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## ⬜ Live $1 hold test (in progress, 2026-10-06)
+The $400 test booking (d8a76740…) was canceled before its hold was placed. Test event
+"ShowUp hold test (internal)" (show `1eaae5c1-f7e1-408f-82db-1c1ceac64ed6`, LA, Oct 9, $1 deposit,
+1 ticket, apply by Oct 8 PT, city alert pre-stamped). Flow: request as benshafner@gmail.com →
+approve as ben@50-50ventures.com → accept → hold placed within ~10 min (inside the 5-day window) →
+check card → cancel the booking to release. Delete/cancel the test show afterwards.
+Gotcha seen: `cancelBooking` once returned "cannot be canceled in its current state" on a transient
+DB error (it swallows the update error); a retry worked.
+
 ## City alerts + tour deposits (2026-10-06)
 - **New-show city alerts:** creators opt in (`creator_profiles.new_show_alerts`; checkbox on
   onboarding [pre-ticked] + Profile, one-click banner on Discover). Cron step 8
