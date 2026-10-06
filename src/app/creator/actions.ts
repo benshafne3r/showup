@@ -23,6 +23,7 @@ import {
   markNotificationRead,
 } from "@/server/services/notifications";
 import { toActionError } from "@/server/action-error";
+import { leaveAgency } from "@/server/services/agencies";
 
 // "use server" files may only export async functions; declare the type inline
 // (erased at compile time) rather than re-exporting it.
@@ -359,6 +360,7 @@ export async function sendMessageAction(
     if (!result.ok) return { error: result.error };
     revalidatePath("/creator/messages");
     revalidatePath("/label/messages");
+    revalidatePath("/manager/messages");
     return { success: "sent" };
   } catch (err) {
     return fail(err);
@@ -376,6 +378,7 @@ export async function markNotificationReadAction(formData: FormData): Promise<vo
   await markNotificationRead(user.id, id);
   revalidatePath("/creator/notifications");
   revalidatePath("/label/notifications");
+  revalidatePath("/manager/notifications");
 }
 
 export async function markAllNotificationsReadAction(): Promise<void> {
@@ -383,6 +386,17 @@ export async function markAllNotificationsReadAction(): Promise<void> {
   await markAllNotificationsRead(user.id);
   revalidatePath("/creator/notifications");
   revalidatePath("/label/notifications");
+  revalidatePath("/manager/notifications");
+}
+
+// ── Management ──────────────────────────────────────────────────────────
+
+/** The creator stops being represented by their management company. */
+export async function leaveAgencyAction(): Promise<void> {
+  const user = await requireCreator();
+  await leaveAgency(user.id);
+  revalidatePath("/creator", "layout");
+  redirect("/creator/settings?left=1");
 }
 
 /** Start (or resume) Stripe Connect payout onboarding → redirect to Stripe. */

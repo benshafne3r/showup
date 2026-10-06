@@ -6,8 +6,9 @@ import { claimInvites } from "@/server/services/companies";
 /**
  * Role-appropriate landing path for a freshly authenticated user (sign-in,
  * or sign-up after email confirmation). Labels get their pending invites
- * claimed and route to onboarding until they belong to a company; creators
- * route to onboarding until their profile is complete.
+ * claimed and route to onboarding until they belong to a company; managers
+ * until they've set up their management company; creators until their
+ * profile is complete.
  */
 export async function destinationFor(userId: string): Promise<string> {
   const db = serviceDb();
@@ -18,6 +19,14 @@ export async function destinationFor(userId: string): Promise<string> {
     .maybeSingle();
   if (!user) return "/";
   if (user.role === "admin") return "/admin";
+  if (user.role === "manager") {
+    const { data: membership } = await db
+      .from("agency_members")
+      .select("id")
+      .eq("user_id", userId)
+      .maybeSingle();
+    return membership ? "/manager" : "/manager/onboarding";
+  }
   if (user.role === "label") {
     await claimInvites(userId, user.email);
     const { data: membership } = await db

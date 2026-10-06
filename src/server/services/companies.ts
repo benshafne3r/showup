@@ -76,24 +76,28 @@ export async function inviteMember(input: {
     if (member) return { ok: false, error: "That person is already on the team" };
   }
 
-  const { error } = await db.from("company_invites").upsert(
-    {
-      company_id: input.companyId,
-      email,
-      role: input.role,
-      invited_by: input.inviter.id,
-      expires_at: new Date(Date.now() + 14 * 86400000).toISOString(),
-      accepted_at: null,
-    },
-    { onConflict: "company_id,email" },
-  );
+  const { data: invite, error } = await db
+    .from("company_invites")
+    .upsert(
+      {
+        company_id: input.companyId,
+        email,
+        role: input.role,
+        invited_by: input.inviter.id,
+        expires_at: new Date(Date.now() + 14 * 86400000).toISOString(),
+        accepted_at: null,
+      },
+      { onConflict: "company_id,email" },
+    )
+    .select("token")
+    .single();
   if (error) return { ok: false, error: error.message };
 
   const { data: company } = await db.from("companies").select("name").eq("id", input.companyId).single();
   await emailProvider().send({
     to: email,
     subject: `${BRAND.name} — you're invited to join ${company?.name ?? "a team"}`,
-    text: `You've been invited to join ${company?.name ?? "a team"} on ${BRAND.name}.\n\nSign up with this email address to join automatically: ${publicEnv.appUrl}/sign-up?role=label\n\nIf you already have a label account with this email, just sign in.`,
+    text: `You've been invited to join ${company?.name ?? "a team"} on ${BRAND.name}.\n\nCreate your account with this email address: ${publicEnv.appUrl}/join/${invite.token}\n\nIf you already have a label account with this email, just sign in.`,
   });
   if (existingUser) {
     await notify({

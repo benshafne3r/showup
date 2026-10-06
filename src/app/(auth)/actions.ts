@@ -6,6 +6,8 @@ import { userDb } from "@/server/db/server-client";
 import { serviceDb } from "@/server/db/service";
 import { enforceRateLimit, RateLimitError } from "@/server/services/rate-limit";
 import { destinationFor } from "@/server/auth/destination";
+import { applyInviteToNewUser } from "@/server/auth/invite-signup";
+import { resolveInvite } from "@/server/services/invites";
 import { publicEnv } from "@/lib/env";
 
 export type AuthFormState = { error: string } | null;
@@ -35,7 +37,9 @@ const signUpSchema = z.object({
   fullName: z.string().min(2, "Enter your name").max(80),
   email: z.string().email("Enter a valid email address"),
   password: z.string().min(8, "Password must be at least 8 characters").max(72),
-  role: z.enum(["creator", "label"]),
+  // Public sign-up always makes a creator. Labels, managers and label
+  // teammates come in through an invite link (`/join/<token>`).
+  invite: z.string().max(200).optional(),
 });
 
 export async function signIn(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -78,8 +82,18 @@ function nextFromForm(formData: FormData): string | null {
 export async function signUp(_prev: SignUpState, formData: FormData): Promise<SignUpState> {
   const parsed = signUpSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
-  const { fullName, email, password, role } = parsed.data;
+  const { fullName, email, password } = parsed.data;
   if (demoAccountBlocked(email)) return { error: "Please use a different email address." };
+
+  const invite = parsed.data.invite ? await resolveInvite(parsed.data.invite) : null;
+  if (parsed.data.invite && !invite) {
+    return { error: "This invite link is invalid, expired, or already used." };
+  }
+  // Partner + teammate invites are tied to the address they were sent to.
+  const lockedEmail = invite?.kind === "roster" ? null : invite?.email;
+  if (lockedEmail && lockedEmail.toLowerCase() !== email.toLowerCase()) {
+    return { error: `This invite is for ${lockedEmail}. Sign up with that email address.` };
+  }
 
   try {
     await enforceRateLimit("auth.sign_up", email.toLowerCase());
@@ -93,7 +107,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
     email,
     password,
     options: {
-      data: { full_name: fullName, role },
+      data: { full_name: fullName },
       // Confirmation link routes through the callback, which exchanges the code
       // for a session and forwards to the role-appropriate destination.
       emailRedirectTo: `${publicEnv.appUrl}/auth/callback`,
@@ -106,16 +120,23 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
         : error.message,
     };
   }
+  // With email confirmation on, signing up an existing address returns an
+  // obfuscated user with no identities — never apply an invite to that.
+  const isNewAccount = !!data.user && (data.user.identities?.length ?? 0) > 0;
+  if (data.user && isNewAccount) {
+    // The auth trigger mirrors into public.users; give it a beat on first signup.
+    let mirrored = false;
+    for (let i = 0; i < 10 && !mirrored; i++) {
+      const { data: row } = await serviceDb().from("users").select("id").eq("id", data.user.id).maybeSingle();
+      mirrored = !!row;
+      if (!mirrored) await new Promise((r) => setTimeout(r, 150));
+    }
+    if (invite && mirrored) await applyInviteToNewUser(invite, data.user.id);
+  }
+
   // No session means email confirmation is required (mailer_autoconfirm off).
   if (!data.user || !data.session) {
     return { pending: email };
-  }
-
-  // The auth trigger mirrors into public.users; give it a beat on first signup.
-  for (let i = 0; i < 10; i++) {
-    const { data: row } = await serviceDb().from("users").select("id").eq("id", data.user.id).maybeSingle();
-    if (row) break;
-    await new Promise((r) => setTimeout(r, 150));
   }
 
   redirect(nextFromForm(formData) ?? (await destinationFor(data.user.id)));

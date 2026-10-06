@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireLabelPage } from "../../require-label";
 import { serviceDb } from "@/server/db/service";
 import { getCreatorPublicProfile } from "@/server/services/profiles";
+import { agencyForCreator } from "@/server/services/agencies";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
 import { formatShowDateLong, formatDateTime } from "@/lib/dates";
 import { StatusBadge } from "@/components/status-badge";
@@ -36,7 +37,10 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
     .maybeSingle();
   if (!request) notFound();
 
-  const creator = await getCreatorPublicProfile(request.creator_id);
+  const [creator, agency] = await Promise.all([
+    getCreatorPublicProfile(request.creator_id),
+    agencyForCreator(request.creator_id),
+  ]);
   const { data: thread } = await db
     .from("message_threads")
     .select("id")
@@ -73,6 +77,12 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
             {formatShowDateLong(request.shows.date)} · {request.shows.venues?.name},{" "}
             {request.shows.venues?.city}
           </p>
+          {agency ? (
+            <p className="mt-1 text-sm">
+              <StatusBadge label={`Managed by ${agency.name}`} tone="info" />{" "}
+              <span className="text-muted-foreground">Messages go to their management team.</span>
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-2">
           <StatusBadge {...REQUEST_STATUS_META[request.status]} />

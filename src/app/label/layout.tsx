@@ -11,6 +11,7 @@ export default async function LabelLayout({ children }: { children: React.ReactN
   if (user.status !== "active") redirect("/sign-in");
   if (user.role === "creator") redirect("/creator");
   if (user.role === "admin") redirect("/admin");
+  if (user.role === "manager") redirect("/manager");
 
   const membership = await getMemberCompany(user.id);
   if (!membership) {

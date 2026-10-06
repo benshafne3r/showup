@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { publicEnv } from "@/lib/env";
+import { BRAND } from "@/lib/brand";
 import { Button } from "@/components/ui/button";
 
 export const metadata: Metadata = { title: "For labels & managers" };
@@ -48,7 +47,11 @@ export default function ForLabelsPage() {
       </div>
 
       <Button asChild size="lg" className="mt-10">
-        <Link href={`${publicEnv.appUrl}/sign-up?role=label`}>Create your company account</Link>
+        <a
+          href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent(`${BRAND.name} partner access`)}`}
+        >
+          Request partner access
+        </a>
       </Button>
     </div>
   );

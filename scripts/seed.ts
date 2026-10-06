@@ -11,7 +11,9 @@
  *   creator.jay@demo.showup.test   ShowUp!Demo1   (creator, New York)
  *   creator.zoe@demo.showup.test   ShowUp!Demo1   (creator, Chicago)
  *   creator.leo@demo.showup.test   ShowUp!Demo1   (creator, Austin)
- *   creator.ava@demo.showup.test   ShowUp!Demo1   (creator, Los Angeles)
+ *   creator.ava@demo.showup.test   ShowUp!Demo1   (creator, Los Angeles — managed)
+ *   creator.nia@demo.showup.test   ShowUp!Demo1   (creator, Atlanta — managed)
+ *   manager@demo.showup.test       ShowUp!Demo1   (management company "Northside Talent")
  */
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
@@ -57,6 +59,7 @@ async function wipe() {
     "booking_tickets", "bookings", "request_tickets", "show_requests",
     "deliverable_requirements", "show_opportunities", "shows", "tours",
     "artists", "company_invites", "company_members", "companies",
+    "agency_invites", "agency_creators", "agency_members", "agencies", "partner_invites",
     "payment_methods", "creator_social_accounts", "creator_profiles",
     "venues", "notifications", "audit_logs", "mock_payment_state",
     "webhook_events", "rate_limits",
@@ -77,23 +80,27 @@ async function wipe() {
   }
 }
 
-async function createUser(email: string, fullName: string, role: "creator" | "label" | "admin") {
+async function createUser(
+  email: string,
+  fullName: string,
+  role: "creator" | "label" | "manager" | "admin",
+) {
   const { data, error } = await db.auth.admin.createUser({
     email,
     password: PASSWORD,
     email_confirm: true,
-    user_metadata: { full_name: fullName, role: role === "admin" ? "creator" : role },
+    user_metadata: { full_name: fullName },
   });
   if (error || !data.user) throw new Error(`createUser ${email}: ${error?.message}`);
-  // The auth trigger mirrors into public.users; wait for it, then fix admin role.
+  // The auth trigger mirrors into public.users as a creator; wait for it, then
+  // promote. A DB trigger syncs the role into the auth app_metadata claim.
   for (let i = 0; i < 20; i++) {
     const { data: row } = await db.from("users").select("id").eq("id", data.user.id).maybeSingle();
     if (row) break;
     await new Promise((r) => setTimeout(r, 200));
   }
-  if (role === "admin") {
-    await db.from("users").update({ role: "admin" }).eq("id", data.user.id);
-    await db.auth.admin.updateUserById(data.user.id, { user_metadata: { full_name: fullName, role: "admin" } });
+  if (role !== "creator") {
+    await db.from("users").update({ role }).eq("id", data.user.id);
   }
   console.log(`  user ${email} (${role})`);
   return data.user.id;
@@ -111,6 +118,8 @@ async function main() {
   const zoeId = await createUser(`creator.zoe@${DOMAIN}`, "Zoe Kim", "creator");
   const leoId = await createUser(`creator.leo@${DOMAIN}`, "Leo Martins", "creator");
   const avaId = await createUser(`creator.ava@${DOMAIN}`, "Ava Patel", "creator");
+  const niaId = await createUser(`creator.nia@${DOMAIN}`, "Nia Brooks", "creator");
+  const managerId = await createUser(`manager@${DOMAIN}`, "Dana Whitfield", "manager");
 
   console.log("Creating creator profiles…");
   const profiles: Array<{
@@ -157,7 +166,24 @@ async function main() {
         { platform: "instagram", handle: "ava.patel", followers: 42000, avgViews: 15000 },
       ],
     },
+    {
+      userId: niaId, city: "Atlanta",
+      bio: "Hip-hop and R&B show recaps from the A. Front-row energy, fast edits.",
+      categories: ["music"], audience: 128000, views: 38000,
+      socials: [{ platform: "tiktok", handle: "niabrooks.atl", followers: 128000, avgViews: 38000 }],
+    },
   ];
+
+  console.log("Creating management company…");
+  const { data: agency } = await db
+    .from("agencies")
+    .insert({ name: "Northside Talent", city: "Los Angeles", website: "https://northside.example" })
+    .select("id").single();
+  await db.from("agency_members").insert({ agency_id: agency!.id, user_id: managerId, role: "owner" });
+  await db.from("agency_creators").insert([
+    { agency_id: agency!.id, creator_id: avaId, added_by: managerId },
+    { agency_id: agency!.id, creator_id: niaId, added_by: managerId },
+  ]);
   for (const p of profiles) {
     const { data: profile } = await db
       .from("creator_profiles")

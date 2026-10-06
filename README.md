@@ -73,13 +73,15 @@ All passwords: **`ShowUp!Demo1`**
 | Account | Role |
 |---|---|
 | `admin@demo.showup.test` | Platform admin |
-| `label.owner@demo.showup.test` | Label owner (Midnight Bloom Records) |
+| `label.owner@demo.showup.test` | Label owner (Columbia Records) |
 | `label.member@demo.showup.test` | Label teammate |
 | `creator.mia@demo.showup.test` | Creator (LA) — completed collab + upcoming confirmed booking |
 | `creator.jay@demo.showup.test` | Creator (NYC) — pending request + open attendance dispute |
 | `creator.zoe@demo.showup.test` | Creator (Chicago) — approved, awaiting acceptance (24h countdown) |
 | `creator.leo@demo.showup.test` | Creator (Austin) — clean slate, used by the e2e golden path |
-| `creator.ava@demo.showup.test` | Creator (LA) — waitlisted |
+| `creator.ava@demo.showup.test` | Creator (LA) — waitlisted; managed by Northside Talent |
+| `creator.nia@demo.showup.test` | Creator (Atlanta) — managed by Northside Talent |
+| `manager@demo.showup.test` | Management company (Northside Talent) — roster of Ava + Nia |
 
 **Mock test cards:** `4242 4242 4242 4242` verifies + authorizes · `4000 0000 0000 0002` declines at verification · `4000 0000 0000 9995` verifies but fails at authorization (exercises the grace-period flow).
 

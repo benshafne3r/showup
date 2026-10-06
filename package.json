@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "seed": "tsx scripts/seed.ts",
+    "invite": "tsx scripts/partner-invite.ts",
     "cron": "node scripts/run-cron.mjs",
     "test": "vitest run",
     "test:watch": "vitest",

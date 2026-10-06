@@ -7,7 +7,9 @@ import { unreadNotificationCount } from "@/server/services/notifications";
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const user = await getSessionUser();
   if (!user) redirect("/sign-in?next=/admin");
-  if (user.role !== "admin") redirect(user.role === "label" ? "/label" : "/creator");
+  if (user.role !== "admin") {
+    redirect(user.role === "label" ? "/label" : user.role === "manager" ? "/manager" : "/creator");
+  }
   if (user.status !== "active") redirect("/sign-in");
 
   const [unreadNotifs, openDisputes] = await Promise.all([

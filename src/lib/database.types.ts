@@ -14,6 +14,200 @@ export type Database = {
   }
   public: {
     Tables: {
+      agencies: {
+        Row: {
+          city: string
+          created_at: string
+          id: string
+          name: string
+          stripe_account_id: string | null
+          stripe_onboarded_at: string | null
+          stripe_payouts_enabled: boolean
+          suspended_at: string | null
+          updated_at: string
+          website: string | null
+        }
+        Insert: {
+          city?: string
+          created_at?: string
+          id?: string
+          name: string
+          stripe_account_id?: string | null
+          stripe_onboarded_at?: string | null
+          stripe_payouts_enabled?: boolean
+          suspended_at?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Update: {
+          city?: string
+          created_at?: string
+          id?: string
+          name?: string
+          stripe_account_id?: string | null
+          stripe_onboarded_at?: string | null
+          stripe_payouts_enabled?: boolean
+          suspended_at?: string | null
+          updated_at?: string
+          website?: string | null
+        }
+        Relationships: []
+      }
+      agency_creators: {
+        Row: {
+          added_by: string | null
+          agency_id: string
+          created_at: string
+          creator_id: string
+          id: string
+          updated_at: string
+        }
+        Insert: {
+          added_by?: string | null
+          agency_id: string
+          created_at?: string
+          creator_id: string
+          id?: string
+          updated_at?: string
+        }
+        Update: {
+          added_by?: string | null
+          agency_id?: string
+          created_at?: string
+          creator_id?: string
+          id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_creators_added_by_fkey"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_creators_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_creators_creator_id_fkey"
+            columns: ["creator_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          agency_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          full_name: string
+          id: string
+          invited_by: string | null
+          revoked_at: string | null
+          token_hash: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          agency_id: string
+          created_at?: string
+          email: string
+          expires_at?: string
+          full_name?: string
+          id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          token_hash: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          agency_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          full_name?: string
+          id?: string
+          invited_by?: string | null
+          revoked_at?: string | null
+          token_hash?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_invites_accepted_by_fkey"
+            columns: ["accepted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_invites_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_invites_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      agency_members: {
+        Row: {
+          agency_id: string
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["company_member_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          agency_id: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["company_member_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          agency_id?: string
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["company_member_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "agency_members_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "agency_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       artists: {
         Row: {
           bio: string
@@ -702,6 +896,7 @@ export type Database = {
           paid_at: string | null
           paused_at: string | null
           paused_by: string | null
+          payee_agency_id: string | null
           provider: string
           provider_transfer_id: string | null
           status: Database["public"]["Enums"]["creator_payment_status"]
@@ -721,6 +916,7 @@ export type Database = {
           paid_at?: string | null
           paused_at?: string | null
           paused_by?: string | null
+          payee_agency_id?: string | null
           provider: string
           provider_transfer_id?: string | null
           status?: Database["public"]["Enums"]["creator_payment_status"]
@@ -740,6 +936,7 @@ export type Database = {
           paid_at?: string | null
           paused_at?: string | null
           paused_by?: string | null
+          payee_agency_id?: string | null
           provider?: string
           provider_transfer_id?: string | null
           status?: Database["public"]["Enums"]["creator_payment_status"]
@@ -772,6 +969,13 @@ export type Database = {
             columns: ["paused_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_payment_records_payee_agency_id_fkey"
+            columns: ["payee_agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
             referencedColumns: ["id"]
           },
         ]
@@ -1073,6 +1277,7 @@ export type Database = {
           id: string
           kind: Database["public"]["Enums"]["message_kind"]
           read_by: string[]
+          sender_agency_id: string | null
           sender_id: string | null
           thread_id: string
         }
@@ -1083,6 +1288,7 @@ export type Database = {
           id?: string
           kind?: Database["public"]["Enums"]["message_kind"]
           read_by?: string[]
+          sender_agency_id?: string | null
           sender_id?: string | null
           thread_id: string
         }
@@ -1093,10 +1299,18 @@ export type Database = {
           id?: string
           kind?: Database["public"]["Enums"]["message_kind"]
           read_by?: string[]
+          sender_agency_id?: string | null
           sender_id?: string | null
           thread_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "messages_sender_agency_id_fkey"
+            columns: ["sender_agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "messages_sender_id_fkey"
             columns: ["sender_id"]
@@ -1175,6 +1389,56 @@ export type Database = {
           {
             foreignKeyName: "notifications_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      partner_invites: {
+        Row: {
+          created_at: string
+          email: string | null
+          expires_at: string
+          id: string
+          kind: string
+          note: string
+          org_name: string
+          revoked_at: string | null
+          token_hash: string
+          used_at: string | null
+          used_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          email?: string | null
+          expires_at: string
+          id?: string
+          kind: string
+          note?: string
+          org_name?: string
+          revoked_at?: string | null
+          token_hash: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string | null
+          expires_at?: string
+          id?: string
+          kind?: string
+          note?: string
+          org_name?: string
+          revoked_at?: string | null
+          token_hash?: string
+          used_at?: string | null
+          used_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "partner_invites_used_by_fkey"
+            columns: ["used_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -1731,7 +1995,10 @@ export type Database = {
     }
     Functions: {
       is_admin: { Args: never; Returns: boolean }
+      is_agency_member: { Args: { aid: string }; Returns: boolean }
       is_company_member: { Args: { cid: string }; Returns: boolean }
+      is_managed_creator: { Args: { cid: string }; Returns: boolean }
+      manages_creator: { Args: { cid: string }; Returns: boolean }
       mark_thread_read: {
         Args: { p_thread_id: string; p_user_id: string }
         Returns: undefined
@@ -1861,7 +2128,7 @@ export type Database = {
         | "box_office"
       ticket_kind: "primary" | "plus_one"
       ticket_status: "reserved" | "issued" | "used" | "unused" | "canceled"
-      user_role: "creator" | "label" | "admin"
+      user_role: "creator" | "label" | "admin" | "manager"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -2108,7 +2375,8 @@ export const Constants = {
       ],
       ticket_kind: ["primary", "plus_one"],
       ticket_status: ["reserved", "issued", "used", "unused", "canceled"],
-      user_role: ["creator", "label", "admin"],
+      user_role: ["creator", "label", "admin", "manager"],
     },
   },
 } as const
+

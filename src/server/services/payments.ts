@@ -426,26 +426,30 @@ export async function payoutCreatorPayment(
     return { ok: false, error: "Creator payment is not ready to pay (or is paused)" };
   }
 
-  // In Stripe mode we can only transfer to a creator whose connected account
-  // has the transfers capability active. Resolve it first and fail cleanly
-  // (rolling the claim back) if they haven't finished payout onboarding.
+  // A managed creator is paid through their management company's account.
+  // In Stripe mode we can only transfer to an account whose transfers
+  // capability is active. Resolve it first and fail cleanly (rolling the
+  // claim back) if the payee hasn't finished payout onboarding.
+  const destination = await payoutDestinationFor(claimed.creator_id);
   let destinationAccountId: string | undefined;
   if (serverEnv.paymentProvider === "stripe") {
-    const dest = await payoutDestinationFor(claimed.creator_id);
-    if (!dest) {
+    if (!destination.accountId) {
+      const reason = destination.agency
+        ? `${destination.agency.name} (the creator's management) hasn't finished payout setup`
+        : "Creator hasn't finished payout setup";
       await db
         .from("creator_payment_records")
         .update({
           status: "failed",
           paid_at: null,
           failed_at: new Date().toISOString(),
-          failure_reason: "Creator hasn't finished payout setup",
+          failure_reason: reason,
         })
         .eq("id", claimed.id)
         .eq("status", "paid");
-      return { ok: false, error: "Creator hasn't finished payout setup" };
+      return { ok: false, error: reason };
     }
-    destinationAccountId = dest;
+    destinationAccountId = destination.accountId;
   }
 
   const result = await paymentProvider().payout({
@@ -471,13 +475,20 @@ export async function payoutCreatorPayment(
 
   await db
     .from("creator_payment_records")
-    .update({ provider_transfer_id: result.providerTransferId })
+    .update({
+      provider_transfer_id: result.providerTransferId,
+      payee_agency_id: destination.agency?.id ?? null,
+    })
     .eq("id", claimed.id);
   await notify({
     userId: claimed.creator_id,
     type: "payment_released",
-    title: `You've been paid ${formatCents(claimed.amount_cents)}`,
-    body: "Your creator payment for completed deliverables has been released. Nice work!",
+    title: destination.agency
+      ? `${formatCents(claimed.amount_cents)} paid to ${destination.agency.name}`
+      : `You've been paid ${formatCents(claimed.amount_cents)}`,
+    body: destination.agency
+      ? "Your content payment was released to your management company. Nice work!"
+      : "Your creator payment for completed deliverables has been released. Nice work!",
     link: `/creator/payments`,
   });
   await audit({
@@ -487,7 +498,7 @@ export async function payoutCreatorPayment(
     entityType: "creator_payment_record",
     entityId: claimed.id,
     companyId: claimed.company_id,
-    metadata: { amountCents: claimed.amount_cents },
+    metadata: { amountCents: claimed.amount_cents, payeeAgencyId: destination.agency?.id ?? null },
   });
   return { ok: true, amountCents: claimed.amount_cents };
 }

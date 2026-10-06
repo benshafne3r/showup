@@ -8,6 +8,9 @@ export const ACCOUNTS = {
   mia: "creator.mia@demo.showup.test",
   jay: "creator.jay@demo.showup.test",
   leo: "creator.leo@demo.showup.test",
+  ava: "creator.ava@demo.showup.test",
+  nia: "creator.nia@demo.showup.test",
+  manager: "manager@demo.showup.test",
 };
 
 export async function signIn(page: Page, email: string) {

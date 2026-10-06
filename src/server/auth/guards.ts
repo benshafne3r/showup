@@ -132,3 +132,42 @@ export async function requireLabelWithCompany(): Promise<
     companyName: membership.companies.name,
   };
 }
+
+export type AgencyContext = {
+  user: SessionUser;
+  agencyId: string;
+  agencyName: string;
+  memberRole: MemberRole;
+};
+
+/** Require a manager who belongs to a (non-suspended) management company. */
+export async function requireManagerWithAgency(): Promise<AgencyContext> {
+  const user = await requireUser();
+  if (user.role !== "manager") throw new AuthError("Management account required");
+  const { data: membership } = await serviceDb()
+    .from("agency_members")
+    .select("agency_id, role, agencies(name, suspended_at)")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (!membership?.agencies) throw new AuthError("Management onboarding incomplete");
+  if (membership.agencies.suspended_at) throw new AuthError("Management company suspended", "suspended");
+  return {
+    user,
+    agencyId: membership.agency_id,
+    agencyName: membership.agencies.name,
+    memberRole: membership.role,
+  };
+}
+
+/** Require a manager whose agency represents `creatorId`. */
+export async function requireManagerOf(creatorId: string): Promise<AgencyContext> {
+  const ctx = await requireManagerWithAgency();
+  const { data: link } = await serviceDb()
+    .from("agency_creators")
+    .select("id")
+    .eq("agency_id", ctx.agencyId)
+    .eq("creator_id", creatorId)
+    .maybeSingle();
+  if (!link) throw new AuthError("That creator isn't on your roster");
+  return ctx;
+}

@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-08-13_
+_Last updated: 2026-10-06_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -15,8 +15,11 @@ Prod is **live for real** on a real domain with real payments. Owner account:
   (⚠️ may still show the GoDaddy WebsiteBuilder site until that's set).
 - Railway `NEXT_PUBLIC_APP_URL=https://app.showuptickets.com`. Custom-domain target **port 8080**.
 
-**Payments — LIVE (Stripe, Show Up LLC `acct_1TqDXl2KxMbOZ5Hd`):** deposit holds + Connect
-payouts both confirmed working on the live site. Live key gated behind `STRIPE_LIVE_OK=true`.
+**Payments — LIVE (Stripe, Show Up LLC `acct_1TqDXl2KxMbOZ5Hd`):** card saving works (1 real
+card on file). Card holds have never run live (0 bookings yet). **Connect payouts were broken until
+2026-10-06** — migration 0007 had never reached prod, so payout setup silently failed and minted
+2 orphan connected accounts; fixed (0007 applied, `connect.ts` now throws on read errors instead of
+re-creating accounts). Live key gated behind `STRIPE_LIVE_OK=true`.
 Live webhook registered → `app.showuptickets.com/api/webhooks/payments` (Your account + Snapshot).
 Live-mode Connect requires **both** `card_payments` + `stripe_transfers` capabilities (see
 `services/connect.ts` + memory `stripe-setup.md`).
@@ -43,10 +46,38 @@ exactly one company `f46d4a76…` (16 shows) and two users: `ben@50-50ventures.c
   biggest signup deterrent; user deliberately kept 100%.
 - Shenseea show has a `$2` creator payment (looks like a test value).
 
-**Prod DB access:** The Supabase MCP can now reach prod project `mpcjunweelepgcglolvx`
-(org `xdhgsplrxsdvjvtwyoir`) — run SQL directly via `execute_sql`/`apply_migration`, no more
-hand-pasting into the SQL editor. Dev project `mvtmomgepsgrqptsfqak` was deleted (local
-`.env.local` still points at it, so local dev can't hit a live DB).
+**Prod DB access:** The Supabase MCP reaches prod project `mpcjunweelepgcglolvx`
+(org `xdhgsplrxsdvjvtwyoir`) — `execute_sql`/`apply_migration`. Prod has no
+`supabase_migrations` table; migrations are applied by hand, so **check columns exist** rather
+than trusting notes (0007 was marked "done" but wasn't).
+
+**Local dev (restored 2026-10-06):** local Supabase stack via Colima (no Docker Desktop):
+`colima start` → `supabase start -x realtime,edge-runtime,logflare,vector,imgproxy,supavisor`
+→ `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
+`http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
+`supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Management companies + invite-only partners (built 2026-10-06)
+New role **`manager`** with its own portal at `/manager` (Roster · Shows · Messages · Payments ·
+Settings). Decisions (user's): label↔creator chats for a managed creator go to the **manager only**
+(creator can't see them — enforced in RLS too); **either** creator or manager can request tickets;
+content payouts go to the **agency's** Stripe account (`payee_agency_id` recorded). Creators under
+management are "sub-accounts": own login to browse shows + add their card; accepting a booking
+(card hold) stays with the creator.
+- Tables (0012): `agencies`, `agency_members`, `agency_creators` (roster, 1 agency per creator),
+  `agency_invites` (hashed tokens), `partner_invites`. Helpers `manages_creator()`,
+  `is_managed_creator()`. Service: `services/agencies.ts`.
+- Managers invite creators from the Roster ("Add creator" → email + copyable `/join/<token>`).
+- `notify()` copies a managed creator's notifications to their agency (links mapped by
+  `lib/manager-links.ts`); `deliver()` is the no-copy primitive.
+- **Public sign-up is creator-only.** Labels/managers only via **private single-use links**:
+  `npm run invite -- label|manager --org "Name" [--email x] [--days 7] --prod` (also `list`,
+  `revoke <id>`). Prints `https://app.showuptickets.com/join/<token>`.
+- **Security fix:** `handle_new_user` used to trust client signup metadata for role — anyone could
+  self-assign `label` via the Supabase API. Now always `creator`; server promotes after a vetted
+  invite. Role mirrored into `app_metadata` (trigger `sync_role_claim`) which the proxy reads.
+- Label teammate invite emails now link to `/join/<token>` (was `/sign-up?role=label`).
+- Demo (local seed): `manager@demo.showup.test` = Northside Talent (Ava + Nia on roster).
 
 **✅ Email — LIVE (Resend):** password reset delivers end-to-end with the correct
 `app.showuptickets.com` link. Two independent keys, both must come from the Resend **team

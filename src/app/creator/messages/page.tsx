@@ -3,6 +3,7 @@ import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
 import { requireCreator } from "@/server/auth/guards";
 import { listThreadsFor } from "@/server/services/messaging-queries";
+import { agencyForCreator } from "@/server/services/agencies";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -27,7 +28,7 @@ export default async function CreatorMessagesPage({
   const defaultTab = params.tab === "messages" ? "messages" : "requests";
 
   const db = await userDb();
-  const [{ data: requests }, threads] = await Promise.all([
+  const [{ data: requests }, threads, agency] = await Promise.all([
     db
       .from("show_requests")
       .select(
@@ -39,6 +40,7 @@ export default async function CreatorMessagesPage({
       .order("created_at", { ascending: false })
       .limit(100),
     listThreadsFor({ id: user.id, side: "creator" }),
+    agencyForCreator(user.id),
   ]);
 
   return (
@@ -47,7 +49,7 @@ export default async function CreatorMessagesPage({
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="requests">Requests ({requests?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="messages">Chats ({threads.length})</TabsTrigger>
+          <TabsTrigger value="messages">{agency ? "Chats" : `Chats (${threads.length})`}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests" className="mt-4 space-y-4">
@@ -120,7 +122,15 @@ export default async function CreatorMessagesPage({
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">
-          <ThreadList threads={threads} basePath="/creator/messages" />
+          {agency ? (
+            <EmptyState
+              icon={Inbox}
+              title={`${agency.name} handles your conversations`}
+              description="Artist teams message your management directly about your requests and bookings. You'll still get updates here about approvals, tickets and holds."
+            />
+          ) : (
+            <ThreadList threads={threads} basePath="/creator/messages" />
+          )}
         </TabsContent>
       </Tabs>
     </div>

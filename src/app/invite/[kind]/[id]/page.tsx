@@ -36,7 +36,7 @@ async function loadInvite(kind: string, id: string) {
       artist: data.artists as Artist,
       heading: data.name,
       dates: shows.map((s) => ({ date: s.date, city: s.venues?.city ?? "" })),
-      applyHref: `/sign-up?role=creator&next=${encodeURIComponent(`/creator/shows/${shows[0].id}`)}`,
+      applyHref: `/sign-up?next=${encodeURIComponent(`/creator/shows/${shows[0].id}`)}`,
     };
   }
 
@@ -56,7 +56,7 @@ async function loadInvite(kind: string, id: string) {
       artist: data.artists as Artist,
       heading: `${data.artists.name} · ${data.venues?.city ?? ""}`,
       dates: [{ date: data.date, city: data.venues?.city ?? "" }],
-      applyHref: `/sign-up?role=creator&next=${encodeURIComponent(`/creator/shows/${data.id}`)}`,
+      applyHref: `/sign-up?next=${encodeURIComponent(`/creator/shows/${data.id}`)}`,
     };
   }
 

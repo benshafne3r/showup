@@ -9,6 +9,7 @@ export default async function CreatorLayout({ children }: { children: React.Reac
   if (!user) redirect("/sign-in?next=/creator");
   if (user.status !== "active") redirect("/sign-in");
   if (user.role === "label") redirect("/label");
+  if (user.role === "manager") redirect("/manager");
   if (user.role === "admin") redirect("/admin");
 
   const [unreadNotifs, unreadMessages] = await Promise.all([

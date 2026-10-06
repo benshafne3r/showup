@@ -17,7 +17,9 @@ const APP_PREFIXES = [
   "/auth",
   "/creator",
   "/label",
+  "/manager",
   "/admin",
+  "/join",
 ];
 const MARKETING_PATHS = new Set([
   "/",
@@ -76,8 +78,7 @@ export default async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const needsAuth =
-    path.startsWith("/creator") || path.startsWith("/label") || path.startsWith("/admin");
+  const needsAuth = ["/creator", "/label", "/manager", "/admin"].some((p) => path.startsWith(p));
 
   if (needsAuth && !user) {
     const url = request.nextUrl.clone();
@@ -87,9 +88,12 @@ export default async function proxy(request: NextRequest) {
   }
 
   if (user && (path === "/sign-in" || path === "/sign-up")) {
-    const role = (user.user_metadata?.role as string) ?? "creator";
+    // app_metadata.role is set server-side (DB trigger) and can't be edited by
+    // the user; fall back to the legacy user_metadata claim for old sessions.
+    const role = (user.app_metadata?.role ?? user.user_metadata?.role ?? "creator") as string;
     const url = request.nextUrl.clone();
-    url.pathname = role === "label" ? "/label" : role === "admin" ? "/admin" : "/creator";
+    url.pathname =
+      role === "label" ? "/label" : role === "manager" ? "/manager" : role === "admin" ? "/admin" : "/creator";
     url.search = "";
     return NextResponse.redirect(url);
   }

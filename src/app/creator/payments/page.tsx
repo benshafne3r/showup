@@ -20,6 +20,7 @@ import {
   getStoredPayoutStatus,
   syncPayoutStatus,
 } from "@/server/services/connect";
+import { agencyForCreator } from "@/server/services/agencies";
 import { startPayoutOnboardingAction } from "../actions";
 import { CreditCard, Landmark, Banknote, CheckCircle2 } from "lucide-react";
 
@@ -35,9 +36,12 @@ export default async function CreatorPaymentsPage({
   const params = await searchParams;
   const db = await userDb();
 
+  // A represented creator is paid through their management company.
+  const agency = await agencyForCreator(user.id);
+
   // Payout onboarding status. Refresh from Stripe when the creator just
   // returned from the hosted flow; otherwise read our stored flags.
-  const payoutStatus = payoutsConfigured()
+  const payoutStatus = payoutsConfigured() && !agency
     ? params.onboarding
       ? await syncPayoutStatus(user.id)
       : await getStoredPayoutStatus(user.id)
@@ -113,7 +117,19 @@ export default async function CreatorPaymentsPage({
         </CardContent>
       </Card>
 
-      {payoutStatus ? (
+      {agency ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Banknote className="size-4 text-primary" aria-hidden /> Getting paid
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="text-sm text-muted-foreground">
+            {agency.name} represents you, so your content payments are paid to them. Your card
+            above is still used for ticket holds.
+          </CardContent>
+        </Card>
+      ) : payoutStatus ? (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">

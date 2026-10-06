@@ -2,7 +2,8 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
-import { notify, notifyCompany } from "./notifications";
+import { deliver, notify, notifyCompany } from "./notifications";
+import { agencyForCreator, notifyAgency } from "./agencies";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
@@ -19,7 +20,10 @@ export async function createRequest(input: {
   opportunityId: string;
   ticketCount: 1 | 2;
   message: string;
+  /** Who's asking — the creator, or a manager on their roster. Defaults to the creator. */
+  actor?: { id: string; role: "creator" | "manager" };
 }): Promise<{ ok: true; requestId: string } | { ok: false; error: string }> {
+  const actor = input.actor ?? { id: input.creatorId, role: "creator" as const };
   await enforceRateLimit("request.create", input.creatorId);
   const db = serviceDb();
 
@@ -57,7 +61,13 @@ export async function createRequest(input: {
     .single();
   if (error) {
     if (error.code === "23505") {
-      return { ok: false, error: "You already have an active request for this show" };
+      return {
+        ok: false,
+        error:
+          actor.role === "manager"
+            ? "That creator already has an active request for this show"
+            : "You already have an active request for this show",
+      };
     }
     return { ok: false, error: error.message };
   }
@@ -77,25 +87,52 @@ export async function createRequest(input: {
     subject: `${artistName} — ${opp.shows!.date}`,
   });
 
+  const agency = await agencyForCreator(input.creatorId);
+  const tickets = `${input.ticketCount} ticket${input.ticketCount > 1 ? "s" : ""}`;
   await notifyCompany(opp.company_id, {
     type: "request_submitted",
     title: "New creator request",
-    body: `A creator requested ${input.ticketCount} ticket${input.ticketCount > 1 ? "s" : ""} for ${artistName}.`,
+    body: agency
+      ? `${agency.name} requested ${tickets} for ${artistName} for one of their creators.`
+      : `A creator requested ${tickets} for ${artistName}.`,
     link: `/label/requests/${request.id}`,
   });
+  // Keep the other side of a managed relationship in the loop.
+  if (agency && actor.role === "creator") {
+    const { data: creator } = await db.from("users").select("full_name").eq("id", input.creatorId).single();
+    await notifyAgency(agency.id, {
+      type: "request_submitted",
+      title: `${creator?.full_name || "A creator"} requested tickets`,
+      body: `${tickets} for ${artistName} — ${opp.shows!.date}.`,
+      link: "/manager/messages?tab=requests",
+    });
+  } else if (agency && actor.role === "manager") {
+    // deliver(), not notify(): the agency already knows — it made the request.
+    await deliver({
+      userId: input.creatorId,
+      type: "request_submitted",
+      title: `${agency.name} requested tickets for you`,
+      body: `${tickets} for ${artistName} — ${opp.shows!.date}. If approved, you'll accept the booking and the card hold.`,
+      link: "/creator/messages?tab=requests",
+    });
+  }
   await audit({
-    actorId: input.creatorId,
-    actorRole: "creator",
+    actorId: actor.id,
+    actorRole: actor.role,
     action: "request.create",
     entityType: "show_request",
     entityId: request.id,
     companyId: opp.company_id,
-    metadata: { ticketCount: input.ticketCount },
+    metadata: { ticketCount: input.ticketCount, creatorId: input.creatorId },
   });
   return { ok: true, requestId: request.id };
 }
 
-export async function withdrawRequest(creatorId: string, requestId: string) {
+export async function withdrawRequest(
+  creatorId: string,
+  requestId: string,
+  actor: { id: string; role: "creator" | "manager" } = { id: creatorId, role: "creator" },
+) {
   const db = serviceDb();
   const { data: claimed } = await db
     .from("show_requests")
@@ -107,8 +144,8 @@ export async function withdrawRequest(creatorId: string, requestId: string) {
     .maybeSingle();
   if (!claimed) return { ok: false as const, error: "Request can no longer be withdrawn" };
   await audit({
-    actorId: creatorId,
-    actorRole: "creator",
+    actorId: actor.id,
+    actorRole: actor.role,
     action: "request.withdraw",
     entityType: "show_request",
     entityId: requestId,

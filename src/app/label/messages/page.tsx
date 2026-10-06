@@ -3,6 +3,7 @@ import Link from "next/link";
 import { requireLabelPage } from "../require-label";
 import { serviceDb } from "@/server/db/service";
 import { listThreadsFor } from "@/server/services/messaging-queries";
+import { agenciesForCreators } from "@/server/services/agencies";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -28,7 +29,7 @@ export default async function LabelMessagesPage({
     serviceDb()
       .from("show_requests")
       .select(
-        `id, status, ticket_count, includes_plus_one, message, created_at,
+        `id, status, ticket_count, includes_plus_one, message, created_at, creator_id,
          users:users!creator_id(full_name),
          shows!inner(date, artists(name), venues(city))`,
       )
@@ -37,6 +38,10 @@ export default async function LabelMessagesPage({
       .limit(200),
     listThreadsFor({ id: context.user.id, side: "company", companyId: context.companyId }),
   ]);
+
+  const agencies = await agenciesForCreators(
+    Array.from(new Set((requests ?? []).map((r) => r.creator_id))),
+  );
 
   const grouped = {
     pending: (requests ?? []).filter((r) => r.status === "pending"),
@@ -58,6 +63,9 @@ export default async function LabelMessagesPage({
               <div className="min-w-0">
                 <p className="font-medium">
                   {request.users?.full_name ?? "Creator"}
+                  {agencies.get(request.creator_id) ? (
+                    <span className="text-sky-300"> · via {agencies.get(request.creator_id)!.name}</span>
+                  ) : null}
                   <span className="text-muted-foreground">
                     {" "}→ {request.shows.artists?.name} · {request.shows.venues?.city}
                   </span>

@@ -6,6 +6,7 @@ import { notificationEmailHtml } from "@/server/providers/email/template";
 import { publicEnv } from "@/lib/env";
 import { BRAND } from "@/lib/brand";
 import type { Database } from "@/lib/database.types";
+import { managerLinkFor } from "@/lib/manager-links";
 
 type NotificationType = Database["public"]["Enums"]["notification_type"];
 
@@ -22,8 +23,43 @@ export type NotifyInput = {
  * Notification service: writes the in-app notification and sends a
  * best-effort email. Structured so SMS/push channels can be added behind
  * the same call later.
+ *
+ * A managed creator's management team is copied on everything the creator
+ * is told (with links into the /manager portal), so they can stay on top of
+ * requests, bookings and payouts for their roster.
  */
 export async function notify(input: NotifyInput): Promise<void> {
+  await deliver(input);
+  await copyManagementTeam(input);
+}
+
+async function copyManagementTeam(input: NotifyInput): Promise<void> {
+  const db = serviceDb();
+  const { data: managed } = await db
+    .from("agency_creators")
+    .select("agency_id, users!agency_creators_creator_id_fkey(full_name)")
+    .eq("creator_id", input.userId)
+    .maybeSingle();
+  if (!managed) return;
+  const { data: members } = await db
+    .from("agency_members")
+    .select("user_id")
+    .eq("agency_id", managed.agency_id);
+  const creatorName = managed.users?.full_name || "Your creator";
+  await Promise.all(
+    (members ?? []).map((m) =>
+      deliver({
+        ...input,
+        userId: m.user_id,
+        title: `${creatorName}: ${input.title}`,
+        link: managerLinkFor(input.link),
+      }),
+    ),
+  );
+}
+
+/** Write one in-app notification + send its email. No management copy. */
+export async function deliver(input: NotifyInput): Promise<void> {
   const db = serviceDb();
 
   const { data: row, error } = await db
