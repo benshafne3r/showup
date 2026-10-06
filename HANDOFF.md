@@ -78,6 +78,12 @@ management are "sub-accounts": own login to browse shows + add their card; accep
   invite. Role mirrored into `app_metadata` (trigger `sync_role_claim`) which the proxy reads.
 - Label teammate invite emails now link to `/join/<token>` (was `/sign-up?role=label`).
 - Demo (local seed): `manager@demo.showup.test` = Northside Talent (Ava + Nia on roster).
+- **LIVE 2026-10-06:** 0011 + 0012 applied to prod, commit `4c86257` deployed, smoke-tested.
+  Tests: 55 unit + 30 e2e green (`e2e/management.spec.ts` covers partner link → manager
+  onboarding, manager request, label↔manager chat, managed creator locked out of chats).
+- Not built (by design / later): manager accepting a booking for the creator (card-hold consent
+  stays with the cardholder); agency teammate invites (Settings says "contact support");
+  admin UI for agencies.
 
 **✅ Email — LIVE (Resend):** password reset delivers end-to-end with the correct
 `app.showuptickets.com` link. Two independent keys, both must come from the Resend **team
@@ -346,6 +352,11 @@ The add-card form no longer has to send a raw PAN to the server:
   never written to disk; rotate it in the Stripe dashboard.)
 
 ## Next steps
+
+**Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
+and walk a real agency through onboarding + Stripe payout setup (KYC can't be automated);
+(2) decide if managers need teammate invites; (3) seed show dates are hard-coded 2026 dates, so
+local Discover is nearly empty — make them relative to "today" if local demos matter.
 
 **Content verification + view tracking — SHIPPED 2026-10-06.** The backlog's
 "highest-leverage product bet" is implemented locally (typecheck ✓ lint ✓ 52/52 unit tests ✓
