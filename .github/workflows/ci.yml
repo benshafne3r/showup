@@ -60,6 +60,7 @@ jobs:
             echo "MOCK_WEBHOOK_SECRET=ci-mock-webhook-secret"
             echo "EMAIL_PROVIDER=console"
             echo "CRON_SECRET=ci-cron-secret"
+            echo "OWNER_EMAILS=label.owner@demo.showup.test"
           } > .env.local
 
       - name: Install Playwright browser

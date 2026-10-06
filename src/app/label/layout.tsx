@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { isPlatformOwner } from "@/server/auth/owner";
 import { getSessionUser, getMemberCompany } from "@/server/auth/guards";
 import { unreadNotificationCount } from "@/server/services/notifications";
 import { unreadMessageCount } from "@/server/services/messaging";
@@ -47,6 +48,7 @@ export default async function LabelLayout({ children }: { children: React.ReactN
         { href: "/label/messages", label: "Messages", badge: pendingRequests + unreadMessages },
         { href: "/label/payments", label: "Payments" },
         { href: "/label/settings", label: "Settings" },
+        ...(isPlatformOwner(user.email) ? [{ href: "/owner", label: "Owner" }] : []),
       ]}
     >
       {children}

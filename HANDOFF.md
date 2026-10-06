@@ -57,7 +57,15 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## ⬜ Live $1 hold test (in progress, 2026-10-06)
+## Owner dashboard (2026-10-06)
+`/owner` (link "Owner" in the sidebar): signups with setup status, people/marketplace/money tiles,
+card holds, requests, bookings by status, partner links (used by whom). Gate: `isPlatformOwner()` in
+`src/server/auth/owner.ts` = ben@50-50ventures.com + benshafner@gmail.com (hard-coded), plus
+`OWNER_EMAILS` env for local/CI only. e2e sign-ins reset the sign-in rate limit (helpers.ts).
+
+## ✅ Live $1 hold test (2026-10-06)
+Worked end to end: Stripe PI `requires_capture`, $1, $0 received. ⬜ Still to release it (cancel the
+booking, or check in + verify attendance on Oct 9).
 The $400 test booking (d8a76740…) was canceled before its hold was placed. Test event
 "ShowUp hold test (internal)" (show `1eaae5c1-f7e1-408f-82db-1c1ceac64ed6`, LA, Oct 9, $1 deposit,
 1 ticket, apply by Oct 8 PT, city alert pre-stamped). Flow: request as benshafner@gmail.com →

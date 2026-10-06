@@ -1,4 +1,8 @@
 import { type Page, expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
+import { config } from "dotenv";
+
+config({ path: ".env.local" });
 
 export const PASSWORD = "ShowUp!Demo1";
 export const ACCOUNTS = {
@@ -13,7 +17,19 @@ export const ACCOUNTS = {
   manager: "manager@demo.showup.test",
 };
 
+/**
+ * The suite signs the same demo accounts in many times; clear the sign-in
+ * rate-limit counter first so the real limit (10 per 5 min) doesn't trip.
+ */
+async function resetSignInLimit(email: string) {
+  const db = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false },
+  });
+  await db.from("rate_limits").delete().eq("key", `auth.sign_in:${email.toLowerCase()}`);
+}
+
 export async function signIn(page: Page, email: string) {
+  await resetSignInLimit(email);
   await page.goto("/sign-in");
   await page.getByLabel("Email").fill(email);
   await page.getByLabel("Password").fill(PASSWORD);

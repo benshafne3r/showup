@@ -19,6 +19,7 @@ const APP_PREFIXES = [
   "/label",
   "/manager",
   "/admin",
+  "/owner",
   "/join",
 ];
 const MARKETING_PATHS = new Set([
@@ -78,7 +79,7 @@ export default async function proxy(request: NextRequest) {
   } = await supabase.auth.getUser();
 
   const path = request.nextUrl.pathname;
-  const needsAuth = ["/creator", "/label", "/manager", "/admin"].some((p) => path.startsWith(p));
+  const needsAuth = ["/creator", "/label", "/manager", "/admin", "/owner"].some((p) => path.startsWith(p));
 
   if (needsAuth && !user) {
     const url = request.nextUrl.clone();

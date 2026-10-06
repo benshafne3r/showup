@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { isPlatformOwner } from "@/server/auth/owner";
 import { getSessionUser } from "@/server/auth/guards";
 import { getAgencyMembership, rosterCreatorIds } from "@/server/services/agencies";
 import { unreadNotificationCount } from "@/server/services/notifications";
@@ -49,6 +50,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
         { href: "/manager/messages", label: "Messages", badge: pendingRequests + unreadMessages },
         { href: "/manager/payments", label: "Payments" },
         { href: "/manager/settings", label: "Settings" },
+        ...(isPlatformOwner(user.email) ? [{ href: "/owner", label: "Owner" }] : []),
       ]}
     >
       {children}

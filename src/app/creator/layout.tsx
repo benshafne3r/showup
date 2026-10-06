@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
+import { isPlatformOwner } from "@/server/auth/owner";
 import { getSessionUser } from "@/server/auth/guards";
 import { unreadNotificationCount } from "@/server/services/notifications";
 import { unreadMessageCount } from "@/server/services/messaging";
@@ -31,6 +32,7 @@ export default async function CreatorLayout({ children }: { children: React.Reac
         { href: "/creator/payments", label: "Payments" },
         { href: "/creator/notifications", label: "Notifications", badge: unreadNotifs },
         { href: "/creator/settings", label: "Profile" },
+        ...(isPlatformOwner(user.email) ? [{ href: "/owner", label: "Owner" }] : []),
       ]}
     >
       {children}
