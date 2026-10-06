@@ -7,6 +7,7 @@ import { agencyForCreator, notifyAgency } from "./agencies";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
+import { formatShowDateLong } from "@/lib/dates";
 
 /**
  * Request lifecycle: create → (approve | reject | waitlist) → booking.
@@ -30,7 +31,7 @@ export async function createRequest(input: {
   const { data: opp } = await db
     .from("show_opportunities")
     .select(
-      "id, show_id, company_id, plus_one_allowed, application_deadline, published_at, tickets_total, tickets_claimed, shows(status, date, title, artists(name))",
+      "id, show_id, company_id, plus_one_allowed, application_deadline, published_at, tickets_total, tickets_claimed, shows(status, date, title, artists(name), venues(name, city))",
     )
     .eq("id", input.opportunityId)
     .single();
@@ -89,20 +90,56 @@ export async function createRequest(input: {
 
   const agency = await agencyForCreator(input.creatorId);
   const tickets = `${input.ticketCount} ticket${input.ticketCount > 1 ? "s" : ""}`;
+  // The email carries the whole request so the team can triage from their inbox.
+  const [{ data: creatorUser }, { data: creatorProfile }] = await Promise.all([
+    db.from("users").select("full_name").eq("id", input.creatorId).single(),
+    db
+      .from("creator_profiles")
+      .select("city, audience_size, avg_views, creator_social_accounts(platform, handle, followers)")
+      .eq("user_id", input.creatorId)
+      .maybeSingle(),
+  ]);
+  const creatorName = creatorUser?.full_name || "A creator";
+  const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
+  const socials = (creatorProfile?.creator_social_accounts ?? [])
+    .sort((a, b) => b.followers - a.followers)
+    .slice(0, 3)
+    .map((sa) => `${sa.platform} @${sa.handle} (${compact.format(sa.followers)})`)
+    .join(", ");
+  const venue = opp.shows!.venues;
   await notifyCompany(opp.company_id, {
     type: "request_submitted",
-    title: "New creator request",
+    title: `${creatorName} requested tickets for ${artistName}`,
     body: agency
-      ? `${agency.name} requested ${tickets} for ${artistName} for one of their creators.`
-      : `A creator requested ${tickets} for ${artistName}.`,
+      ? `${agency.name} requested ${tickets} for ${artistName} for ${creatorName}, one of their creators.`
+      : `${creatorName} requested ${tickets} for ${artistName}.`,
     link: `/label/requests/${request.id}`,
+    email: {
+      details: [
+        { label: "Show", value: `${artistName}${venue ? ` · ${venue.name}, ${venue.city}` : ""}` },
+        { label: "Date", value: formatShowDateLong(opp.shows!.date) },
+        { label: "Tickets", value: input.ticketCount === 2 ? "2 (creator + a guest)" : "1" },
+        { label: "Creator", value: [creatorName, creatorProfile?.city].filter(Boolean).join(" · ") },
+        ...(creatorProfile?.audience_size
+          ? [{
+              label: "Audience",
+              value: `${compact.format(creatorProfile.audience_size)} followers · ~${compact.format(creatorProfile.avg_views)} avg views`,
+            }]
+          : []),
+        ...(socials ? [{ label: "Socials", value: socials }] : []),
+        ...(agency ? [{ label: "Managed by", value: agency.name }] : []),
+      ],
+      quote: input.message.trim()
+        ? { from: agency && actor.role === "manager" ? agency.name : creatorName, text: input.message.trim() }
+        : undefined,
+      ctaLabel: "Review request",
+    },
   });
   // Keep the other side of a managed relationship in the loop.
   if (agency && actor.role === "creator") {
-    const { data: creator } = await db.from("users").select("full_name").eq("id", input.creatorId).single();
     await notifyAgency(agency.id, {
       type: "request_submitted",
-      title: `${creator?.full_name || "A creator"} requested tickets`,
+      title: `${creatorName} requested tickets`,
       body: `${tickets} for ${artistName} on ${opp.shows!.date}.`,
       link: "/manager/messages?tab=requests",
     });

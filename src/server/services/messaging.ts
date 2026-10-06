@@ -5,6 +5,7 @@ import { deliver, notifyCompany } from "./notifications";
 import { agencyForCreator, notifyAgency } from "./agencies";
 import { enforceRateLimit } from "./rate-limit";
 import { uploadFile } from "./uploads";
+import { BRAND } from "@/lib/brand";
 
 /**
  * One thread per request/booking between the creator and the company team.
@@ -104,36 +105,60 @@ export async function sendMessage(input: {
     .update({ last_message_at: new Date().toISOString() })
     .eq("id", thread.id);
 
+  // In-app shows a short preview; the email carries the whole message so it
+  // can be read (and acted on) without logging in.
   const preview = input.body.trim().slice(0, 80) || "Sent an attachment";
+  const [{ data: senderUser }, { data: creatorUser }, { data: company }] = await Promise.all([
+    db.from("users").select("full_name").eq("id", input.senderId).single(),
+    db.from("users").select("full_name").eq("id", thread.creator_id).single(),
+    db.from("companies").select("name").eq("id", thread.company_id).single(),
+  ]);
+  const creatorName = creatorUser?.full_name || "the creator";
+  const email = (from: string, ctaLabel: string) => ({
+    details: [{ label: "About", value: thread.subject }],
+    quote: {
+      from,
+      text:
+        input.body.trim() +
+        (attachmentPaths.length ? `\n\n[${attachmentPaths.length} attachment${attachmentPaths.length > 1 ? "s" : ""}: open ${BRAND.name} to view]` : ""),
+    },
+    ctaLabel,
+  });
+
   if (sender.side === "creator") {
     await notifyCompany(thread.company_id, {
       type: "new_message",
-      title: "New message from a creator",
+      title: `New message from ${creatorName}`,
       body: preview,
       link: `/label/messages/${thread.id}`,
+      email: email(creatorName, "Reply"),
     });
   } else if (sender.side === "manager") {
+    const from = `${senderUser?.full_name || "Their manager"} (${sender.agencyName}, for ${creatorName})`;
     await notifyCompany(thread.company_id, {
       type: "new_message",
-      title: `New message from ${sender.agencyName}`,
+      title: `New message from ${sender.agencyName} about ${creatorName}`,
       body: preview,
       link: `/label/messages/${thread.id}`,
+      email: email(from, "Reply"),
     });
   } else if (agency) {
     // Label → managed creator: the agency team gets it, not the creator.
     await notifyAgency(agency.id, {
       type: "new_message",
-      title: `New message about ${thread.subject}`,
+      title: `${company?.name ?? "An artist team"} messaged about ${creatorName}`,
       body: preview,
       link: `/manager/messages/${thread.id}`,
+      email: email(company?.name ?? "The artist team", "Reply"),
     });
   } else {
     await deliver({
       userId: thread.creator_id,
       type: "new_message",
-      title: "New message from the artist team",
+      title: `New message from ${company?.name ?? "the artist team"}`,
       body: preview,
       link: `/creator/messages/${thread.id}`,
+      email: email(company?.name ?? "The artist team", "Reply"),
     });
   }
   return { ok: true };

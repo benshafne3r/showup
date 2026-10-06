@@ -2,7 +2,11 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { emailProvider } from "@/server/providers/email";
-import { notificationEmailHtml } from "@/server/providers/email/template";
+import {
+  emailExtrasText,
+  notificationEmailHtml,
+  type EmailExtras,
+} from "@/server/providers/email/template";
 import { publicEnv } from "@/lib/env";
 import { BRAND } from "@/lib/brand";
 import type { Database } from "@/lib/database.types";
@@ -17,6 +21,8 @@ export type NotifyInput = {
   body?: string;
   /** In-app path, e.g. /creator/bookings/123 */
   link?: string;
+  /** Extra email-only content (details table, quoted message, button label). */
+  email?: EmailExtras;
 };
 
 /**
@@ -91,12 +97,13 @@ export async function deliver(input: NotifyInput): Promise<void> {
   const result = await emailProvider().send({
     to: user.email,
     subject: `${BRAND.name}: ${input.title}`,
-    text: `Hi ${user.full_name || "there"},\n\n${input.body || input.title}${linkLine}\n\nThe ${BRAND.name} team`,
+    text: `Hi ${user.full_name || "there"},\n\n${input.body || input.title}${emailExtrasText(input.email)}${linkLine}\n\nThe ${BRAND.name} team`,
     html: notificationEmailHtml({
       name: user.full_name || "there",
       title: input.title,
       body: input.body || input.title,
       href,
+      extras: input.email,
     }),
   });
   if (result.ok) {

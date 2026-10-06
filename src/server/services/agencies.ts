@@ -2,7 +2,7 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
-import { deliver, notify } from "./notifications";
+import { deliver, type NotifyInput } from "./notifications";
 import { newInviteToken } from "./invites";
 import { emailProvider } from "@/server/providers/email";
 import { notificationEmailHtml } from "@/server/providers/email/template";
@@ -137,7 +137,7 @@ export async function isOnRoster(agencyId: string, creatorId: string): Promise<b
 /** In-app + email notification to everyone on an agency's team. */
 export async function notifyAgency(
   agencyId: string,
-  input: { type: Parameters<typeof notify>[0]["type"]; title: string; body?: string; link?: string },
+  input: Omit<NotifyInput, "userId">,
 ): Promise<void> {
   const memberIds = await agencyMemberIds(agencyId);
   await Promise.all(memberIds.map((userId) => deliver({ ...input, userId })));
