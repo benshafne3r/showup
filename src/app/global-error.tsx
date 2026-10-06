@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportError } from "@/lib/report-error";
 
 /**
  * Last-resort boundary: catches errors thrown in the root layout itself, which
@@ -16,6 +17,7 @@ export default function GlobalError({
 }) {
   useEffect(() => {
     console.error(error);
+    reportError(error, { digest: error.digest });
   }, [error]);
 
   return (

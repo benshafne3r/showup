@@ -119,8 +119,9 @@ test("the manager reads and replies on the creator's behalf", async ({ page }) =
   await page.getByRole("link", { name: /Columbia Records · for Nia Brooks/ }).first().click();
   await expect(page.getByText(`E2E label hello ${runId}`)).toBeVisible();
 
+  // Enter sends (Shift+Enter would add a line).
   await page.getByPlaceholder(/Write a message/).fill(`E2E manager reply ${runId}`);
-  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByPlaceholder(/Write a message/).press("Enter");
   await expect(page.getByText(`E2E manager reply ${runId}`)).toBeVisible();
   await expect(page.getByText("Dana Whitfield · Northside Talent").first()).toBeVisible();
   await signOut(page);

@@ -36,7 +36,13 @@ export function MessageComposer({ threadId }: { threadId: string }) {
         maxLength={4000}
         placeholder="Write a message… (contact details stay private, so keep it in the app)"
         onKeyDown={(event) => {
-          if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
+          // Enter sends; Shift+Enter adds a line. Skip while an IME is composing,
+          // and on touch keyboards (where Return should just add a line).
+          if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) return;
+          const touch = window.matchMedia("(pointer: coarse)").matches;
+          if (touch && !(event.metaKey || event.ctrlKey)) return;
+          event.preventDefault();
+          if (event.currentTarget.value.trim() || fileRef.current?.files?.length) {
             event.currentTarget.form?.requestSubmit();
           }
         }}
@@ -68,9 +74,14 @@ export function MessageComposer({ threadId }: { threadId: string }) {
           />
           <span id={`attach-count-${threadId}`} className="text-xs text-muted-foreground" />
         </div>
-        <SubmitButton size="sm" pendingLabel="Sending…">
-          <Send className="size-4" aria-hidden /> Send
-        </SubmitButton>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-xs text-muted-foreground md:inline">
+            Enter to send · Shift+Enter for a new line
+          </span>
+          <SubmitButton size="sm" pendingLabel="Sending…">
+            <Send className="size-4" aria-hidden /> Send
+          </SubmitButton>
+        </div>
       </div>
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">

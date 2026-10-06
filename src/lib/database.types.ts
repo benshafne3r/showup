@@ -1994,6 +1994,13 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      applied_migrations: {
+        Args: never
+        Returns: {
+          name: string
+          version: string
+        }[]
+      }
       is_admin: { Args: never; Returns: boolean }
       is_agency_member: { Args: { aid: string }; Returns: boolean }
       is_company_member: { Args: { cid: string }; Returns: boolean }

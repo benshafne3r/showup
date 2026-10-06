@@ -30,3 +30,11 @@ jobs:
             -H "x-cron-secret: ${CRON_SECRET}" \
             -H "content-type: application/json" \
             --max-time 120
+
+      # Doubles as a free uptime check: if the site is down, the database is
+      # unreachable, or a migration never reached prod, /api/health returns 503,
+      # this run fails, and GitHub emails the repo owner.
+      - name: Check site health
+        if: always()
+        run: |
+          curl -fsS "https://app.showuptickets.com/api/health" --max-time 30

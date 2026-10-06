@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { reportError } from "@/lib/report-error";
 import { Button } from "@/components/ui/button";
 import { TriangleAlert } from "lucide-react";
 
@@ -13,6 +14,7 @@ export default function RouteError({
 }) {
   useEffect(() => {
     console.error(error);
+    reportError(error, { digest: error.digest });
   }, [error]);
 
   return (

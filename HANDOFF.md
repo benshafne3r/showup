@@ -57,6 +57,21 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Reliability tooling (2026-10-06)
+- **Migrations are tracked.** Prod `supabase_migrations.schema_migrations` now has all of
+  0001–0013 (0001–0006/0008/0009 backfilled). `npm run db:status [-- --prod]` lists what's
+  missing. Apply a new file to prod with the Supabase MCP `apply_migration` named exactly like the
+  file (e.g. `0014_x`) so it's recorded.
+- **`/api/health`** → 200 when the DB answers and every repo migration is recorded, else 503.
+  `cron.yml` curls it every 10 min, so a failed run = GitHub email (free uptime check). For SMS
+  alerts, point UptimeRobot/Better Stack at it.
+- **CI** (`.github/workflows/ci.yml`): every push to main runs typecheck/lint/unit, then the full
+  e2e suite on a throwaway local Supabase in GitHub Actions. ⬜ First run not yet confirmed (GitHub
+  API was unreachable from this machine on 2026-10-06). Watch Actions minutes if the repo is private.
+- **Sentry** wired (`src/instrumentation*.ts`, `lib/report-error.ts`, `log.error` → Sentry) but
+  inert until `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` are set on Railway (⬜ needs Ben's account).
+- Chat: Enter sends, Shift+Enter = new line (touch keyboards keep Return = new line).
+
 ## Deposit per ticket (2026-10-06, user decision)
 Ticket value + deposit % are gone from the UI. Labels set one **deposit per ticket ($)**; it's
 stored as `stated_ticket_value_cents = deposit`, `deposit_percentage = 100`, so hold math and

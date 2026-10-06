@@ -1,5 +1,7 @@
 import "server-only";
 
+import { reportError } from "@/lib/report-error";
+
 /**
  * Minimal structured logger. Emits one JSON line per event so any log
  * aggregator can filter and search by field. Use this instead of bare
@@ -16,8 +18,14 @@ function emit(level: Level, msg: string, fields?: Fields) {
     time: new Date().toISOString(),
     ...fields,
   });
-  if (level === "error") console.error(line);
-  else if (level === "warn") console.warn(line);
+  if (level === "error") {
+    console.error(line);
+    // Every logged error also goes to Sentry (when SENTRY_DSN is set).
+    const err = fields?.stack
+      ? Object.assign(new Error(String(fields.message ?? msg)), { stack: String(fields.stack) })
+      : msg;
+    reportError(err, { msg, ...fields });
+  } else if (level === "warn") console.warn(line);
   else console.info(line);
 }
 
