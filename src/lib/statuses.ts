@@ -5,6 +5,7 @@ export type RequestStatus = Enums["request_status"];
 export type BookingStatus = Enums["booking_status"];
 export type AttendanceStatus = Enums["attendance_status"];
 export type ContentStatus = Enums["content_status"];
+export type ContentVerificationStatus = Enums["content_verification_status"];
 export type AuthorizationStatus = Enums["authorization_status"];
 export type CreatorPaymentStatus = Enums["creator_payment_status"];
 export type ShowStatus = Enums["show_status"];
@@ -126,6 +127,18 @@ export const CONTENT_STATUS_META: Record<ContentStatus, { label: string; tone: T
   approved: { label: "Content approved", tone: "success" },
   rejected: { label: "Content rejected", tone: "danger" },
   disputed: { label: "Content disputed", tone: "danger" },
+};
+
+/**
+ * Machine-written verification axis (cron view tracking) — deliberately
+ * separate from CONTENT_STATUS_META, which reflects the human review that
+ * gates payouts. No transition map: the checker may move between any states.
+ */
+export const CONTENT_VERIFICATION_META: Record<ContentVerificationStatus, { label: string; tone: Tone }> = {
+  unchecked: { label: "Not checked", tone: "neutral" },
+  live: { label: "Post live", tone: "success" },
+  gone: { label: "Post removed", tone: "danger" },
+  unknown: { label: "Can't verify", tone: "warning" },
 };
 
 export const AUTHORIZATION_STATUS_META: Record<AuthorizationStatus, { label: string; tone: Tone }> = {

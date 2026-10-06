@@ -65,4 +65,13 @@ export const serverEnv = {
   get spotifyClientSecret() {
     return process.env.SPOTIFY_CLIENT_SECRET ?? "";
   },
+  // TikWM Pro — content verification / view tracking for submitted TikTok
+  // posts. Optional: unset → the free endpoint still updates view counts when
+  // it answers, but a missing post can never be CONFIRMED gone.
+  get tikwmApiKey() {
+    return process.env.TIKWM_API_KEY ?? "";
+  },
+  get tikwmApiBase() {
+    return process.env.TIKWM_API_BASE ?? "https://api.tikwmapi.com";
+  },
 };

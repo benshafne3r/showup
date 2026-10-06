@@ -4,6 +4,7 @@ import { serviceDb } from "@/server/db/service";
 import { expireBooking, cancelBooking } from "./bookings";
 import { placeAuthorization } from "./payments";
 import { notify } from "./notifications";
+import { verifyContentSubmissions } from "./content-verification";
 import { log, errorFields } from "@/server/log";
 
 export type JobResults = Record<string, number> & { errors: number };
@@ -27,6 +28,12 @@ export async function runScheduledJobs(): Promise<JobResults> {
     approvalExpiringReminders: 0,
     upcomingShowReminders: 0,
     contentDeadlineReminders: 0,
+    contentChecked: 0,
+    contentLive: 0,
+    contentGone: 0,
+    contentUnknown: 0,
+    contentUnsupported: 0,
+    contentCheckFailed: 0,
     errors: 0,
   };
   const db = serviceDb();
@@ -155,6 +162,17 @@ export async function runScheduledJobs(): Promise<JobResults> {
       });
       results.contentDeadlineReminders++;
     }
+  });
+
+  // 7. Verify submitted posts are still live + pull view counts (label ROI).
+  await step("verifyContentSubmissions", async () => {
+    const counts = await verifyContentSubmissions(db);
+    results.contentChecked += counts.checked;
+    results.contentLive += counts.live;
+    results.contentGone += counts.gone;
+    results.contentUnknown += counts.unknown;
+    results.contentUnsupported += counts.unsupported;
+    results.contentCheckFailed += counts.failed;
   });
 
   return results;

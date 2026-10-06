@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-07-17_
+_Last updated: 2026-08-13_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -63,10 +63,9 @@ must include `https://app.showuptickets.com/**` (wildcard) or Supabase drops the
 link-prefetch by a mail scanner; if it recurs, disable Resend click/open tracking. Rotate the Resend
 keys pasted in chat.
 
-**⬜ PENDING PROD MIGRATION — `0008_hide_venue.sql`:** run on prod SQL editor
-(`add column if not exists hide_venue_until_approved boolean not null default false` on
-`public.shows`). The deployed code selects this column on creator Discover/show pages — they
-error until it's applied. Dev Supabase project is deleted, so all prod DB changes are hand-run SQL.
+**✅ `0008_hide_venue.sql` is applied on prod** (verified 2026-10-06). As of that date prod has
+16 published shows, 4 still upcoming, **3 open in creator Discover** (latest show 2026-10-31) —
+add new dates before demoing to creators or Discover will go empty.
 
 **Secret-location feature (Events):** event form has a "Venue / Address" field + "Hide exact
 location until approved" checkbox → `shows.hide_venue_until_approved`. Creators see city-only
@@ -89,7 +88,8 @@ CLI + MCP paired to **Show Up LLC** (`acct_1TqDXl2KxMbOZ5Hd`). See memory
   `services/connect.ts` (v2 recipient accounts + hosted onboarding) + `payout()` transfer +
   "Getting paid" card. Fully gated on `PAYMENT_PROVIDER=stripe`, so mock (prod today/dev/e2e)
   is unchanged. Validated in test mode up to the human KYC step (has a CAPTCHA; can't automate).
-  **Before prod goes Stripe:** (a) ~~migration 0007 on prod~~ **DONE** (ran in prod SQL editor);
+  **Before prod goes Stripe:** (a) migration 0007 — was NOT actually on prod (payout setup silently failed, leaving 2 orphan
+  Stripe accounts); applied 2026-10-06 and linked benshafner@gmail.com → `acct_1Tvlqm2LBt5afwiz`;
   (b) complete one live onboarding + confirm a transfer; (c) wire the v2
   `account[requirements].updated` webhook backstop (return-URL sync covers the happy path).
 - **Live-key safety rail** now gated behind `STRIPE_LIVE_OK=true` (`env.ts` + `stripe.ts`): test
@@ -315,6 +315,22 @@ The add-card form no longer has to send a raw PAN to the server:
   never written to disk; rotate it in the Stripe dashboard.)
 
 ## Next steps
+
+**Content verification + view tracking — SHIPPED 2026-10-06.** The backlog's
+"highest-leverage product bet" is implemented locally (typecheck ✓ lint ✓ 52/52 unit tests ✓
+`next build` ✓), porting the battle-tested TikWM lookup from the Soundwave bot. What exists:
+- `supabase/migrations/0010_content_verification.sql` — `content_verification_status` enum +
+  `verification_status/platform/view_count/like_count/last_checked_at` on `content_submissions`
+  (+ partial index). Applied to prod 2026-10-06.
+- `src/server/providers/social-metrics/` — TikWM provider: per-video `?url=` → Pro
+  `/user/posts` profile-feed fallback; feed = the arbiter of gone-vs-unknown (only a
+  CONFIRMED-gone post is flagged; outages hold). Pure logic in `tiktok-logic.ts`, unit-tested.
+- `src/server/services/content-verification.ts` — batch checker (25/tick, 6h recheck cooldown),
+  wired as step 7 in `jobs.ts`; a post seen live HOLDS its badge through inconclusive lookups.
+- UI: views + live/removed badge on `/label/content` and the booking detail content card.
+Live: migration 0010 applied, `TIKWM_API_KEY` set on Railway (copied from Soundwave's
+`TIKTOK_API_KEY` — same Pro key). ⬜ Verify: submit a TikTok link, watch the next cron tick fill views.
+
 Production-readiness pass — remaining (security, resilience, auth email, Stripe Elements done):
 1. Add **error tracking** (Sentry) + basic analytics. `src/server/log.ts` is the
    natural hook point — pipe its `error` level to Sentry.
@@ -325,8 +341,8 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 5. Optional: add a Bandsintown/Ticketmaster key for live tour-date imports.
 
 ### Improvement backlog (discussed, not chosen yet)
-- **Content verification + view tracking** — auto-check a submitted post is live and pull
-  its view/like counts, show labels ROI. (Highest-leverage product bet.)
+- ~~**Content verification + view tracking**~~ — **built 2026-08-13**, see top of Next steps
+  (ship checklist). Follow-ups that remain backlog: IG/YouTube support, campaign-level ROI rollup.
 - **Real attendance** — QR / geofenced check-in instead of manual photo approval (the
   attendance module is structured for pluggable verification).
 - **Live Stripe** (test mode) — manual-capture holds + Connect payouts.

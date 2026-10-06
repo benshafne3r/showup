@@ -9,6 +9,7 @@ import {
   AUTHORIZATION_STATUS_META,
   BOOKING_STATUS_META,
   CONTENT_STATUS_META,
+  CONTENT_VERIFICATION_META,
   CREATOR_PAYMENT_STATUS_META,
 } from "@/lib/statuses";
 import { formatShowDateLong, formatDateTime } from "@/lib/dates";
@@ -25,6 +26,8 @@ import { RetryPayoutButton } from "./retry-payout";
 import { ExternalLink, MessageSquare } from "lucide-react";
 
 export const dynamic = "force-dynamic";
+
+const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact" });
 
 export default async function LabelBookingPage({ params }: { params: Promise<{ id: string }> }) {
   const context = await requireLabelPage();
@@ -44,7 +47,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
        authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, capture_amount_cents, failure_reason, created_at),
        creator_payment_records(status, amount_cents, paid_at, failure_reason),
        attendance_submissions(id, status, checked_in_at, note, proof_paths, review_note, created_at),
-       content_submissions(id, status, post_url, caption_note, proof_paths, review_note, submitted_at)`,
+       content_submissions(id, status, post_url, caption_note, proof_paths, review_note, submitted_at, platform, verification_status, view_count, like_count, last_checked_at)`,
     )
     .eq("id", id)
     .eq("company_id", context.companyId)
@@ -223,8 +226,24 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                         >
                           {submission.post_url} <ExternalLink className="size-3 shrink-0" aria-hidden />
                         </a>
-                        <StatusBadge {...CONTENT_STATUS_META[submission.status]} />
+                        <div className="flex shrink-0 items-center gap-1.5">
+                          {submission.verification_status !== "unchecked" ? (
+                            <StatusBadge {...CONTENT_VERIFICATION_META[submission.verification_status]} />
+                          ) : null}
+                          <StatusBadge {...CONTENT_STATUS_META[submission.status]} />
+                        </div>
                       </div>
+                      {submission.view_count != null ? (
+                        <p className="text-xs text-muted-foreground">
+                          {compactNumber.format(submission.view_count)} views
+                          {submission.like_count != null
+                            ? ` · ${compactNumber.format(submission.like_count)} likes`
+                            : ""}
+                          {submission.last_checked_at
+                            ? ` · checked ${formatDateTime(submission.last_checked_at)}`
+                            : ""}
+                        </p>
+                      ) : null}
                       {submission.caption_note ? (
                         <p className="text-xs text-muted-foreground">“{submission.caption_note}”</p>
                       ) : null}

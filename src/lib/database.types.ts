@@ -591,6 +591,9 @@ export type Database = {
           creator_id: string
           deliverable_id: string | null
           id: string
+          last_checked_at: string | null
+          like_count: number | null
+          platform: Database["public"]["Enums"]["social_platform"] | null
           post_url: string
           proof_paths: string[]
           review_note: string | null
@@ -599,6 +602,8 @@ export type Database = {
           status: Database["public"]["Enums"]["content_status"]
           submitted_at: string
           updated_at: string
+          verification_status: Database["public"]["Enums"]["content_verification_status"]
+          view_count: number | null
         }
         Insert: {
           booking_id: string
@@ -608,6 +613,9 @@ export type Database = {
           creator_id: string
           deliverable_id?: string | null
           id?: string
+          last_checked_at?: string | null
+          like_count?: number | null
+          platform?: Database["public"]["Enums"]["social_platform"] | null
           post_url: string
           proof_paths?: string[]
           review_note?: string | null
@@ -616,6 +624,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["content_status"]
           submitted_at?: string
           updated_at?: string
+          verification_status?: Database["public"]["Enums"]["content_verification_status"]
+          view_count?: number | null
         }
         Update: {
           booking_id?: string
@@ -625,6 +635,9 @@ export type Database = {
           creator_id?: string
           deliverable_id?: string | null
           id?: string
+          last_checked_at?: string | null
+          like_count?: number | null
+          platform?: Database["public"]["Enums"]["social_platform"] | null
           post_url?: string
           proof_paths?: string[]
           review_note?: string | null
@@ -633,6 +646,8 @@ export type Database = {
           status?: Database["public"]["Enums"]["content_status"]
           submitted_at?: string
           updated_at?: string
+          verification_status?: Database["public"]["Enums"]["content_verification_status"]
+          view_count?: number | null
         }
         Relationships: [
           {
@@ -1767,6 +1782,7 @@ export type Database = {
         | "approved"
         | "rejected"
         | "disputed"
+      content_verification_status: "unchecked" | "live" | "gone" | "unknown"
       creator_payment_status:
         | "not_required"
         | "awaiting_funding"
@@ -2012,6 +2028,7 @@ export const Constants = {
         "rejected",
         "disputed",
       ],
+      content_verification_status: ["unchecked", "live", "gone", "unknown"],
       creator_payment_status: [
         "not_required",
         "awaiting_funding",

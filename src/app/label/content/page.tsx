@@ -6,17 +6,21 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { formatDateTime } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
+import { StatusBadge } from "@/components/status-badge";
+import { CONTENT_VERIFICATION_META } from "@/lib/statuses";
 import { Film } from "lucide-react";
 
 export const metadata: Metadata = { title: "Content review" };
 export const dynamic = "force-dynamic";
+
+const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact" });
 
 export default async function ContentQueuePage() {
   const context = await requireLabelPage();
   const { data: submissions } = await serviceDb()
     .from("content_submissions")
     .select(
-      `id, post_url, submitted_at, booking_id,
+      `id, post_url, submitted_at, booking_id, view_count, verification_status,
        users:users!creator_id(full_name),
        bookings!inner(creator_payment_cents, shows(artists(name), venues(city)))`,
     )
@@ -45,13 +49,21 @@ export default async function ContentQueuePage() {
                 className="flex flex-wrap items-center justify-between gap-2 rounded-xl border bg-card p-4 text-sm transition-colors hover:border-primary/50"
               >
                 <div className="min-w-0">
-                  <p className="font-medium">{submission.users?.full_name ?? "Creator"}</p>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{submission.users?.full_name ?? "Creator"}</p>
+                    {submission.verification_status === "gone" ? (
+                      <StatusBadge {...CONTENT_VERIFICATION_META.gone} />
+                    ) : null}
+                  </div>
                   <p className="truncate text-muted-foreground">
                     {submission.bookings.shows?.artists?.name} · {submission.post_url}
                   </p>
                 </div>
                 <div className="text-right text-xs text-muted-foreground">
                   <p>{formatDateTime(submission.submitted_at)}</p>
+                  {submission.view_count != null ? (
+                    <p>{compactNumber.format(submission.view_count)} views</p>
+                  ) : null}
                   <p className="font-medium text-emerald-300">
                     pays {formatCents(submission.bookings.creator_payment_cents)}
                   </p>
