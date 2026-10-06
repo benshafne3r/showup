@@ -105,7 +105,7 @@ export default async function ShowsPage({
                       {show.venues?.name} · {show.venues?.city}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
-                      {opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "—"}
+                      {opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "-"}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap text-muted-foreground">
                       {opp
@@ -154,7 +154,7 @@ export default async function ShowsPage({
                 <dl className="mt-3 space-y-1 text-sm">
                   <div className="flex justify-between gap-3">
                     <dt className="text-muted-foreground">Tickets</dt>
-                    <dd>{opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "—"}</dd>
+                    <dd>{opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "-"}</dd>
                   </div>
                   <div className="flex justify-between gap-3">
                     <dt className="text-muted-foreground">Terms</dt>

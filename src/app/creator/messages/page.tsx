@@ -55,7 +55,7 @@ export default async function CreatorMessagesPage({
         <TabsContent value="requests" className="mt-4 space-y-4">
           {params.submitted ? (
             <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">
-              Request sent! The artist team will review it — you'll get a notification either way.
+              Request sent! The artist team will review it, and you'll get a notification either way.
             </div>
           ) : null}
           {!requests?.length ? (

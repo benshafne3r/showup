@@ -112,7 +112,7 @@ export default async function LabelMessagesPage({
                 <TabsTrigger value="decided">Decided ({grouped.decided.length})</TabsTrigger>
               </TabsList>
               <TabsContent value="pending" className="mt-4">
-                {renderList(grouped.pending, "Nothing pending — nice inbox zero.")}
+                {renderList(grouped.pending, "Nothing pending. Nice inbox zero.")}
               </TabsContent>
               <TabsContent value="waitlisted" className="mt-4">
                 {renderList(grouped.waitlisted, "No one on the waitlist.")}

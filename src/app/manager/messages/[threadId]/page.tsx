@@ -37,7 +37,7 @@ export default async function ManagerThreadPage({
         </Link>
       </div>
       <p className="text-xs text-muted-foreground">
-        You&apos;re replying on your creator&apos;s behalf — the artist team sees your name and{" "}
+        You&apos;re replying on your creator&apos;s behalf. The artist team sees your name and{" "}
         {ctx.agencyName}.
       </p>
       <ThreadView

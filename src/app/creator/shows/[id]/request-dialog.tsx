@@ -42,7 +42,7 @@ export function RequestAccessDialog({
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Request access — {artistName}</DialogTitle>
+          <DialogTitle>Request access: {artistName}</DialogTitle>
           <DialogDescription>
             Tell the team why you're a great fit. Approval gives you 24 hours to confirm.
           </DialogDescription>
@@ -85,7 +85,7 @@ export function RequestAccessDialog({
               ) : null}
             </RadioGroup>
             <p className="text-xs text-muted-foreground">
-              The temporary hold covers every ticket you request. Attend and it's released —
+              The temporary hold covers every ticket you request. Attend and it's released, so
               you won't be charged.
             </p>
           </fieldset>
@@ -96,7 +96,7 @@ export function RequestAccessDialog({
               name="message"
               rows={4}
               maxLength={1000}
-              placeholder="Pitch your angle — audience, past concert content, what you'd post…"
+              placeholder="Pitch your angle: audience, past concert content, what you'd post…"
             />
           </div>
           {state && "error" in state ? (

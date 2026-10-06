@@ -26,7 +26,7 @@ export class TicketmasterProvider implements EventProvider {
     );
     if (!response.ok) {
       throw new EventProviderError(
-        `Ticketmaster returned ${response.status} — check TICKETMASTER_API_KEY`,
+        `Ticketmaster returned ${response.status}. Check TICKETMASTER_API_KEY`,
         this.name,
       );
     }

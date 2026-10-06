@@ -16,7 +16,7 @@ test("admin reviews and resolves the seeded attendance dispute", async ({ page }
   await expect(page.getByText("Open disputes")).toBeVisible();
 
   await page.goto("/admin/disputes");
-  const disputeCard = page.getByText(/ATTENDANCE dispute — Jay Park/);
+  const disputeCard = page.getByText(/ATTENDANCE dispute: Jay Park/);
   await expect(disputeCard).toBeVisible();
 
   // Resolve in the creator's favor: release the hold.

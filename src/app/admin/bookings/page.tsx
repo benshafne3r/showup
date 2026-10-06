@@ -58,7 +58,7 @@ export default async function AdminBookingsPage() {
                 <td className="px-4 py-3 text-muted-foreground">{booking.companies?.name}</td>
                 <td className="px-4 py-3">{formatCents(booking.authorization_amount_cents)}</td>
                 <td className="px-4 py-3">
-                  {booking.creator_payment_cents > 0 ? formatCents(booking.creator_payment_cents) : "—"}
+                  {booking.creator_payment_cents > 0 ? formatCents(booking.creator_payment_cents) : "-"}
                 </td>
                 <td className="px-4 py-3">
                   <StatusBadge {...BOOKING_STATUS_META[booking.status]} />
@@ -107,7 +107,7 @@ export default async function AdminBookingsPage() {
               <div className="flex justify-between gap-3">
                 <dt className="text-muted-foreground">Payment</dt>
                 <dd>
-                  {booking.creator_payment_cents > 0 ? formatCents(booking.creator_payment_cents) : "—"}
+                  {booking.creator_payment_cents > 0 ? formatCents(booking.creator_payment_cents) : "-"}
                 </dd>
               </div>
             </dl>

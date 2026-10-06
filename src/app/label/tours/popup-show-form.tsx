@@ -32,7 +32,7 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
           <Input
             id="pop-venue"
             name="venueName"
-            placeholder="The Echoplex — or 1155 Sunset Blvd"
+            placeholder="The Echoplex, or 1155 Sunset Blvd"
             required
           />
         </div>
@@ -50,7 +50,7 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
         <span>
           <span className="block text-sm font-medium">Hide exact location until approved</span>
           <span className="mt-0.5 block text-xs text-muted-foreground">
-            Creators see only the city — the venue/address is revealed once you approve
+            Creators see only the city. The venue/address is revealed once you approve
             them. Good for secret pop-ups.
           </span>
         </span>

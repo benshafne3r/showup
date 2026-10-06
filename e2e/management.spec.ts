@@ -58,9 +58,10 @@ test("public sign-up only offers creator accounts", async ({ page }) => {
 
 test("a private partner link creates a management account, once", async ({ page }) => {
   const token = await partnerInviteToken("manager", `E2E Mgmt ${runId}`);
+  // The private link is the landing page: pitch + sign-up on one page.
   await page.goto(`/join/${token}`);
-  await expect(page).toHaveURL(/\/sign-up\?invite=/);
-  await expect(page.getByRole("heading", { name: "Create your management account" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Get your roster into shows/ })).toBeVisible();
+  await expect(page.getByText(`Private invite · E2E Mgmt ${runId}`)).toBeVisible();
 
   await page.getByLabel("Full name").fill("E2E Manager");
   await page.getByLabel("Email").fill(`e2e-mgr-${runId}@demo.showup.test`);
@@ -72,6 +73,8 @@ test("a private partner link creates a management account, once", async ({ page 
   await page.getByRole("button", { name: "Create company" }).click();
   await expect(page).toHaveURL(/\/manager\?welcome=1/);
   await expect(page.getByRole("heading", { name: "Roster" })).toBeVisible();
+  // The app shell (sidebar nav) renders straight after onboarding.
+  await expect(page.getByRole("link", { name: "Shows" }).first()).toBeVisible();
 
   // Single use: the same link is dead now.
   await page.goto(`/join/${token}`);
@@ -88,7 +91,7 @@ test("a manager requests tickets for a creator on their roster", async ({ page }
   await expect(page.getByText("Nia Brooks")).toBeVisible();
 
   await page.goto(`/manager/shows/${showId}`);
-  await page.getByLabel("Creator", { exact: true }).selectOption({ label: "Nia Brooks — Atlanta" });
+  await page.getByLabel("Creator", { exact: true }).selectOption({ label: "Nia Brooks (Atlanta)" });
   await page.getByLabel("Pitch for the artist team (optional)").fill("E2E: Nia covers LA dates too.");
   await page.getByRole("button", { name: "Request tickets" }).click();
 

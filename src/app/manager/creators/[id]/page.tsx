@@ -124,7 +124,7 @@ export default async function ManagedCreatorPage({ params }: { params: Promise<{
             <CardContent className="space-y-3 text-sm">
               <p>
                 <span className="text-muted-foreground">Card for holds: </span>
-                {card ? `${card.brand} ••${card.last4}` : "Not added yet — they add it from their own login."}
+                {card ? `${card.brand} ••${card.last4}` : "Not added yet. They add it from their own login."}
               </p>
               {profile ? (
                 <p>

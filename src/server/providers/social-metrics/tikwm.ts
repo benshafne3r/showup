@@ -39,7 +39,7 @@ async function fetchJson(
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (res.status === 401 || res.status === 403) {
-      log.warn("TikWM rejected the key — check TIKWM_API_KEY", { status: res.status });
+      log.warn("TikWM rejected the key, check TIKWM_API_KEY", { status: res.status });
       return null;
     }
     if (!res.ok) return null;
@@ -188,7 +188,7 @@ export async function checkTikTokPost(url: string): Promise<PostMetrics> {
   if (!items.length) {
     // Private, deleted, banned — or the API hiccuped. Indistinguishable here,
     // and guessing wrong flags a live post as removed, so hold as unknown.
-    log.warn("TikTok feed came back empty — holding", {
+    log.warn("TikTok feed came back empty, holding", {
       handle: parsed.handle,
       videoId: parsed.videoId,
     });

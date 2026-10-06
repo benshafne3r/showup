@@ -97,7 +97,7 @@ export async function acceptBooking(input: {
     title: `You're going to ${artistName}!`,
     body: scheduled.placed
       ? "Your booking is confirmed and the temporary hold has been placed. Attend the show and it will be released."
-      : "Your booking is confirmed. The temporary hold will be placed on your card a few days before the show — we'll let you know.",
+      : "Your booking is confirmed. The temporary hold will be placed on your card a few days before the show. We'll let you know.",
     link: `/creator/bookings/${booking.id}`,
   });
   await notifyCompany(booking.company_id, {

@@ -116,7 +116,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
   if (error) {
     return {
       error: error.message.includes("already registered")
-        ? "An account with this email already exists — sign in instead."
+        ? "An account with this email already exists. Sign in instead."
         : error.message,
     };
   }

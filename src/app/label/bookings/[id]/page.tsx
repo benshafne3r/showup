@@ -160,7 +160,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                 <div className="rounded-lg border bg-muted/40 p-3">
                   <p>
                     Checked in {formatDateTime(latestAttendance.checked_in_at)}
-                    {latestAttendance.note ? ` — “${latestAttendance.note}”` : ""}
+                    {latestAttendance.note ? `: “${latestAttendance.note}”` : ""}
                   </p>
                   {attendanceProofUrls.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">

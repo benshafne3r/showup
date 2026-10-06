@@ -33,7 +33,7 @@ export function ThreadView({
       <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-label="Messages" role="log">
         {messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            No messages yet — say hi and talk logistics.
+            No messages yet. Say hi and talk logistics.
           </p>
         ) : (
           messages.map((message) =>

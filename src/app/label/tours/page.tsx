@@ -59,7 +59,7 @@ export default async function ToursPage({
         <EmptyState
           icon={Route}
           title="No tours yet"
-          description="Create your first tour — you can add the artist right in the same step, then add show dates to it."
+          description="Create your first tour. You can add the artist right in the same step, then add show dates to it."
           action={<CreateDialog artists={artistOptions} />}
         />
       ) : (
@@ -153,7 +153,7 @@ export default async function ToursPage({
                       </ul>
                     ) : (
                       <p className="mt-3 text-sm text-muted-foreground">
-                        No dates on this tour yet — use “Add a date”.
+                        No dates on this tour yet. Use “Add a date”.
                       </p>
                     )}
                   </div>

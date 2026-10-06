@@ -25,7 +25,7 @@ export default function PrivacyPage() {
         <Section title="1. Information we collect">
           <p>
             <strong className="text-foreground">Account &amp; profile.</strong> Name, email, password
-            (hashed), role, and — for Creators — profile details such as city, content categories,
+            (hashed), role, and (for Creators) profile details such as city, content categories,
             bio, social handles, and self-reported audience metrics.
           </p>
           <p>
@@ -37,7 +37,7 @@ export default function PrivacyPage() {
             <strong className="text-foreground">Payment information.</strong> When you add a card or set
             up payouts, our payment processor (Stripe) collects and verifies your payment and
             identity details directly. We receive limited information such as the card brand, last
-            four digits, and payout status — never your full card number.
+            four digits, and payout status, never your full card number.
           </p>
           <p>
             <strong className="text-foreground">Technical.</strong> Basic log and device data needed to
@@ -63,7 +63,7 @@ export default function PrivacyPage() {
           </p>
           <p>
             <strong className="text-foreground">Service providers.</strong> We share what&rsquo;s
-            necessary with vendors that run the service on our behalf — including Stripe (payments and
+            necessary with vendors that run the service on our behalf, including Stripe (payments and
             payouts), our hosting and database providers, and email delivery. They may only use the
             data to provide their service to us.
           </p>
@@ -94,8 +94,8 @@ export default function PrivacyPage() {
 
         <Section title="6. Security">
           <p>
-            We use industry-standard measures — including encrypted connections, access controls, and
-            row-level database security — to protect your information. No system is perfectly secure,
+            We use industry-standard measures (including encrypted connections, access controls, and
+            row-level database security) to protect your information. No system is perfectly secure,
             so we cannot guarantee absolute security.
           </p>
         </Section>

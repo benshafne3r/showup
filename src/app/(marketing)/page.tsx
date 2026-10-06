@@ -22,18 +22,18 @@ const ARTIST_WALL: Array<{ names: string[]; className: string }> = [
 const HOW_IT_WORKS: Array<[string, string]> = [
   [
     "1. Labels post shows",
-    "Artist teams list tour dates and set aside complimentary tickets — with a stated ticket value, deliverables, and a fixed creator payment.",
+    "Artist teams list tour dates and set aside complimentary tickets, with a stated ticket value, deliverables, and a fixed creator payment.",
   ],
   [
     "2. Creators request access",
     "Browse shows in your city, request one ticket or a +1, and pitch your content idea. Teams review your audience and approve the right fit.",
   ],
   [
-    "3. Attend — the hold is released",
-    "A temporary card hold (a percentage of the ticket value) keeps everyone reliable. Check in at the show and it's released in full — attend and you are never charged.",
+    "3. Attend, and the hold is released",
+    "A temporary card hold (a percentage of the ticket value) keeps everyone reliable. Check in at the show and it's released in full. Attend and you are never charged.",
   ],
   [
-    "4. Post — get paid",
+    "4. Post and get paid",
     "Submit your deliverables after the show. Once the team approves them, the agreed creator payment is released to you on top of your free ticket.",
   ],
 ];
@@ -58,7 +58,7 @@ export default function LandingPage() {
             Free tickets for creators who show up.
           </h1>
           <p className="max-w-xl text-lg font-medium text-balance text-white/85">
-            {BRAND.name} connects artist teams with creators — complimentary concert
+            {BRAND.name} connects artist teams with creators: complimentary concert
             access in exchange for reliable attendance and content.
           </p>
           <div className="mt-2 flex flex-wrap items-center justify-center gap-3">
@@ -90,7 +90,7 @@ export default function LandingPage() {
             >
               {row.names.map((name, i) => (
                 <span key={name} className="whitespace-nowrap">
-                  {i > 0 ? <span className="mx-3 align-middle font-normal opacity-60 md:mx-5">——</span> : null}
+                  {i > 0 ? <span aria-hidden className="mx-3 inline-block h-[3px] w-8 bg-current align-middle opacity-60 md:mx-5 md:w-12" /> : null}
                   {name}
                 </span>
               ))}
@@ -151,7 +151,7 @@ export default function LandingPage() {
             ))}
             <div className="flex flex-col justify-center gap-2.5 rounded-xl border bg-card p-4 text-xs">
               {[
-                ["Attendance verified", "hold released — $0 charged"],
+                ["Attendance verified", "hold released, $0 charged"],
                 ["TikTok approved", "$150 paid to creator"],
                 ["Guest list", "6 of 8 tickets claimed"],
               ].map(([title, detail]) => (
@@ -179,7 +179,7 @@ export default function LandingPage() {
               Paid posts.
             </h2>
             <ul className="mt-6 space-y-1.5 text-muted-foreground">
-              <li>- Complimentary tickets to shows in your city — bring a +1</li>
+              <li>- Complimentary tickets to shows in your city, plus a +1</li>
               <li>- Attend and you're never charged: the card hold is released at check-in</li>
               <li>- Earn a fixed payment for every approved deliverable</li>
               <li>- Message artist teams directly and build real relationships</li>
@@ -232,7 +232,7 @@ export default function LandingPage() {
             <ul className="mt-6 space-y-1.5 text-muted-foreground">
               <li>- Turn unsold seats into verified creator coverage</li>
               <li>- Review real audience metrics before you approve anyone</li>
-              <li>- Card holds keep no-shows accountable — you choose the deposit</li>
+              <li>- Card holds keep no-shows accountable, and you choose the deposit</li>
               <li>- Pay only for content you've reviewed and approved</li>
             </ul>
             <Button asChild variant="link" className="mt-4 px-0 text-primary">
@@ -243,7 +243,7 @@ export default function LandingPage() {
           </div>
           <div className="rounded-2xl border bg-background p-5 shadow-xl">
             <p className="border-b pb-3 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-              Requests · Baby Keem — Los Angeles
+              Requests · Baby Keem · Los Angeles
             </p>
             <ul className="divide-y text-sm">
               {[
@@ -370,7 +370,7 @@ export default function LandingPage() {
           posts. {BRAND.name} is a cheat code."
         </blockquote>
         <p className="mt-4 text-sm text-muted-foreground">
-          — Mia Torres, creator · 182k audience
+          Mia Torres, creator · 182k audience
         </p>
       </section>
     </>

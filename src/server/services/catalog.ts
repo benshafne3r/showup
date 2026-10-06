@@ -385,7 +385,7 @@ async function postponeShowInternal(
       userId: booking.creator_id,
       type: "show_postponed",
       title: `${show.artists?.name ?? "A show"} was postponed`,
-      body: `New date: ${show.date}. Your booking carries over — message the team if you can't make it.`,
+      body: `New date: ${show.date}. Your booking carries over. Message the team if you can't make it.`,
       link: `/creator/bookings/${booking.id}`,
     });
   }
@@ -430,7 +430,7 @@ export async function deleteTour(input: {
       .select("id", { count: "exact", head: true })
       .in("show_id", showIds);
     if ((count ?? 0) > 0) {
-      return { ok: false, error: "Some shows have creator bookings — cancel those shows first." };
+      return { ok: false, error: "Some shows have creator bookings. Cancel those shows first." };
     }
     // Deleting the shows cascades to their opportunities, requests, deliverables.
     const { error: showErr } = await db.from("shows").delete().in("id", showIds);
@@ -475,7 +475,7 @@ export async function deleteShow(input: {
     .select("id", { count: "exact", head: true })
     .eq("show_id", input.showId);
   if ((count ?? 0) > 0) {
-    return { ok: false, error: "This show has creator bookings — cancel it instead." };
+    return { ok: false, error: "This show has creator bookings. Cancel it instead." };
   }
 
   const { error } = await db

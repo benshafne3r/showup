@@ -61,7 +61,7 @@ export function TermsBreakdown({
         <p className="text-xs text-muted-foreground">
           {formatCents(statedTicketValueCents)} × {ticketCount} ticket
           {ticketCount > 1 ? "s" : ""} × {depositPercentage}%. This is a temporary card
-          hold covering every ticket you request — it is <strong>not</strong> a charge and{" "}
+          hold covering every ticket you request. It is <strong>not</strong> a charge and{" "}
           <strong>not</strong> money you earn. Attend the show and it is released in full.
         </p>
         <Separator />
@@ -71,7 +71,7 @@ export function TermsBreakdown({
             Creator payment
           </span>
           <span className="font-semibold text-emerald-300">
-            {creatorPaymentCents > 0 ? formatCents(creatorPaymentCents) : "—"}
+            {creatorPaymentCents > 0 ? formatCents(creatorPaymentCents) : "-"}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">

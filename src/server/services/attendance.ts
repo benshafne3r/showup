@@ -163,7 +163,7 @@ export async function approveAttendance(input: {
   await notify({
     userId: booking.creator_id,
     type: "attendance_approved",
-    title: "Attendance verified — hold released",
+    title: "Attendance verified, hold released",
     body: booking.content_required
       ? "Your attendance is confirmed and the hold is released. Submit your content to earn your creator payment."
       : "Your attendance is confirmed and the hold is released. You will not be charged.",

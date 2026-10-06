@@ -63,8 +63,8 @@ export function CreateDialog({ artists }: { artists: { id: string; name: string 
         </div>
         <p className="text-xs text-muted-foreground">
           {tab === "tour"
-            ? "A tour with an artist — add show dates to it afterward."
-            : "A single event in a city — no tour needed, published instantly."}
+            ? "A tour with an artist. Add show dates to it afterward."
+            : "A single event in a city. No tour needed, published instantly."}
         </p>
 
         {tab === "tour" ? (

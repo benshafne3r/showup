@@ -67,7 +67,7 @@ export async function generateMetadata({ params }: { params: Promise<Params> }):
   const { kind, id } = await params;
   const invite = await loadInvite(kind, id);
   if (!invite) return { title: "Invite" };
-  const title = `${invite.artist.name} — free tickets on ${BRAND.name}`;
+  const title = `${invite.artist.name}: free tickets on ${BRAND.name}`;
   return { title, description: `You're invited: ${invite.heading}. ${BRAND.tagline}` };
 }
 
@@ -146,7 +146,7 @@ export default async function InvitePage({ params }: { params: Promise<Params> }
           <h2 className="text-lg font-semibold">How {BRAND.name} works</h2>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
-              { icon: Ticket, title: "Free tickets", body: "Labels comp your spot at the show — no cost to you." },
+              { icon: Ticket, title: "Free tickets", body: "Labels comp your spot at the show, at no cost to you." },
               { icon: CalendarCheck, title: "Just show up", body: "Attend and check in. That releases the hold on your card." },
               { icon: Camera, title: "Optional posts", body: "Share a reel or story if it's part of the offer, and get paid." },
             ].map((step) => (

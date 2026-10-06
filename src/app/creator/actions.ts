@@ -65,7 +65,7 @@ export async function saveCreatorProfile(
     try {
       socials = socialsSchema.parse(JSON.parse(parsed.data.socials || "[]"));
     } catch {
-      return { error: "Check your social accounts — handles are required" };
+      return { error: "Check your social accounts: handles are required" };
     }
 
     const result = await upsertCreatorProfile({
@@ -107,7 +107,7 @@ export async function updateCreatorProfile(
     try {
       socials = socialsSchema.parse(JSON.parse(parsed.data.socials || "[]"));
     } catch {
-      return { error: "Check your social accounts — handles are required" };
+      return { error: "Check your social accounts: handles are required" };
     }
     const result = await upsertCreatorProfile({
       userId: user.id,
@@ -332,7 +332,7 @@ export async function openDisputeAction(
     });
     if (!result.ok) return { error: result.error };
     revalidatePath(`/creator/bookings/${bookingId}`);
-    return { success: "Dispute opened — an administrator will review it." };
+    return { success: "Dispute opened. An administrator will review it." };
   } catch (err) {
     return fail(err);
   }

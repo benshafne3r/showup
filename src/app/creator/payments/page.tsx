@@ -105,7 +105,7 @@ export default async function CreatorPaymentsPage({
             </ul>
           ) : (
             <p className="text-muted-foreground">
-              No card on file yet. You'll add one when you accept your first booking — or add it
+              No card on file yet. You'll add one when you accept your first booking, or add it
               now.
             </p>
           )}
@@ -139,20 +139,20 @@ export default async function CreatorPaymentsPage({
           <CardContent className="space-y-3 text-sm">
             {params.onboarding === "error" ? (
               <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-300">
-                We couldn't start payout setup just now. Please try again in a bit — if it keeps
+                We couldn't start payout setup just now. Please try again in a bit. If it keeps
                 happening, the payouts service may still be finishing activation.
               </p>
             ) : null}
             {payoutStatus.payoutsEnabled ? (
               <p className="flex items-center gap-2 text-emerald-300">
                 <CheckCircle2 className="size-4" aria-hidden />
-                Payouts are active — approved creator payments go straight to your bank.
+                Payouts are active. Approved creator payments go straight to your bank.
               </p>
             ) : (
               <>
                 <p className="text-muted-foreground">
                   {payoutStatus.accountId
-                    ? "Your payout setup is almost done — finish verifying with Stripe to receive payments."
+                    ? "Your payout setup is almost done. Finish verifying with Stripe to receive payments."
                     : "Set up payouts with Stripe to receive your creator payments. It takes a couple of minutes."}
                 </p>
                 <form action={startPayoutOnboardingAction}>
@@ -162,7 +162,7 @@ export default async function CreatorPaymentsPage({
                 </form>
                 {params.onboarding === "done" ? (
                   <p className="text-xs text-muted-foreground">
-                    Still finishing up? Stripe can take a moment to verify — refresh this page shortly.
+                    Still finishing up? Stripe can take a moment to verify, so refresh this page shortly.
                   </p>
                 ) : null}
               </>

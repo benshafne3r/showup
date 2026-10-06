@@ -34,7 +34,7 @@ export function MessageComposer({ threadId }: { threadId: string }) {
         name="body"
         rows={2}
         maxLength={4000}
-        placeholder="Write a message… (contact details stay private — keep it in the app)"
+        placeholder="Write a message… (contact details stay private, so keep it in the app)"
         onKeyDown={(event) => {
           if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
             event.currentTarget.form?.requestSubmit();

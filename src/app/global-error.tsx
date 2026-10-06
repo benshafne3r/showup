@@ -38,7 +38,7 @@ export default function GlobalError({
       >
         <h1 style={{ fontSize: "1.25rem", fontWeight: 700 }}>Something went wrong</h1>
         <p style={{ maxWidth: "28rem", fontSize: "0.875rem", color: "#a1a1aa" }}>
-          An unexpected error occurred. Your data is safe — try again, and if it keeps happening,
+          An unexpected error occurred. Your data is safe. Try again, and if it keeps happening,
           contact support{error.digest ? ` (ref: ${error.digest})` : ""}.
         </p>
         <button

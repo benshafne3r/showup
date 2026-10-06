@@ -47,6 +47,9 @@ export async function createCompanyAction(
   } catch (err) {
     return fail(err);
   }
+  // The label layout rendered without a company during onboarding; make it
+  // re-render so the app shell (nav + padding) appears after the redirect.
+  revalidatePath("/label", "layout");
   redirect("/label?welcome=1");
 }
 
@@ -477,13 +480,13 @@ export async function bulkImportShowsAction(
     for (const ev of dates) {
       // Skip dates already in the past — you can't publish a past opportunity.
       if (new Date(`${ev.date}T23:59:59`).getTime() < now) {
-        firstError ??= `${ev.date} is in the past — skipped`;
+        firstError ??= `${ev.date} is in the past, skipped`;
         continue;
       }
       // Skip if this artist already has this exact date+venue.
       const evKey = key(ev.date, ev.venueName, ev.venueCity);
       if (seen.has(evKey)) {
-        firstError ??= `${ev.date} at ${ev.venueName} already exists — skipped`;
+        firstError ??= `${ev.date} at ${ev.venueName} already exists, skipped`;
         continue;
       }
       seen.add(evKey);
@@ -665,7 +668,7 @@ export async function cancelShowAction(
     });
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/shows");
-    return { success: `Show canceled — ${result.canceledBookings} booking(s) released` };
+    return { success: `Show canceled. ${result.canceledBookings} booking(s) released` };
   } catch (err) {
     return fail(err);
   }
@@ -735,7 +738,7 @@ export async function approveRequestAction(
     });
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/messages");
-    return { success: "Approved — the creator has 24 hours to accept" };
+    return { success: "Approved. The creator has 24 hours to accept" };
   } catch (err) {
     return fail(err);
   }
@@ -855,7 +858,7 @@ export async function approveAttendanceAction(
     if (!result.ok) return { error: result.error };
     revalidatePath(`/label/bookings/${bookingId}`);
     revalidatePath("/label/attendance");
-    return { success: "Attendance approved — the creator's hold was released" };
+    return { success: "Attendance approved. The creator's hold was released" };
   } catch (err) {
     return fail(err);
   }
@@ -882,7 +885,7 @@ export async function rejectAttendanceAction(
     if (!result.ok) return { error: result.error };
     revalidatePath(`/label/bookings/${bookingId}`);
     revalidatePath("/label/attendance");
-    return { success: "Attendance rejected — booking moved to no-show review" };
+    return { success: "Attendance rejected. Booking moved to no-show review" };
   } catch (err) {
     return fail(err);
   }
@@ -909,7 +912,7 @@ export async function resolveNoShowAction(
       success:
         action === "capture"
           ? "Hold captured for the no-show"
-          : "Creator excused — hold released without charge",
+          : "Creator excused. Hold released without charge",
     };
   } catch (err) {
     return fail(err);
@@ -946,7 +949,7 @@ export async function reviewContentAction(
       success:
         decision === "approved"
           ? result.paid
-            ? "Content approved — creator payment released"
+            ? "Content approved. Creator payment released"
             : "Content approved"
           : decision === "revision_requested"
             ? "Revision requested"

@@ -59,11 +59,11 @@ export default async function LabelPaymentsPage() {
           { label: "Committed (pending)", value: formatCents(committed) },
           {
             label: "Attendance rate",
-            value: totalConfirmed ? `${Math.round((attended / totalConfirmed) * 100)}%` : "—",
+            value: totalConfirmed ? `${Math.round((attended / totalConfirmed) * 100)}%` : "-",
           },
           {
             label: "Completion rate",
-            value: totalConfirmed ? `${Math.round((completed / totalConfirmed) * 100)}%` : "—",
+            value: totalConfirmed ? `${Math.round((completed / totalConfirmed) * 100)}%` : "-",
           },
         ].map((stat) => (
           <Card key={stat.label}>

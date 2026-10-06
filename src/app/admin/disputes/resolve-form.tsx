@@ -18,7 +18,7 @@ const RESOLUTIONS = [
   { value: "capture_hold", label: "Capture the hold (label wins no-show)" },
   { value: "pay_creator", label: "Approve content & pay creator" },
   { value: "deny_payment", label: "Deny the creator payment" },
-  { value: "no_action", label: "No money action — notes only" },
+  { value: "no_action", label: "No money action, notes only" },
 ];
 
 export function ResolveDisputeForm({ disputeId, kind }: { disputeId: string; kind: string }) {

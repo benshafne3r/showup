@@ -77,7 +77,7 @@ export default async function AdminDashboardPage() {
       </div>
       <p className="text-xs text-muted-foreground">
         "Run scheduled jobs" processes acceptance expiries, due authorizations, grace-period
-        cancellations, and reminders — the same work the cron endpoint does.
+        cancellations, and reminders (the same work the cron endpoint does).
       </p>
     </div>
   );

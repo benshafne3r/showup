@@ -17,7 +17,7 @@ export default function ForLabelsPage() {
           <h2 className="text-base font-semibold text-foreground">Accountable comps</h2>
           <p className="mt-1">
             You choose a deposit percentage (25–100%) of the stated ticket value. Creators
-            agree to a temporary card hold across every ticket they take — including a +1 —
+            agree to a temporary card hold across every ticket they take (including a +1),
             so no-shows have real consequences and reliable creators are never charged.
           </p>
         </div>
@@ -25,14 +25,14 @@ export default function ForLabelsPage() {
           <h2 className="text-base font-semibold text-foreground">Pick the right creators</h2>
           <p className="mt-1">
             Review profiles, cities, audience sizes, average views, categories, and example
-            work. Approve, waitlist, message, or pass — approvals expire after 24 hours if the
+            work. Approve, waitlist, message, or pass. Approvals expire after 24 hours if the
             creator doesn't commit, so spots recycle automatically.
           </p>
         </div>
         <div>
           <h2 className="text-base font-semibold text-foreground">Pay only for delivered content</h2>
           <p className="mt-1">
-            Set a fixed creator payment per opportunity — $0 for attend-only, or any amount
+            Set a fixed creator payment per opportunity: $0 for attend-only, or any amount
             for Stories, TikToks, Reels, or multi-deliverable packages. Review submissions and
             release payment with one click.
           </p>

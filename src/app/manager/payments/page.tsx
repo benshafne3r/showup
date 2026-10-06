@@ -90,7 +90,7 @@ export default async function ManagerPaymentsPage({
             <>
               <p>
                 {payoutStatus.accountId
-                  ? "Your payout setup is almost done — finish verifying your business with Stripe."
+                  ? "Your payout setup is almost done. Finish verifying your business with Stripe."
                   : "Set up payouts with Stripe so artist teams can pay for your roster's content."}
               </p>
               <form action={startAgencyPayoutOnboardingAction}>
@@ -100,7 +100,7 @@ export default async function ManagerPaymentsPage({
               </form>
               {params.onboarding === "done" ? (
                 <p className="text-xs text-muted-foreground">
-                  Still finishing up? Stripe can take a moment to verify — refresh this page shortly.
+                  Still finishing up? Stripe can take a moment to verify, so refresh this page shortly.
                 </p>
               ) : null}
             </>

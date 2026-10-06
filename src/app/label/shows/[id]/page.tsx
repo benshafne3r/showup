@@ -73,7 +73,7 @@ export default async function ShowDashboardPage({
         </div>
       ) : null}
       <PageHeader
-        title={`${show.artists?.name} — ${show.venues?.city}`}
+        title={`${show.artists?.name} · ${show.venues?.city}`}
         description={`${formatShowDateLong(show.date)} · ${show.venues?.name}${show.hide_venue_until_approved ? " · 🔒 Secret location (hidden until approved)" : ""}${show.status !== "published" ? ` · ${show.status.toUpperCase()}` : ""}`}
         action={
           <div className="flex gap-2">

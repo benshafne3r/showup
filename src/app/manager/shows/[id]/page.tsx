@@ -115,8 +115,8 @@ export default async function ManagerShowPage({
               <p className="flex items-center gap-2 sm:col-span-2">
                 <MapPin className="size-4 text-primary" aria-hidden />
                 {locationHidden
-                  ? `${show.venues.city} · Secret location — revealed once a creator is approved`
-                  : `${show.venues.name}, ${show.venues.city}${show.venues.address ? ` — ${show.venues.address}` : ""}`}
+                  ? `${show.venues.city} · Secret location, revealed once a creator is approved`
+                  : `${show.venues.name}, ${show.venues.city}${show.venues.address ? `, ${show.venues.address}` : ""}`}
               </p>
             </CardContent>
           </Card>
@@ -132,7 +132,7 @@ export default async function ManagerShowPage({
                   to {ctx.agencyName} once approved.
                 </p>
               ) : (
-                <p>Attend-only — no content required, no payment.</p>
+                <p>Attend-only: no content required, no payment.</p>
               )}
               {deliverables.length ? (
                 <ul className="space-y-2">

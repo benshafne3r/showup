@@ -48,7 +48,12 @@ export async function createAgencyAction(_prev: ActionState, formData: FormData)
   } catch (err) {
     return fail(err);
   }
-  if (created) redirect("/manager?welcome=1");
+  if (created) {
+    // The layout rendered without an agency during onboarding; make it
+    // re-render so the app shell (nav + padding) appears after the redirect.
+    revalidatePath("/manager", "layout");
+    redirect("/manager?welcome=1");
+  }
   return null;
 }
 

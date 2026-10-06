@@ -55,7 +55,7 @@ export default async function CompanySettingsPage() {
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Website</span>
-            <span className="font-medium">{company?.website ?? "—"}</span>
+            <span className="font-medium">{company?.website ?? "-"}</span>
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Verification</span>
@@ -134,7 +134,7 @@ export default async function CompanySettingsPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground">
-        Need to change company details or delete the account? Contact platform support — these
+        Need to change company details or delete the account? Contact platform support. These
         actions are admin-gated in the MVP.
       </p>
     </div>

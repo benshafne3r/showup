@@ -68,7 +68,7 @@ export default function TermsPage() {
             hold is released in full and you are never charged. <strong className="text-foreground">If
             you fail to attend</strong> without an approved excuse (a &ldquo;no-show&rdquo;), the hold
             may be captured as a deposit, in whole or in part, to compensate for the reserved spot.
-            The deposit is a no-show penalty and commitment device — it is not a purchase and not
+            The deposit is a no-show penalty and commitment device. It is not a purchase and not
             compensation to you.
           </p>
           <p>

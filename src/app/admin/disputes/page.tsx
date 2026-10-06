@@ -62,7 +62,7 @@ export default async function AdminDisputesPage() {
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                   <span>
-                    {dispute.kind.toUpperCase()} dispute — {dispute.users?.full_name} vs{" "}
+                    {dispute.kind.toUpperCase()} dispute: {dispute.users?.full_name} vs{" "}
                     {dispute.companies?.name}
                   </span>
                   <StatusBadge label={dispute.status} tone="warning" />
@@ -84,7 +84,7 @@ export default async function AdminDisputesPage() {
                       Hold {formatCents(booking.authorization_amount_cents)} · payment{" "}
                       {booking.creator_payment_cents > 0
                         ? formatCents(booking.creator_payment_cents)
-                        : "—"}{" "}
+                        : "-"}{" "}
                       · attendance {booking.attendance_state} · content {booking.content_state}
                     </span>
                   </div>
@@ -123,7 +123,7 @@ export default async function AdminDisputesPage() {
             {resolved.map((dispute) => (
               <li key={dispute.id} className="rounded-lg border bg-card px-4 py-3">
                 <p className="font-medium">
-                  {dispute.kind} — {dispute.users?.full_name} vs {dispute.companies?.name}
+                  {dispute.kind}: {dispute.users?.full_name} vs {dispute.companies?.name}
                 </p>
                 <p className="text-xs text-muted-foreground">
                   {dispute.resolution} · resolved{" "}

@@ -133,7 +133,7 @@ export async function runScheduledJobs(): Promise<JobResults> {
         userId: booking.creator_id,
         type: "upcoming_show_reminder",
         title: `${booking.shows?.artists?.name ?? "Your show"} is tomorrow!`,
-        body: "Don't forget to check in at the venue — attending releases your hold.",
+        body: "Don't forget to check in at the venue. Attending releases your hold.",
         link: `/creator/bookings/${booking.id}`,
       });
       results.upcomingShowReminders++;

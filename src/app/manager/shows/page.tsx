@@ -92,8 +92,8 @@ export default async function ManagerShowsPage({
               .map((d) => `${d.quantity}× ${DELIVERABLE_LABELS[d.platform] ?? d.platform}`)
               .join(" + ")
           : opp.creator_payment_cents > 0
-            ? "Content required — details on the show page"
-            : "Attend only — no content required",
+            ? "Content required: details on the show page"
+            : "Attend only, no content required",
         ticketsRemaining: Math.max(0, opp.tickets_total - opp.tickets_claimed),
         plusOneAllowed: opp.plus_one_allowed,
       };
@@ -107,7 +107,7 @@ export default async function ManagerShowsPage({
         description={
           cityFilter !== "all"
             ? `Open opportunities near ${cityFilter}`
-            : "Open opportunities in every city — request tickets for anyone on your roster."
+            : "Open opportunities in every city. Request tickets for anyone on your roster."
         }
       />
       <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} paidOnly={paidOnly} />
@@ -115,7 +115,7 @@ export default async function ManagerShowsPage({
         <EmptyState
           icon={CalendarX2}
           title="No shows match your filters"
-          description="Try another city or clear your search — new opportunities are added all the time."
+          description="Try another city or clear your search. New opportunities are added all the time."
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

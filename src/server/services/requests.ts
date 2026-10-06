@@ -84,7 +84,7 @@ export async function createRequest(input: {
     request_id: request.id,
     creator_id: input.creatorId,
     company_id: opp.company_id,
-    subject: `${artistName} — ${opp.shows!.date}`,
+    subject: `${artistName} · ${opp.shows!.date}`,
   });
 
   const agency = await agencyForCreator(input.creatorId);
@@ -103,7 +103,7 @@ export async function createRequest(input: {
     await notifyAgency(agency.id, {
       type: "request_submitted",
       title: `${creator?.full_name || "A creator"} requested tickets`,
-      body: `${tickets} for ${artistName} — ${opp.shows!.date}.`,
+      body: `${tickets} for ${artistName} on ${opp.shows!.date}.`,
       link: "/manager/messages?tab=requests",
     });
   } else if (agency && actor.role === "manager") {
@@ -112,7 +112,7 @@ export async function createRequest(input: {
       userId: input.creatorId,
       type: "request_submitted",
       title: `${agency.name} requested tickets for you`,
-      body: `${tickets} for ${artistName} — ${opp.shows!.date}. If approved, you'll accept the booking and the card hold.`,
+      body: `${tickets} for ${artistName} on ${opp.shows!.date}. If approved, you'll accept the booking and the card hold.`,
       link: "/creator/messages?tab=requests",
     });
   }
@@ -318,7 +318,7 @@ export async function rejectRequest(input: {
     userId: claimed.creator_id,
     type: "request_rejected",
     title: "Request update",
-    body: `Your request for ${claimed.shows?.artists?.name ?? "a show"} wasn't selected this time. Keep exploring — new shows are added all the time.`,
+    body: `Your request for ${claimed.shows?.artists?.name ?? "a show"} wasn't selected this time. Keep exploring. New shows are added all the time.`,
     link: "/creator/messages?tab=requests",
   });
   await audit({

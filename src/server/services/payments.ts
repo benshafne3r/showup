@@ -245,7 +245,7 @@ export async function placeAuthorization(authRecordId: string): Promise<
     userId: claimed.creator_id,
     type: "authorization_placed",
     title: "Temporary hold placed",
-    body: `A temporary hold of ${formatCents(claimed.amount_cents)} is now on your card. Attend the show and it will be released — you won't be charged.`,
+    body: `A temporary hold of ${formatCents(claimed.amount_cents)} is now on your card. Attend the show and it will be released. You won't be charged.`,
     link: `/creator/bookings/${claimed.booking_id}`,
   });
   await audit({

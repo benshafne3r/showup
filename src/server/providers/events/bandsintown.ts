@@ -21,7 +21,7 @@ export class BandsintownProvider implements EventProvider {
     });
     if (!response.ok) {
       throw new EventProviderError(
-        `Bandsintown returned ${response.status} — check that BANDSINTOWN_APP_ID is an approved app id`,
+        `Bandsintown returned ${response.status}. Check that BANDSINTOWN_APP_ID is an approved app id`,
         this.name,
       );
     }

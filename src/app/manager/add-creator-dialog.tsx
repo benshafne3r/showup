@@ -57,7 +57,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
       <div className="space-y-4">
         <p className="text-sm">
           Invite sent to <span className="font-medium">{state.email}</span>. You can also send them
-          this link directly — it works once and expires in 14 days.
+          this link directly. It works once and expires in 14 days.
         </p>
         <div className="flex gap-2">
           <Input readOnly value={state.link} aria-label="Invite link" className="font-mono text-xs" />

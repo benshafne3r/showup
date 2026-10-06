@@ -90,8 +90,8 @@ export async function deliver(input: NotifyInput): Promise<void> {
   const linkLine = href ? `\n\nOpen ${BRAND.name}: ${href}` : "";
   const result = await emailProvider().send({
     to: user.email,
-    subject: `${BRAND.name} — ${input.title}`,
-    text: `Hi ${user.full_name || "there"},\n\n${input.body || input.title}${linkLine}\n\n— The ${BRAND.name} team`,
+    subject: `${BRAND.name}: ${input.title}`,
+    text: `Hi ${user.full_name || "there"},\n\n${input.body || input.title}${linkLine}\n\nThe ${BRAND.name} team`,
     html: notificationEmailHtml({
       name: user.full_name || "there",
       title: input.title,

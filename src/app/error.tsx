@@ -20,7 +20,7 @@ export default function RouteError({
       <TriangleAlert className="size-10 text-amber-400" aria-hidden />
       <h1 className="text-xl font-bold">Something went wrong</h1>
       <p className="max-w-md text-sm text-muted-foreground">
-        An unexpected error occurred. Your data is safe — try again, and if it keeps happening,
+        An unexpected error occurred. Your data is safe. Try again, and if it keeps happening,
         contact support{error.digest ? ` (ref: ${error.digest})` : ""}.
       </p>
       <Button onClick={() => reset()}>Try again</Button>

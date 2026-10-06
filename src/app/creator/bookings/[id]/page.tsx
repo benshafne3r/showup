@@ -103,10 +103,10 @@ export default async function CreatorBookingPage({
 
   // Activity timeline (simple derived list, newest first).
   const timeline: Array<{ at: string; label: string }> = [];
-  timeline.push({ at: booking.created_at, label: "Request approved — booking created" });
+  timeline.push({ at: booking.created_at, label: "Request approved, booking created" });
   if (booking.accepted_at) timeline.push({ at: booking.accepted_at, label: "You accepted the terms" });
   if (activeAuth?.authorized_at) timeline.push({ at: activeAuth.authorized_at, label: `Temporary hold of ${formatCents(activeAuth.amount_cents)} placed` });
-  if (activeAuth?.released_at) timeline.push({ at: activeAuth.released_at, label: "Hold released — you were not charged" });
+  if (activeAuth?.released_at) timeline.push({ at: activeAuth.released_at, label: "Hold released. You were not charged" });
   if (activeAuth?.captured_at) timeline.push({ at: activeAuth.captured_at, label: "Hold was charged (no-show)" });
   if (booking.ticket_instructions_sent_at) timeline.push({ at: booking.ticket_instructions_sent_at, label: "Ticket instructions sent" });
   if (attendance) timeline.push({ at: attendance.checked_in_at, label: "You checked in with attendance proof" });
@@ -114,7 +114,7 @@ export default async function CreatorBookingPage({
     timeline.push({ at: submission.submitted_at, label: "Content submitted for review" });
   }
   if (paymentRecord?.paid_at) timeline.push({ at: paymentRecord.paid_at, label: `Creator payment of ${formatCents(paymentRecord.amount_cents)} released` });
-  if (booking.canceled_at) timeline.push({ at: booking.canceled_at, label: `Booking canceled${booking.cancel_reason ? ` — ${booking.cancel_reason}` : ""}` });
+  if (booking.canceled_at) timeline.push({ at: booking.canceled_at, label: `Booking canceled${booking.cancel_reason ? `: ${booking.cancel_reason}` : ""}` });
   if (booking.completed_at) timeline.push({ at: booking.completed_at, label: "Collaboration completed 🎉" });
   timeline.sort((a, b) => (a.at < b.at ? 1 : -1));
 
@@ -220,13 +220,13 @@ export default async function CreatorBookingPage({
             <CardContent className="space-y-3 text-sm">
               {booking.attendance_state === "approved" ? (
                 <p className="text-emerald-300">
-                  Attendance verified — your hold {activeAuth?.status === "released" ? "was released" : "will be released"}. You were not charged.
+                  Attendance verified. Your hold {activeAuth?.status === "released" ? "was released" : "will be released"}. You were not charged.
                 </p>
               ) : canCheckIn ? (
                 <AttendanceForm bookingId={booking.id} />
               ) : booking.attendance_state === "submitted" ? (
                 <p className="text-muted-foreground">
-                  Proof submitted {attendance ? formatDateTime(attendance.checked_in_at) : ""} — waiting for the team to verify.
+                  Proof submitted {attendance ? formatDateTime(attendance.checked_in_at) : ""}. Waiting for the team to verify.
                 </p>
               ) : booking.attendance_state === "rejected" ? (
                 <div className="space-y-2">
@@ -286,7 +286,7 @@ export default async function CreatorBookingPage({
                   <ContentForm bookingId={booking.id} />
                 ) : booking.content_state === "approved" ? (
                   <p className="text-emerald-300">
-                    Content approved — {paymentRecord?.status === "paid" ? "your payment has been released!" : "payment is on its way."}
+                    Content approved: {paymentRecord?.status === "paid" ? "your payment has been released!" : "payment is on its way."}
                   </p>
                 ) : null}
               </CardContent>
@@ -302,7 +302,7 @@ export default async function CreatorBookingPage({
                 <DisputeDialog bookingId={booking.id} />
               ) : (
                 <p className="text-sm text-muted-foreground">
-                  A dispute is open on this booking — an administrator is reviewing it.
+                  A dispute is open on this booking. An administrator is reviewing it.
                 </p>
               )}
             </div>

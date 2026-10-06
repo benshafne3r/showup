@@ -256,11 +256,11 @@ export async function inviteCreator(input: {
   const agencyName = agency?.name ?? "Your management";
   const link = `${publicEnv.appUrl}/join/${token}`;
   const greeting = input.fullName.trim().split(" ")[0] || "there";
-  const body = `${agencyName} added you to their roster on ${BRAND.name} — free concert tickets for creators. Join to see shows near you and add your card for ticket holds; ${agencyName} handles conversations with artist teams for you.`;
+  const body = `${agencyName} added you to their roster on ${BRAND.name}: free concert tickets for creators. Join to see shows near you and add your card for ticket holds; ${agencyName} handles conversations with artist teams for you.`;
   await emailProvider().send({
     to: email,
-    subject: `${BRAND.name} — ${agencyName} invited you`,
-    text: `Hi ${greeting},\n\n${body}\n\nAccept the invite: ${link}\n\nThis link expires in 14 days.\n\n— The ${BRAND.name} team`,
+    subject: `${BRAND.name}: ${agencyName} invited you`,
+    text: `Hi ${greeting},\n\n${body}\n\nAccept the invite: ${link}\n\nThis link expires in 14 days.\n\nThe ${BRAND.name} team`,
     html: notificationEmailHtml({
       name: greeting,
       title: `${agencyName} invited you to ${BRAND.name}`,
@@ -341,7 +341,7 @@ export async function acceptRosterInvite(input: {
     agency_id: input.agencyId,
     creator_id: input.creatorId,
   });
-  if (error) return { ok: false, error: "Could not join the roster — please try again" };
+  if (error) return { ok: false, error: "Could not join the roster. Please try again" };
 
   await notifyAgency(input.agencyId, {
     type: "invite_received",

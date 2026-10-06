@@ -47,7 +47,7 @@ export function NoShowActions({
       </div>
       {!holdActive ? (
         <p className="text-xs text-muted-foreground">
-          No active hold on this booking — only "excuse" is available.
+          No active hold on this booking, so only "excuse" is available.
         </p>
       ) : null}
       {state && "error" in state ? (

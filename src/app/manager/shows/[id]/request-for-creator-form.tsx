@@ -41,13 +41,13 @@ export function RequestForCreatorForm({
           {creators.map((c) => (
             <option key={c.id} value={c.id}>
               {c.name}
-              {c.city ? ` — ${c.city}` : ""}
+              {c.city ? ` (${c.city})` : ""}
             </option>
           ))}
         </select>
         {selected && !selected.hasCard ? (
           <p className="text-xs text-amber-300">
-            {selected.name.split(" ")[0]} hasn&apos;t added a card yet — they&apos;ll need one to
+            {selected.name.split(" ")[0]} hasn&apos;t added a card yet. They&apos;ll need one to
             accept if approved.
           </p>
         ) : null}

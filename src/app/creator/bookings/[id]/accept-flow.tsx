@@ -72,7 +72,7 @@ export function AcceptFlow({
           </p>
           {cardSaved ? (
             <p className="mt-2 text-emerald-300">
-              {cardLabel ?? "Card"} verified ✓ — it will only be used for the temporary hold.
+              {cardLabel ?? "Card"} verified ✓. It will only be used for the temporary hold.
             </p>
           ) : (
             <form action={cardAction} className="mt-3 grid gap-3 sm:grid-cols-2">

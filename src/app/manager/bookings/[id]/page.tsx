@@ -94,7 +94,7 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
       {waitingOnCreator ? (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
           Waiting on {creatorName.split(" ")[0]} to accept the booking
-          {booking.status === "awaiting_payment_method" ? " and add a card" : ""} from their own login —
+          {booking.status === "awaiting_payment_method" ? " and add a card" : ""} from their own login, since
           the ticket hold goes on their card. Accept by {formatDateTime(booking.acceptance_deadline_at)}.
         </div>
       ) : null}
@@ -109,7 +109,7 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
               {booking.ticket_count} ticket{booking.ticket_count > 1 ? "s" : ""}
               {booking.includes_plus_one ? " (incl. +1)" : ""} ·{" "}
               {booking.shows.venues?.name}
-              {booking.shows.venues?.address ? ` — ${booking.shows.venues.address}` : ""}
+              {booking.shows.venues?.address ? `, ${booking.shows.venues.address}` : ""}
             </p>
             <p className="flex flex-wrap items-center gap-2">
               Card hold {formatCents(booking.authorization_amount_cents)}
@@ -160,7 +160,7 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
                 )}
               </>
             ) : (
-              <p className="text-muted-foreground">Attend-only — no content required.</p>
+              <p className="text-muted-foreground">Attend-only, no content required.</p>
             )}
           </CardContent>
         </Card>

@@ -142,7 +142,7 @@ export function BulkImportForm({
                 <p className="text-xs text-muted-foreground">
                   {events.length} date{events.length === 1 ? "" : "s"} from{" "}
                   <span className="capitalize">{provider}</span>
-                  {provider === "demo" ? " (offline sample — set BANDSINTOWN_APP_ID for live data)" : ""}
+                  {provider === "demo" ? " (offline sample: set BANDSINTOWN_APP_ID for live data)" : ""}
                 </p>
                 <button type="button" onClick={toggleAll} className="text-xs font-medium text-primary hover:underline">
                   {allSelected ? "Deselect all" : "Select all"}

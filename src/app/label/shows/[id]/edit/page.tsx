@@ -48,7 +48,7 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
 
   const bookedNote =
     opp && opp.published_at
-      ? "Heads up: edits never change already-confirmed bookings — their terms were snapshotted at approval."
+      ? "Heads up: edits never change already-confirmed bookings. Their terms were snapshotted at approval."
       : undefined;
 
   return (

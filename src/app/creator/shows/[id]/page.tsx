@@ -105,7 +105,7 @@ export default async function ShowDetailPage({
             </h1>
           </div>
           {show.status === "postponed" ? (
-            <Badge className="border-transparent bg-amber-500 text-amber-950">Postponed — new date below</Badge>
+            <Badge className="border-transparent bg-amber-500 text-amber-950">Postponed: new date below</Badge>
           ) : null}
         </div>
       </div>
@@ -132,14 +132,14 @@ export default async function ShowDetailPage({
                     {show.venues.city}
                     <span className="text-muted-foreground">
                       {" "}
-                      · Secret location — revealed once you're approved
+                      · Secret location, revealed once you're approved
                     </span>
                   </span>
                 ) : (
                   <>
                     {show.venues.name}, {show.venues.city}
                     {show.venues.state ? `, ${show.venues.state}` : ""}
-                    {show.venues.address ? ` — ${show.venues.address}` : ""}
+                    {show.venues.address ? `, ${show.venues.address}` : ""}
                   </>
                 )}
               </p>
@@ -170,7 +170,7 @@ export default async function ShowDetailPage({
                 </p>
               ) : (
                 <p>
-                  This is an <strong>attend-only</strong> opportunity — enjoy the show, no
+                  This is an <strong>attend-only</strong> opportunity: enjoy the show, no
                   content required, no additional payment.
                 </p>
               )}

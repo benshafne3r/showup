@@ -96,7 +96,7 @@ export async function inviteMember(input: {
   const { data: company } = await db.from("companies").select("name").eq("id", input.companyId).single();
   await emailProvider().send({
     to: email,
-    subject: `${BRAND.name} — you're invited to join ${company?.name ?? "a team"}`,
+    subject: `${BRAND.name}: you're invited to join ${company?.name ?? "a team"}`,
     text: `You've been invited to join ${company?.name ?? "a team"} on ${BRAND.name}.\n\nCreate your account with this email address: ${publicEnv.appUrl}/join/${invite.token}\n\nIf you already have a label account with this email, just sign in.`,
   });
   if (existingUser) {

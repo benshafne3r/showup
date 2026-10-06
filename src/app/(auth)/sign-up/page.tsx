@@ -89,12 +89,12 @@ export default async function SignUpPage({
       </p>
       {!invite ? (
         <p className="border-t pt-4 text-center text-xs text-muted-foreground">
-          Label or management company? Partner accounts are by invitation —{" "}
+          Label or management company? Partner accounts are by invitation.{" "}
           <a
             href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent(`${BRAND.name} partner access`)}`}
             className="font-medium text-primary hover:underline"
           >
-            request access
+            Request access
           </a>
           .
         </p>

@@ -230,7 +230,7 @@ export function ShowForm({
             <legend className="text-sm font-medium">Deposit percentage</legend>
             <p className="text-xs text-muted-foreground">
               The temporary hold = stated value × tickets × this percentage. Platform templates
-              only — no arbitrary flat fees.
+              only, no arbitrary flat fees.
             </p>
             <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Deposit percentage">
               {depositTemplates.map((pct) => (

@@ -27,7 +27,7 @@ export default async function CreatorSettingsPage({
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="Profile"
-        description={`Signed in as ${user.email}. Your email stays private — teams only see your display name and socials.`}
+        description={`Signed in as ${user.email}. Your email stays private. Teams only see your display name and socials.`}
       />
       {params.joined && agency ? (
         <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
@@ -36,7 +36,7 @@ export default async function CreatorSettingsPage({
       ) : null}
       {params.left && !agency ? (
         <div role="status" className="rounded-lg border bg-muted/40 px-4 py-3 text-sm">
-          You&apos;re independent now — you&apos;ll message artist teams and get paid directly.
+          You&apos;re independent now. You&apos;ll message artist teams and get paid directly.
         </div>
       ) : null}
       {agency ? (

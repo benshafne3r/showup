@@ -45,7 +45,7 @@ export default async function RosterPage({
         <EmptyState
           icon={Users}
           title="No creators yet"
-          description="Add a creator by email — they get an invite to join your roster."
+          description="Add a creator by email. They get an invite to join your roster."
         />
       ) : (
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -107,7 +107,7 @@ export default async function RosterPage({
             ))}
           </ul>
           <p className="text-xs text-muted-foreground">
-            To resend, add the creator again — that replaces the old link.
+            To resend, add the creator again. That replaces the old link.
           </p>
         </section>
       ) : null}

@@ -107,7 +107,7 @@ export function ImportPanel({
             <p className="text-xs text-muted-foreground">
               {events.length} date{events.length === 1 ? "" : "s"} from{" "}
               <span className="capitalize">{provider}</span>
-              {provider === "demo" ? " (offline sample — set BANDSINTOWN_APP_ID for live data)" : ""}
+              {provider === "demo" ? " (offline sample: set BANDSINTOWN_APP_ID for live data)" : ""}
             </p>
             <ul className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
               {events.map((event, index) => (

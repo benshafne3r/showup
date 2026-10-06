@@ -12,18 +12,18 @@ export default function ForCreatorsPage() {
     <div className="mx-auto w-full max-w-3xl px-4 py-16">
       <h1 className="text-3xl font-bold tracking-tight">For creators</h1>
       <p className="mt-2 text-muted-foreground">
-        Complimentary concert access in exchange for showing up — and optional paid content.
+        Complimentary concert access in exchange for showing up, plus optional paid content.
       </p>
 
       <Card className="mt-8 border-primary/30 bg-primary/5">
         <CardContent className="space-y-3 pt-6 text-sm">
           <p className="font-semibold">The deal, in plain words:</p>
           {[
-            "Attend the show and you will not be charged — the temporary hold on your card is released in full.",
+            "Attend the show and you will not be charged. The temporary hold on your card is released in full.",
             "Complete the content deliverables and you earn the stated creator payment.",
             "Attend AND post: hold released + payment received.",
             "The hold covers every ticket you request, including your +1.",
-            "The hold is never money you earn — your earnings are the creator payment only.",
+            "The hold is never money you earn. Your earnings are the creator payment only.",
           ].map((line) => (
             <p key={line} className="flex items-start gap-2">
               <CheckCircle2 className="mt-0.5 size-4 shrink-0 text-emerald-400" aria-hidden />
@@ -40,7 +40,7 @@ export default function ForCreatorsPage() {
             Every show lists the artist, venue, date, ticket availability, the stated ticket
             value, the deposit percentage, the exact hold for one or two tickets, the
             deliverables, and the creator payment. You see the full breakdown again before you
-            accept a booking — nothing is hidden.
+            accept a booking. Nothing is hidden.
           </p>
         </div>
         <div>
@@ -54,7 +54,7 @@ export default function ForCreatorsPage() {
         <div>
           <h2 className="text-base font-semibold text-foreground">What if plans change?</h2>
           <p className="mt-1">
-            Message the artist team from the booking — they can cancel it, which releases
+            Message the artist team from the booking. They can cancel it, which releases
             everything. If a show is canceled or postponed, holds are released or rescheduled
             automatically and you're notified.
           </p>

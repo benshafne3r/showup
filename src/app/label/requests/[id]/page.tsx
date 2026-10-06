@@ -120,7 +120,7 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
                     </p>
                     <p>
                       <span className="text-muted-foreground">Categories:</span>{" "}
-                      <strong>{creator.profile.categories.join(", ") || "—"}</strong>
+                      <strong>{creator.profile.categories.join(", ") || "-"}</strong>
                     </p>
                   </div>
                   {creator.profile.bio ? (
@@ -168,7 +168,7 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
               )}
               <p className="rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
                 ShowUp history: {attended} attended · {noShows} canceled/no-show ·{" "}
-                member since {creator ? formatDateTime(creator.memberSince) : "—"}
+                member since {creator ? formatDateTime(creator.memberSince) : "-"}
               </p>
             </CardContent>
           </Card>
@@ -185,7 +185,7 @@ export default async function RequestReviewPage({ params }: { params: Promise<{ 
                 <strong>
                   {request.ticket_count} ticket{request.ticket_count > 1 ? "s" : ""}
                 </strong>
-                {request.includes_plus_one ? " — includes a +1 guest" : ""} · requested{" "}
+                {request.includes_plus_one ? ", includes a +1 guest" : ""} · requested{" "}
                 {formatDateTime(request.created_at)}
               </p>
               {request.message ? (
