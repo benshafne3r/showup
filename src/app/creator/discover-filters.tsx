@@ -10,7 +10,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Search } from "lucide-react";
 import { useCallback, useRef } from "react";
 
@@ -18,19 +17,17 @@ export function DiscoverFilters({
   cities,
   activeCity,
   query,
-  paidOnly,
 }: {
   cities: string[];
   activeCity: string;
   query: string;
-  paidOnly: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const debounce = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const update = useCallback(
-    (patch: { q?: string; city?: string; paid?: string }) => {
+    (patch: { q?: string; city?: string }) => {
       const params = new URLSearchParams(window.location.search);
       params.delete("welcome");
       for (const [key, value] of Object.entries(patch)) {
@@ -86,16 +83,6 @@ export function DiscoverFilters({
             ))}
           </SelectContent>
         </Select>
-      </div>
-      <div className="flex items-center gap-2 pb-2">
-        <Switch
-          id="paid-only"
-          checked={paidOnly}
-          onCheckedChange={(checked) => update({ paid: checked ? "1" : undefined })}
-        />
-        <Label htmlFor="paid-only" className="text-sm">
-          Paid only
-        </Label>
       </div>
     </div>
   );

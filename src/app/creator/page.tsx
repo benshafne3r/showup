@@ -29,7 +29,7 @@ const DELIVERABLE_LABELS: Record<string, string> = {
 export default async function DiscoverPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; city?: string; paid?: string; welcome?: string }>;
+  searchParams: Promise<{ q?: string; city?: string; welcome?: string }>;
 }) {
   const user = await requireCreator();
   const profile = await getCreatorProfile(user.id);
@@ -40,7 +40,6 @@ export default async function DiscoverPage({
   // Default to every city: a creator whose city has no shows yet would otherwise
   // land on an empty Discover. They can still narrow to their city in the filter.
   const cityFilter = params.city ?? "all";
-  const paidOnly = params.paid === "1";
 
   const db = await userDb();
   const today = new Date().toISOString().slice(0, 10);
@@ -70,9 +69,7 @@ export default async function DiscoverPage({
 
   const shows: ShowCardData[] = (rows ?? [])
     .filter((r) => {
-      const opp = r.show_opportunities;
       if (cityFilter && cityFilter !== "all" && r.venues.city !== cityFilter) return false;
-      if (paidOnly && opp.creator_payment_cents <= 0) return false;
       if (q) {
         // Don't let a secret venue be confirmed via search — omit its name.
         const venueTerm = r.hide_venue_until_approved ? "" : r.venues.name;
@@ -134,7 +131,7 @@ export default async function DiscoverPage({
           </Button>
         </form>
       ) : null}
-      <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} paidOnly={paidOnly} />
+      <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} />
       {shows.length === 0 ? (
         <EmptyState
           icon={CalendarX2}

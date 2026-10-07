@@ -27,7 +27,7 @@ const DELIVERABLE_LABELS: Record<string, string> = {
 export default async function ManagerShowsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; city?: string; paid?: string; for?: string }>;
+  searchParams: Promise<{ q?: string; city?: string; for?: string }>;
 }) {
   const ctx = await requireManagerPage();
   const params = await searchParams;
@@ -37,7 +37,6 @@ export default async function ManagerShowsPage({
   const q = params.q?.trim() ?? "";
   // Shopping for one creator → start in their city; otherwise everywhere.
   const cityFilter = params.city ?? (forCreator?.city || "all");
-  const paidOnly = params.paid === "1";
 
   const today = new Date().toISOString().slice(0, 10);
   const { data: rows } = await serviceDb()
@@ -67,7 +66,6 @@ export default async function ManagerShowsPage({
   const shows: ShowCardData[] = (rows ?? [])
     .filter((r) => {
       if (cityFilter !== "all" && r.venues.city !== cityFilter) return false;
-      if (paidOnly && r.show_opportunities.creator_payment_cents <= 0) return false;
       if (q) {
         const venueTerm = r.hide_venue_until_approved ? "" : r.venues.name;
         const haystack = `${r.artists.name} ${venueTerm} ${r.venues.city}`.toLowerCase();
@@ -110,7 +108,7 @@ export default async function ManagerShowsPage({
             : "Open opportunities in every city. Request tickets for anyone on your roster."
         }
       />
-      <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} paidOnly={paidOnly} />
+      <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} />
       {shows.length === 0 ? (
         <EmptyState
           icon={CalendarX2}
