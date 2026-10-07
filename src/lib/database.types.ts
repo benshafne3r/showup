@@ -2145,6 +2145,7 @@ export type Database = {
         | "invite_received"
         | "account_verified"
         | "new_show_nearby"
+        | "setup_reminder"
       request_status:
         | "pending"
         | "approved"
@@ -2394,6 +2395,7 @@ export const Constants = {
         "invite_received",
         "account_verified",
         "new_show_nearby",
+        "setup_reminder",
       ],
       request_status: [
         "pending",

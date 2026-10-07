@@ -8,6 +8,7 @@ import { verifyContentSubmissions } from "./content-verification";
 import { sendNewShowAlerts } from "./show-alerts";
 import { geocodePendingVenues } from "./venues";
 import { autoReleaseUnreviewedCheckIns } from "./attendance";
+import { sendSetupReminders } from "./setup-reminders";
 import { log, errorFields } from "@/server/log";
 
 export type JobResults = Record<string, number> & { errors: number };
@@ -41,6 +42,7 @@ export async function runScheduledJobs(): Promise<JobResults> {
     newShowAlertsSent: 0,
     venuesLocated: 0,
     attendanceAutoReleased: 0,
+    setupReminders: 0,
     errors: 0,
   };
   const db = serviceDb();
@@ -199,6 +201,12 @@ export async function runScheduledJobs(): Promise<JobResults> {
   await step("autoReleaseCheckIns", async () => {
     const counts = await autoReleaseUnreviewedCheckIns();
     results.attendanceAutoReleased += counts.released;
+  });
+
+  // 11. Nudge creators who signed up but never finished their profile or added a card.
+  await step("setupReminders", async () => {
+    const counts = await sendSetupReminders(db);
+    results.setupReminders += counts.sent;
   });
 
   return results;

@@ -42,8 +42,8 @@ exactly one company `f46d4a76…` (16 shows) and two users: `ben@50-50ventures.c
 - **4 shows are future-dated but their apply-by deadline already passed** (Pikeville 7/23,
   Cary 7/24, N. Charleston 7/25, Shenseea LA 7/29) → invisible in Discover. Bulk import sets
   the deadline 3 days pre-show, so near-term imports expire instantly. User chose not to extend.
-- **Deposit is 100% of a $400 stated value ⇒ a $400 card hold per creator.** Flagged as the
-  biggest signup deterrent; user deliberately kept 100%.
+- **Holds lowered to $10** on the 4 live $400 shows (2026-10-06, Ben's call "as a test"; audit
+  action `opportunity.set_deposit`). New York stays $20. Bookings snapshot the amount at creation.
 - Shenseea show has a `$2` creator payment (looks like a test value).
 
 **Prod DB access:** The Supabase MCP reaches prod project `mpcjunweelepgcglolvx`
@@ -56,6 +56,15 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## "Finish your setup" emails (2026-10-06)
+Cron step 11 (`services/setup-reminders.ts`, timing in `lib/setup-reminders.ts`): creators who
+haven't finished their profile (→ `/creator/onboarding`) or added a card (→ `/creator/payments`)
+get a reminder 1 day and 4 days after sign-up (max 2, 3+ days apart, only accounts < 21 days
+old). Includes "N shows open in <city>" when there are any. Notification type `setup_reminder`
+= migration **0017**. Creator only (no manager copy). Tests: `tests/setup-reminders.test.ts`,
+`e2e/setup-reminders.spec.ts`.
+⬜ **0017 must be applied to prod BEFORE pushing** (otherwise `/api/health` reports it missing).
 
 ## Label attendance tools + partner links in owner portal (2026-10-06)
 - **One-tap attendance:** label show page "Bookings & attendance" → **Mark attended** per creator
@@ -106,8 +115,8 @@ card holds, requests, bookings by status, partner links (used by whom). Gate: `i
 `OWNER_EMAILS` env for local/CI only. e2e sign-ins reset the sign-in rate limit (helpers.ts).
 
 ## ✅ Live $1 hold test (2026-10-06)
-Worked end to end: Stripe PI `requires_capture`, $1, $0 received. ⬜ Still to release it (cancel the
-booking, or check in + verify attendance on Oct 9).
+Worked end to end: Stripe PI `requires_capture`, $1, $0 received. Released 2026-10-06 via
+`cancelShow` (PI canceled, $0 charged); the test event is canceled.
 The $400 test booking (d8a76740…) was canceled before its hold was placed. Test event
 "ShowUp hold test (internal)" (show `1eaae5c1-f7e1-408f-82db-1c1ceac64ed6`, LA, Oct 9, $1 deposit,
 1 ticket, apply by Oct 8 PT, city alert pre-stamped). Flow: request as benshafner@gmail.com →
