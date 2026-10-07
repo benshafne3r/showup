@@ -158,3 +158,39 @@ export async function partnerInviteOrgName(userId: string): Promise<string> {
     .maybeSingle();
   return data?.org_name ?? "";
 }
+
+/**
+ * Mint a private, single-use partner sign-up link (label or management).
+ * Same as `npm run invite`, for the owner dashboard. Returns the link once.
+ */
+export async function createPartnerInvite(input: {
+  kind: "label" | "manager";
+  orgName?: string;
+  email?: string;
+  days?: number;
+}): Promise<{ link: string; expiresAt: string }> {
+  const { token, hash } = newInviteToken();
+  const expiresAt = new Date(Date.now() + (input.days ?? 14) * 86_400_000).toISOString();
+  const { error } = await serviceDb()
+    .from("partner_invites")
+    .insert({
+      kind: input.kind,
+      org_name: input.orgName?.trim() ?? "",
+      email: input.email?.trim().toLowerCase() || null,
+      token_hash: hash,
+      expires_at: expiresAt,
+      note: "owner dashboard",
+    });
+  if (error) throw new Error(`Couldn't create the link: ${error.message}`);
+  const { publicEnv } = await import("@/lib/env");
+  return { link: `${publicEnv.appUrl}/join/${token}`, expiresAt };
+}
+
+export async function revokePartnerInvite(id: string): Promise<void> {
+  await serviceDb()
+    .from("partner_invites")
+    .update({ revoked_at: new Date().toISOString() })
+    .eq("id", id)
+    .is("used_at", null)
+    .is("revoked_at", null);
+}

@@ -57,6 +57,18 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Label attendance tools + partner links in owner portal (2026-10-06)
+- **One-tap attendance:** label show page "Bookings & attendance" → **Mark attended** per creator
+  and **Mark everyone attended (N)** (from show day). Works without a creator check-in
+  (`markAttended` inserts a `method='label'` submission, then `approveAttendance`). Also on the
+  booking page when the creator hasn't checked in.
+- **Auto-release (option):** `companies.auto_release_attendance` (default on, toggle in label
+  Settings → Attendance). Cron step 10 approves photo check-ins unreviewed for 48 h and notifies the
+  label. Migration **0016** (also adds 'label' to the attendance method check).
+- **Owner portal → "Invite a label or management company":** pick type, optional company + email
+  lock → link + ready-to-send message with Copy buttons; Revoke on open links
+  (`createPartnerInvite` in `services/invites.ts`, same as `npm run invite`).
+
 ## Help / support (2026-10-06)
 "Help" button in every portal header (`components/support-dialog.tsx`) → topic + message →
 `services/support.ts` emails `BRAND.supportEmail` (ben@50-50ventures.com) with who/role/page,

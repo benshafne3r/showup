@@ -12,7 +12,8 @@ import {
   CONTENT_VERIFICATION_META,
   CREATOR_PAYMENT_STATUS_META,
 } from "@/lib/statuses";
-import { formatShowDateLong, formatDateTime } from "@/lib/dates";
+import { formatShowDateLong, formatDateTime, isShowDay } from "@/lib/dates";
+import { MarkAttendedButton } from "../../mark-attended-button";
 import { formatCents } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +63,10 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
     .maybeSingle();
 
   const creatorName = booking.users?.full_name ?? "Creator";
+  const canMarkAttended =
+    ["confirmed", "authorization_failed", "no_show_review"].includes(booking.status) &&
+    booking.attendance_state !== "approved" &&
+    isShowDay(booking.shows.date);
   const activeAuth = [...(booking.authorization_records ?? [])].sort((a, b) =>
     a.created_at < b.created_at ? 1 : -1,
   )[0];
@@ -163,7 +168,9 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                     Checked in {formatDateTime(latestAttendance.checked_in_at)}
                     {latestAttendance.method === "photo" && latestAttendance.note ? `: “${latestAttendance.note}”` : ""}
                   </p>
-                  {latestAttendance.method === "location" ? (
+                  {latestAttendance.method === "label" ? (
+                    <p className="mt-1 text-emerald-300">Marked attended by your team. Hold released.</p>
+                  ) : latestAttendance.method === "location" ? (
                     <p className="mt-1 flex items-center gap-1.5 text-emerald-300">
                       <MapPin className="size-3.5" aria-hidden />
                       Verified by location
@@ -194,7 +201,12 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                   ) : null}
                 </div>
               ) : (
-                <p className="text-muted-foreground">The creator hasn't checked in yet.</p>
+                <div className="space-y-2">
+                  <p className="text-muted-foreground">The creator hasn&apos;t checked in yet.</p>
+                  {canMarkAttended ? (
+                    <MarkAttendedButton bookingId={booking.id} creatorName={creatorName} />
+                  ) : null}
+                </div>
               )}
               {canReviewAttendance ? <AttendanceReview bookingId={booking.id} /> : null}
               {showNoShowActions && !canReviewAttendance ? (

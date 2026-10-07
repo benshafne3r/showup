@@ -69,3 +69,29 @@ test("anyone signed in can message support from the Help button", async ({ page 
   await page.getByRole("button", { name: "Send to support" }).click();
   await expect(page.getByText(/Thanks, we got it\. We'll reply to creator\.jay@demo\.showup\.test/)).toBeVisible();
 });
+
+test("the owner makes a private sign-up link, copies it, and can revoke it", async ({ page, browser }) => {
+  await signIn(page, ACCOUNTS.labelOwner);
+  await page.goto("/owner");
+  await page.getByLabel("Management company").check();
+  await page.getByLabel("Their company (optional)").fill("E2E Agency");
+  await page.getByRole("button", { name: "Create sign-up link" }).click();
+
+  const link = await page.getByLabel("Sign-up link").inputValue();
+  expect(link).toMatch(/\/join\/[A-Za-z0-9_-]+$/);
+  await expect(page.getByLabel("Or send this message:")).toHaveValue(new RegExp(link.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&")));
+
+  // A signed-out visitor sees the management landing page.
+  const visitor = await browser.newPage();
+  await visitor.goto(link);
+  await expect(visitor.getByRole("heading", { name: /Get your roster into shows/ })).toBeVisible();
+  await expect(visitor.getByText("Private invite · E2E Agency")).toBeVisible();
+
+  // Revoked links stop working.
+  await page.reload();
+  await page.getByRole("button", { name: "Revoke" }).first().click();
+  await expect(page.getByRole("button", { name: "Revoke" })).toHaveCount(0);
+  await visitor.goto(link);
+  await expect(visitor.getByText("This invite link doesn't work")).toBeVisible();
+  await visitor.close();
+});

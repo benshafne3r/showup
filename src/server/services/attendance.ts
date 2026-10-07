@@ -6,6 +6,7 @@ import { notify, notifyCompany } from "./notifications";
 import { releaseAuthorization, captureAuthorization } from "./payments";
 import { uploadFile } from "./uploads";
 import { isShowDay } from "@/lib/dates";
+import type { Database } from "@/lib/database.types";
 import { distanceMeters, formatDistance, locationCheckInVerdict } from "@/lib/geo";
 import { geocodeAndStore } from "./venues";
 
@@ -202,6 +203,121 @@ export async function checkInWithLocation(input: {
     link: `/label/bookings/${booking.id}`,
   });
   return { ok: true, distanceM };
+}
+
+/** Booking states a label can mark attended (disputes go through admins). */
+const MARKABLE_STATUSES: Database["public"]["Enums"]["booking_status"][] = [
+  "confirmed",
+  "authorization_failed",
+  "no_show_review",
+];
+
+/**
+ * One tap from the artist team: the creator was there. Works with or without
+ * a creator check-in (an existing one is simply approved); releases the hold.
+ */
+export async function markAttended(input: {
+  bookingId: string;
+  companyId: string;
+  reviewer: { id: string; role: string };
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const { data: booking } = await db
+    .from("bookings")
+    .select("id, status, attendance_state, creator_id, shows(date)")
+    .eq("id", input.bookingId)
+    .eq("company_id", input.companyId)
+    .maybeSingle();
+  if (!booking) return { ok: false, error: "Booking not found" };
+  if (booking.attendance_state === "approved") return { ok: true };
+  if (!MARKABLE_STATUSES.includes(booking.status)) {
+    return { ok: false, error: "This booking can't be marked attended" };
+  }
+  if (!booking.shows || !isShowDay(booking.shows.date)) {
+    return { ok: false, error: "You can mark attendance from the day of the show" };
+  }
+
+  if (booking.attendance_state !== "submitted") {
+    const { error } = await db.from("attendance_submissions").insert({
+      booking_id: booking.id,
+      creator_id: booking.creator_id,
+      company_id: input.companyId,
+      status: "submitted",
+      method: "label",
+      proof_paths: [],
+      note: "Marked attended by the artist team.",
+    });
+    if (error) return { ok: false, error: "Couldn't record attendance. Please try again." };
+    await db.from("bookings").update({ attendance_state: "submitted" }).eq("id", booking.id);
+  }
+  return approveAttendance({
+    bookingId: booking.id,
+    reviewer: input.reviewer,
+    companyId: input.companyId,
+    reviewNote: "Marked attended by the artist team.",
+  });
+}
+
+/** "Mark everyone attended" for one show. */
+export async function markAllAttended(input: {
+  showId: string;
+  companyId: string;
+  reviewer: { id: string; role: string };
+}): Promise<{ ok: true; marked: number; failed: number }> {
+  const { data: bookings } = await serviceDb()
+    .from("bookings")
+    .select("id")
+    .eq("show_id", input.showId)
+    .eq("company_id", input.companyId)
+    .in("status", MARKABLE_STATUSES)
+    .neq("attendance_state", "approved");
+  let marked = 0;
+  let failed = 0;
+  for (const booking of bookings ?? []) {
+    const result = await markAttended({ bookingId: booking.id, companyId: input.companyId, reviewer: input.reviewer });
+    if (result.ok) marked++;
+    else failed++;
+  }
+  return { ok: true, marked, failed };
+}
+
+/** How long a photo check-in can wait for review before it releases itself. */
+export const AUTO_RELEASE_HOURS = 48;
+
+/**
+ * Scheduled step: a creator checked in but nobody reviewed it within 48 hours
+ * → approve it and release the hold, for companies that leave this on
+ * (companies.auto_release_attendance, default on). Holds expire at the bank a
+ * few days after the show anyway; this releases them deliberately and on time.
+ */
+export async function autoReleaseUnreviewedCheckIns(): Promise<{ released: number }> {
+  const db = serviceDb();
+  const cutoff = new Date(Date.now() - AUTO_RELEASE_HOURS * 3_600_000).toISOString();
+  const { data: stale } = await db
+    .from("attendance_submissions")
+    .select("booking_id, company_id, companies!inner(auto_release_attendance), users:users!attendance_submissions_creator_id_fkey(full_name)")
+    .eq("status", "submitted")
+    .lt("created_at", cutoff)
+    .eq("companies.auto_release_attendance", true)
+    .limit(50);
+  let released = 0;
+  for (const row of stale ?? []) {
+    const result = await approveAttendance({
+      bookingId: row.booking_id,
+      reviewer: { id: null, role: "system" },
+      companyId: row.company_id,
+      reviewNote: `Released automatically: not reviewed within ${AUTO_RELEASE_HOURS} hours.`,
+    });
+    if (!result.ok) continue;
+    released++;
+    await notifyCompany(row.company_id, {
+      type: "attendance_approved",
+      title: "Hold released automatically",
+      body: `${row.users?.full_name ?? "A creator"}'s check-in wasn't reviewed within ${AUTO_RELEASE_HOURS} hours, so it was approved and their hold released. You can turn this off in Settings.`,
+      link: `/label/bookings/${row.booking_id}`,
+    });
+  }
+  return { released };
 }
 
 /**

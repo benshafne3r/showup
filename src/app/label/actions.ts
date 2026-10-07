@@ -10,7 +10,14 @@ import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteSho
 import { setTourDeposit, upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
 import { sendTicketInstructions, cancelBooking } from "@/server/services/bookings";
-import { approveAttendance, rejectAttendance, resolveNoShow } from "@/server/services/attendance";
+import {
+  approveAttendance,
+  markAllAttended,
+  markAttended,
+  rejectAttendance,
+  resolveNoShow,
+} from "@/server/services/attendance";
+import { audit } from "@/server/services/audit";
 import { reviewContent } from "@/server/services/content";
 import { payoutCreatorPayment } from "@/server/services/payments";
 import { formatCents, parseDollarsToCents } from "@/lib/money";
@@ -878,6 +885,58 @@ export async function approveAttendanceAction(
     revalidatePath(`/label/bookings/${bookingId}`);
     revalidatePath("/label/attendance");
     return { success: "Attendance approved. The creator's hold was released" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** One tap: this creator was at the show (no check-in needed). */
+export async function markAttendedAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    const bookingId = z.string().uuid().parse(formData.get("bookingId"));
+    const result = await markAttended({
+      bookingId,
+      companyId: context.companyId,
+      reviewer: { id: context.user.id, role: "label" },
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath(`/label/bookings/${bookingId}`);
+    revalidatePath("/label/shows", "layout");
+    revalidatePath("/label/attendance");
+    return { success: "Marked attended. Hold released" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+/** "Mark everyone attended" for a show. */
+export async function markAllAttendedAction(formData: FormData): Promise<void> {
+  const context = await requireLabelWithCompany();
+  const showId = z.string().uuid().parse(formData.get("showId"));
+  await markAllAttended({ showId, companyId: context.companyId, reviewer: { id: context.user.id, role: "label" } });
+  revalidatePath(`/label/shows/${showId}`);
+  revalidatePath("/label/attendance");
+}
+
+/** Company setting: release unreviewed check-ins automatically after 48 hours. */
+export async function setAutoReleaseAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    if (context.memberRole === "member") return { error: "Only an owner or admin can change this" };
+    const enabled = formData.get("autoRelease") === "on";
+    await serviceDb().from("companies").update({ auto_release_attendance: enabled }).eq("id", context.companyId);
+    await audit({
+      actorId: context.user.id,
+      actorRole: "label",
+      action: "company.set_auto_release",
+      entityType: "company",
+      entityId: context.companyId,
+      companyId: context.companyId,
+      metadata: { enabled },
+    });
+    revalidatePath("/label/settings");
+    return { success: enabled ? "Automatic release is on" : "Automatic release is off" };
   } catch (err) {
     return fail(err);
   }

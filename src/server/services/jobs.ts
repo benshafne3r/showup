@@ -7,6 +7,7 @@ import { notify } from "./notifications";
 import { verifyContentSubmissions } from "./content-verification";
 import { sendNewShowAlerts } from "./show-alerts";
 import { geocodePendingVenues } from "./venues";
+import { autoReleaseUnreviewedCheckIns } from "./attendance";
 import { log, errorFields } from "@/server/log";
 
 export type JobResults = Record<string, number> & { errors: number };
@@ -39,6 +40,7 @@ export async function runScheduledJobs(): Promise<JobResults> {
     newShowsAnnounced: 0,
     newShowAlertsSent: 0,
     venuesLocated: 0,
+    attendanceAutoReleased: 0,
     errors: 0,
   };
   const db = serviceDb();
@@ -191,6 +193,12 @@ export async function runScheduledJobs(): Promise<JobResults> {
   await step("geocodeVenues", async () => {
     const counts = await geocodePendingVenues(db);
     results.venuesLocated += counts.located;
+  });
+
+  // 10. Release holds for check-ins nobody reviewed in time (if the label allows).
+  await step("autoReleaseCheckIns", async () => {
+    const counts = await autoReleaseUnreviewedCheckIns();
+    results.attendanceAutoReleased += counts.released;
   });
 
   return results;

@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { InviteForm } from "./invite-form";
 import { removeMemberAction, changeMemberRoleAction } from "../actions";
+import { AutoReleaseForm } from "./auto-release-form";
 import { formatDateTime } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Settings" };
@@ -19,7 +20,7 @@ export default async function CompanySettingsPage() {
   const [{ data: company }, { data: members }, { data: invites }] = await Promise.all([
     db
       .from("companies")
-      .select("name, kind, website, verified_at, created_at")
+      .select("name, kind, website, verified_at, created_at, auto_release_attendance")
       .eq("id", context.companyId)
       .single(),
     db
@@ -39,6 +40,15 @@ export default async function CompanySettingsPage() {
   return (
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader title="Settings" description="Your company profile and team." />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Attendance</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <AutoReleaseForm enabled={company?.auto_release_attendance ?? true} canManage={canManage} />
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

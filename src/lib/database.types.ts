@@ -664,6 +664,7 @@ export type Database = {
       }
       companies: {
         Row: {
+          auto_release_attendance: boolean
           created_at: string
           id: string
           kind: string
@@ -675,6 +676,7 @@ export type Database = {
           website: string | null
         }
         Insert: {
+          auto_release_attendance?: boolean
           created_at?: string
           id?: string
           kind?: string
@@ -686,6 +688,7 @@ export type Database = {
           website?: string | null
         }
         Update: {
+          auto_release_attendance?: boolean
           created_at?: string
           id?: string
           kind?: string

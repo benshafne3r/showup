@@ -22,6 +22,7 @@ export function ConfirmActionButton({
   description,
   confirmLabel,
   cancelLabel = "Cancel",
+  tone = "danger",
 }: {
   action: (formData: FormData) => Promise<void>;
   fields?: Record<string, string>;
@@ -30,11 +31,13 @@ export function ConfirmActionButton({
   description: string;
   confirmLabel: string;
   cancelLabel?: string;
+  /** "danger" for removals; "default" for positive bulk actions. */
+  tone?: "danger" | "default";
 }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" className="text-red-300 hover:text-red-200">
+        <Button variant="outline" size="sm" className={tone === "danger" ? "text-red-300 hover:text-red-200" : undefined}>
           {triggerLabel}
         </Button>
       </AlertDialogTrigger>
@@ -49,7 +52,7 @@ export function ConfirmActionButton({
             {Object.entries(fields).map(([name, value]) => (
               <input key={name} type="hidden" name={name} value={value} />
             ))}
-            <SubmitButton variant="destructive" pendingLabel="Working…">
+            <SubmitButton variant={tone === "danger" ? "destructive" : "default"} pendingLabel="Working…">
               {confirmLabel}
             </SubmitButton>
           </form>

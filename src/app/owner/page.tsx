@@ -14,7 +14,8 @@ import { formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { readViewAs } from "@/server/auth/view-as";
 import { isPlatformOwner } from "@/server/auth/owner-emails";
-import { viewAsAction } from "./actions";
+import { revokePartnerLinkAction, viewAsAction } from "./actions";
+import { PartnerLinkForm } from "./partner-link-form";
 import { Button } from "@/components/ui/button";
 import { Eye } from "lucide-react";
 
@@ -147,6 +148,19 @@ export default async function OwnerDashboardPage() {
         title="Owner dashboard"
         description="Private to you. Live numbers, refreshed every time you open this page. Use View as to see the app exactly as someone else does (read-only)."
       />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Invite a label or management company</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {viewing ? (
+            <p className="text-sm text-muted-foreground">Stop viewing as someone to create links.</p>
+          ) : (
+            <PartnerLinkForm />
+          )}
+        </CardContent>
+      </Card>
 
       <section className="space-y-3" aria-labelledby="people-heading">
         <h2 id="people-heading" className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">People</h2>
@@ -323,7 +337,17 @@ export default async function OwnerDashboardPage() {
                             : `${i.email ?? "Any email"} · made ${ago(i.created_at)}`}
                         </p>
                       </div>
-                      <StatusBadge {...state} />
+                      <div className="flex items-center gap-2">
+                        <StatusBadge {...state} />
+                        {state.label === "open" && !viewing ? (
+                          <form action={revokePartnerLinkAction}>
+                            <input type="hidden" name="inviteId" value={i.id} />
+                            <Button type="submit" variant="ghost" size="sm">
+                              Revoke
+                            </Button>
+                          </form>
+                        ) : null}
+                      </div>
                     </li>
                   );
                 })}

@@ -7,10 +7,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import {
+  ATTENDANCE_STATUS_META,
   BOOKING_STATUS_META,
   REQUEST_STATUS_META,
 } from "@/lib/statuses";
-import { formatShowDateLong } from "@/lib/dates";
+import { formatShowDateLong, isShowDay } from "@/lib/dates";
+import { ConfirmActionButton } from "@/components/confirm-action-button";
+import { MarkAttendedButton } from "../../mark-attended-button";
+import { markAllAttendedAction } from "../../actions";
 import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { CancelShowDialog } from "./cancel-show-dialog";
 import { Pencil } from "lucide-react";
@@ -57,6 +61,13 @@ export default async function ShowDashboardPage({
       .eq("show_id", id)
       .order("created_at", { ascending: false }),
   ]);
+
+  const showDay = isShowDay(show.date);
+  const markable = (bookings ?? []).filter(
+    (b) =>
+      ["confirmed", "authorization_failed", "no_show_review"].includes(b.status) &&
+      b.attendance_state !== "approved",
+  );
 
   const attendedCount = (bookings ?? []).filter((b) =>
     ["attended", "completed"].includes(b.status),
@@ -179,21 +190,43 @@ export default async function ShowDashboardPage({
         </Card>
 
         <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Bookings</CardTitle>
+          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+            <CardTitle className="text-base">Bookings &amp; attendance</CardTitle>
+            {showDay && markable.length > 0 ? (
+              <ConfirmActionButton
+                action={markAllAttendedAction}
+                fields={{ showId: show.id }}
+                tone="default"
+                triggerLabel={`Mark everyone attended (${markable.length})`}
+                title={`Mark all ${markable.length} creator${markable.length === 1 ? "" : "s"} attended?`}
+                description="Their attendance is confirmed and every hold for this show is released right away. Do this once you know they were there."
+                confirmLabel="Mark attended"
+                cancelLabel="Not yet"
+              />
+            ) : null}
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
+            {!showDay && markable.length > 0 ? (
+              <p className="text-xs text-muted-foreground">
+                On show day you can mark creators attended here in one tap (or they check in by location).
+              </p>
+            ) : null}
             {bookings?.length ? (
               <ul className="divide-y">
                 {bookings.map((booking) => (
-                  <li key={booking.id}>
-                    <Link
-                      href={`/label/bookings/${booking.id}`}
-                      className="flex items-center justify-between gap-2 py-2.5 text-sm hover:bg-muted/40"
-                    >
-                      <span>{booking.users?.full_name ?? "Creator"}</span>
-                      <StatusBadge {...BOOKING_STATUS_META[booking.status]} />
+                  <li key={booking.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
+                    <Link href={`/label/bookings/${booking.id}`} className="font-medium hover:underline">
+                      {booking.users?.full_name ?? "Creator"}
                     </Link>
+                    <div className="flex flex-wrap items-center gap-2">
+                      {booking.attendance_state !== "not_started" ? (
+                        <StatusBadge {...ATTENDANCE_STATUS_META[booking.attendance_state]} />
+                      ) : null}
+                      <StatusBadge {...BOOKING_STATUS_META[booking.status]} />
+                      {showDay && markable.some((b) => b.id === booking.id) ? (
+                        <MarkAttendedButton bookingId={booking.id} creatorName={booking.users?.full_name ?? undefined} />
+                      ) : null}
+                    </div>
                   </li>
                 ))}
               </ul>
