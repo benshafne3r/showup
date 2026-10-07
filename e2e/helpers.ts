@@ -49,11 +49,11 @@ export function pngFixture(name = "proof.png") {
   return { name, mimeType: "image/png", buffer: Buffer.from(base64, "base64") };
 }
 
+/** Today's date (UTC), matching the app's own notion of "today". */
 export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
 export function todayDeadlineLocal(): string {
-  const d = new Date();
-  return `${d.toISOString().slice(0, 10)}T23:00`;
+  return `${todayISO()}T23:00`;
 }

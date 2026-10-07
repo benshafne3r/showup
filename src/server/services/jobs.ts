@@ -6,6 +6,7 @@ import { placeAuthorization } from "./payments";
 import { notify } from "./notifications";
 import { verifyContentSubmissions } from "./content-verification";
 import { sendNewShowAlerts } from "./show-alerts";
+import { geocodePendingVenues } from "./venues";
 import { log, errorFields } from "@/server/log";
 
 export type JobResults = Record<string, number> & { errors: number };
@@ -37,6 +38,7 @@ export async function runScheduledJobs(): Promise<JobResults> {
     contentCheckFailed: 0,
     newShowsAnnounced: 0,
     newShowAlertsSent: 0,
+    venuesLocated: 0,
     errors: 0,
   };
   const db = serviceDb();
@@ -183,6 +185,12 @@ export async function runScheduledJobs(): Promise<JobResults> {
     const counts = await sendNewShowAlerts(db);
     results.newShowsAnnounced += counts.shows;
     results.newShowAlertsSent += counts.alerts;
+  });
+
+  // 9. Put new venues on the map (location check-in needs their pin).
+  await step("geocodeVenues", async () => {
+    const counts = await geocodePendingVenues(db);
+    results.venuesLocated += counts.located;
   });
 
   return results;

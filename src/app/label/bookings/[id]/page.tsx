@@ -23,7 +23,8 @@ import { ContentReview } from "./content-review";
 import { NoShowActions } from "./no-show-actions";
 import { CancelBookingDialog } from "./cancel-booking-dialog";
 import { RetryPayoutButton } from "./retry-payout";
-import { ExternalLink, MessageSquare } from "lucide-react";
+import { ExternalLink, MapPin, MessageSquare } from "lucide-react";
+import { formatDistance } from "@/lib/geo";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
        users:users!creator_id(full_name),
        authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, capture_amount_cents, failure_reason, created_at),
        creator_payment_records(status, amount_cents, paid_at, failure_reason),
-       attendance_submissions(id, status, checked_in_at, note, proof_paths, review_note, created_at),
+       attendance_submissions(id, status, method, distance_m, checked_in_at, note, proof_paths, review_note, created_at),
        content_submissions(id, status, post_url, caption_note, proof_paths, review_note, submitted_at, platform, verification_status, view_count, like_count, last_checked_at)`,
     )
     .eq("id", id)
@@ -160,9 +161,16 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                 <div className="rounded-lg border bg-muted/40 p-3">
                   <p>
                     Checked in {formatDateTime(latestAttendance.checked_in_at)}
-                    {latestAttendance.note ? `: “${latestAttendance.note}”` : ""}
+                    {latestAttendance.method === "photo" && latestAttendance.note ? `: “${latestAttendance.note}”` : ""}
                   </p>
-                  {attendanceProofUrls.length ? (
+                  {latestAttendance.method === "location" ? (
+                    <p className="mt-1 flex items-center gap-1.5 text-emerald-300">
+                      <MapPin className="size-3.5" aria-hidden />
+                      Verified by location
+                      {latestAttendance.distance_m != null ? `, ${formatDistance(latestAttendance.distance_m)} from the venue` : ""}.
+                      Hold released automatically.
+                    </p>
+                  ) : attendanceProofUrls.length ? (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {attendanceProofUrls.map((proof, index) =>
                         proof.url ? (

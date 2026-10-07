@@ -57,6 +57,18 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Location check-in (2026-10-06)
+On show day the creator taps **"I'm here"** (creator booking page); the browser sends its GPS fix,
+the server compares it with the venue's pin (`lib/geo.ts`: within 350 m + up to 150 m of the phone's
+accuracy; fixes vaguer than 1.5 km refused) and, on a match, inserts a `method='location'`
+attendance submission and runs `approveAttendance` as `system` → hold released, label notified.
+Photo check-in is the fallback (collapsed under "Can't use location?"). Venue pins come from
+OpenStreetMap Nominatim (`providers/geocode/nominatim.ts`), cron step 9 (8 venues/tick, 1 req/s),
+or on demand at check-in. `GEOCODER` env: defaults to `nominatim` in production, `off` in dev/CI.
+Migration **0015** (venue lat/lng, attendance method/distance). `isShowDay` now uses the UTC date,
+like the rest of the app.
+Sentry is LIVE: `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` set on Railway 2026-10-06 (org show-up-ki).
+
 ## Owner dashboard (2026-10-06)
 `/owner` (link "Owner" in the sidebar): signups with setup status, people/marketplace/money tiles,
 card holds, requests, bookings by status, partner links (used by whom). Gate: `isPlatformOwner()` in

@@ -74,4 +74,12 @@ export const serverEnv = {
   get tikwmApiBase() {
     return process.env.TIKWM_API_BASE ?? "https://api.tikwmapi.com";
   },
+  // Venue geocoding for location check-in (OpenStreetMap Nominatim, free,
+  // ~1 request/second). On in production; off in dev/e2e/CI unless set, so
+  // tests never call the network.
+  get geocoder(): "nominatim" | "off" {
+    const v = process.env.GEOCODER;
+    if (v === "nominatim" || v === "off") return v;
+    return process.env.NODE_ENV === "production" ? "nominatim" : "off";
+  },
 };

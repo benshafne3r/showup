@@ -131,6 +131,9 @@ test("creator checks in with attendance proof", async ({ page }) => {
   await page.goto("/creator/bookings");
   await page.getByRole("link", { name: new RegExp(ARTIST) }).first().click();
 
+  // Location check-in is the default; the photo route is the fallback.
+  await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible();
+  await page.getByText("Can't use location? Check in with a photo instead").click();
   await page.getByLabel(/Photo proof/).setInputFiles(pngFixture());
   await page.getByRole("button", { name: "Check in now" }).click();
   // On success the page revalidates into the "submitted" state.

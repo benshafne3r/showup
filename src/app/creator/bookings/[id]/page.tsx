@@ -19,6 +19,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { AcceptFlow } from "./accept-flow";
 import { AttendanceForm } from "./attendance-form";
+import { LocationCheckIn } from "./location-check-in";
 import { ContentForm } from "./content-form";
 import { DisputeDialog } from "./dispute-dialog";
 import { RetryAuthorizationButton } from "./retry-authorization";
@@ -223,7 +224,17 @@ export default async function CreatorBookingPage({
                   Attendance verified. Your hold {activeAuth?.status === "released" ? "was released" : "will be released"}. You were not charged.
                 </p>
               ) : canCheckIn ? (
-                <AttendanceForm bookingId={booking.id} />
+                <div className="space-y-4">
+                  <LocationCheckIn bookingId={booking.id} />
+                  <details className="group">
+                    <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                      Can&apos;t use location? Check in with a photo instead
+                    </summary>
+                    <div className="mt-3">
+                      <AttendanceForm bookingId={booking.id} />
+                    </div>
+                  </details>
+                </div>
               ) : booking.attendance_state === "submitted" ? (
                 <p className="text-muted-foreground">
                   Proof submitted {attendance ? formatDateTime(attendance.checked_in_at) : ""}. Waiting for the team to verify.
@@ -237,7 +248,8 @@ export default async function CreatorBookingPage({
                 </div>
               ) : ["confirmed"].includes(booking.status) ? (
                 <p className="text-muted-foreground">
-                  Check-in opens on show day. Attending releases your {formatCents(booking.authorization_amount_cents)} hold.
+                  Check-in opens on show day. At the venue, tap &ldquo;I&apos;m here&rdquo; and your{" "}
+                  {formatCents(booking.authorization_amount_cents)} hold is released automatically.
                 </p>
               ) : (
                 <p className="text-muted-foreground">No attendance activity.</p>

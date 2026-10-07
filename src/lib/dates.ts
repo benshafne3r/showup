@@ -32,8 +32,13 @@ export function isDeadlinePast(iso: string): boolean {
   return isPast(new Date(iso));
 }
 
-/** Show-day check for attendance check-in (venue-local date approximated). */
+/**
+ * Show-day check for attendance check-in. Uses the UTC date, like every other
+ * "today" in the app (Discover, deadlines), so dev machines in other time
+ * zones behave like production (which runs in UTC). Evening US shows are
+ * already the next UTC day, so this never closes check-in early.
+ */
 export function isShowDay(showDate: string): boolean {
-  const today = format(new Date(), "yyyy-MM-dd");
+  const today = new Date().toISOString().slice(0, 10);
   return showDate <= today;
 }

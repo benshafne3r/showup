@@ -14,7 +14,7 @@ import {
 } from "@/server/services/payments";
 import { createOnboardingLink } from "@/server/services/connect";
 import { log, errorFields } from "@/server/log";
-import { submitAttendance } from "@/server/services/attendance";
+import { checkInWithLocation, submitAttendance } from "@/server/services/attendance";
 import { submitContent } from "@/server/services/content";
 import { sendMessage, markThreadRead } from "@/server/services/messaging";
 import { openDispute } from "@/server/services/disputes";
@@ -136,6 +136,39 @@ export async function updateCreatorProfile(
     return { success: "Profile saved" };
   } catch (err) {
     return fail(err);
+  }
+}
+
+// ── Location check-in ─────────────────────────────────────────────────────
+
+const locationSchema = z.object({
+  bookingId: z.string().uuid(),
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy: z.number().min(0).max(100_000),
+});
+
+/** "I'm here": the browser sends its location fix; the server decides. */
+export async function checkInWithLocationAction(
+  input: z.infer<typeof locationSchema>,
+): Promise<{ ok: true; message: string } | { ok: false; error: string; canUsePhoto: boolean }> {
+  try {
+    const user = await requireCreator();
+    const parsed = locationSchema.safeParse(input);
+    if (!parsed.success) return { ok: false, error: "Couldn't read your location", canUsePhoto: true };
+    const result = await checkInWithLocation({
+      creatorId: user.id,
+      bookingId: parsed.data.bookingId,
+      lat: parsed.data.lat,
+      lng: parsed.data.lng,
+      accuracyM: parsed.data.accuracy,
+    });
+    if (!result.ok) return { ok: false, error: result.error, canUsePhoto: true };
+    revalidatePath(`/creator/bookings/${parsed.data.bookingId}`);
+    return { ok: true, message: "You're checked in. Your hold has been released." };
+  } catch (err) {
+    const failed = fail(err);
+    return { ok: false, error: failed && "error" in failed ? failed.error : "Something went wrong", canUsePhoto: true };
   }
 }
 

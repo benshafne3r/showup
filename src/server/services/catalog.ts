@@ -168,11 +168,22 @@ async function findOrCreateVenue(input: {
   const db = serviceDb();
   const { data: existing } = await db
     .from("venues")
-    .select("id")
+    .select("id, address")
     .ilike("name", input.name)
     .ilike("city", input.city)
     .maybeSingle();
-  if (existing) return existing.id;
+  if (existing) {
+    // A newly supplied street address replaces the old one and re-triggers
+    // geocoding (the venue's pin drives location check-in).
+    const address = input.address?.trim();
+    if (address && address !== existing.address) {
+      await db
+        .from("venues")
+        .update({ address, latitude: null, longitude: null, geocoded_at: null, geocode_source: null })
+        .eq("id", existing.id);
+    }
+    return existing.id;
+  }
 
   const { data, error } = await db
     .from("venues")

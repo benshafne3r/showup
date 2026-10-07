@@ -257,12 +257,17 @@ export type Database = {
       }
       attendance_submissions: {
         Row: {
+          accuracy_m: number | null
           booking_id: string
           checked_in_at: string
           company_id: string
           created_at: string
           creator_id: string
+          distance_m: number | null
           id: string
+          latitude: number | null
+          longitude: number | null
+          method: string
           note: string
           proof_paths: string[]
           review_note: string | null
@@ -272,12 +277,17 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          accuracy_m?: number | null
           booking_id: string
           checked_in_at?: string
           company_id: string
           created_at?: string
           creator_id: string
+          distance_m?: number | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
+          method?: string
           note?: string
           proof_paths?: string[]
           review_note?: string | null
@@ -287,12 +297,17 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          accuracy_m?: number | null
           booking_id?: string
           checked_in_at?: string
           company_id?: string
           created_at?: string
           creator_id?: string
+          distance_m?: number | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
+          method?: string
           note?: string
           proof_paths?: string[]
           review_note?: string | null
@@ -1932,7 +1947,11 @@ export type Database = {
           country: string
           created_at: string
           created_by_company: string | null
+          geocode_source: string | null
+          geocoded_at: string | null
           id: string
+          latitude: number | null
+          longitude: number | null
           name: string
           state: string | null
           updated_at: string
@@ -1944,7 +1963,11 @@ export type Database = {
           country?: string
           created_at?: string
           created_by_company?: string | null
+          geocode_source?: string | null
+          geocoded_at?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           name: string
           state?: string | null
           updated_at?: string
@@ -1956,7 +1979,11 @@ export type Database = {
           country?: string
           created_at?: string
           created_by_company?: string | null
+          geocode_source?: string | null
+          geocoded_at?: string | null
           id?: string
+          latitude?: number | null
+          longitude?: number | null
           name?: string
           state?: string | null
           updated_at?: string

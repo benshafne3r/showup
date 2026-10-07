@@ -6,12 +6,15 @@ import { notify, notifyCompany } from "./notifications";
 import { releaseAuthorization, captureAuthorization } from "./payments";
 import { uploadFile } from "./uploads";
 import { isShowDay } from "@/lib/dates";
+import { distanceMeters, formatDistance, locationCheckInVerdict } from "@/lib/geo";
+import { geocodeAndStore } from "./venues";
 
 /**
- * MVP attendance verification: in-app check-in with photo proof, confirmed
- * by the label, disputes resolved by admins. Kept behind small functions so
- * QR-code / ticketing-provider / geolocation verification can be added as
- * alternative evidence sources later.
+ * Attendance verification. Two evidence sources:
+ *   - location: the creator taps "I'm here" on show day; if their phone is at
+ *     the venue, attendance is approved automatically (hold released).
+ *   - photo: in-app check-in with photo proof, confirmed by the label.
+ * Disputes are resolved by admins.
  */
 
 export async function submitAttendance(input: {
@@ -79,13 +82,136 @@ export async function submitAttendance(input: {
   return { ok: true };
 }
 
+export type LocationCheckInResult =
+  | { ok: true; distanceM: number }
+  | { ok: false; error: string; reason?: "too_far" | "imprecise" | "no_venue_pin" };
+
+/**
+ * "I'm here": verify the creator's phone location against the venue's pin and,
+ * if they're there, approve attendance on the spot (no label review). Only
+ * the server knows the venue's coordinates; the client just sends its fix.
+ */
+export async function checkInWithLocation(input: {
+  creatorId: string;
+  bookingId: string;
+  lat: number;
+  lng: number;
+  accuracyM: number;
+}): Promise<LocationCheckInResult> {
+  const db = serviceDb();
+  const { data: booking } = await db
+    .from("bookings")
+    .select(
+      `id, status, attendance_state, company_id, creator_id,
+       shows(date, artists(name), venues(id, name, address, city, state, country, latitude, longitude))`,
+    )
+    .eq("id", input.bookingId)
+    .eq("creator_id", input.creatorId)
+    .single();
+  if (!booking?.shows?.venues) return { ok: false, error: "Booking not found" };
+  if (!["confirmed", "authorization_failed", "no_show_review"].includes(booking.status)) {
+    return { ok: false, error: "This booking isn't ready for check-in" };
+  }
+  if (!["not_started", "rejected"].includes(booking.attendance_state)) {
+    return { ok: false, error: "You've already checked in" };
+  }
+  const showDate = booking.shows.date;
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  if (!isShowDay(showDate) || showDate < yesterday) {
+    return { ok: false, error: "Location check-in works on the day of the show" };
+  }
+
+  // Locate the venue now if the background job hasn't yet.
+  const venue = booking.shows.venues;
+  let pin = venue.latitude != null && venue.longitude != null ? { lat: venue.latitude, lng: venue.longitude } : null;
+  if (!pin) {
+    try {
+      pin = await geocodeAndStore(venue, db);
+    } catch {
+      pin = null;
+    }
+  }
+  if (!pin) {
+    return {
+      ok: false,
+      reason: "no_venue_pin",
+      error: "We can't place this venue on the map, so check in with a photo below instead.",
+    };
+  }
+
+  const distanceM = Math.round(distanceMeters({ lat: input.lat, lng: input.lng }, pin));
+  const verdict = locationCheckInVerdict(distanceM, input.accuracyM);
+  await audit({
+    actorId: input.creatorId,
+    actorRole: "creator",
+    action: verdict === "at_venue" ? "attendance.location_verified" : "attendance.location_rejected",
+    entityType: "booking",
+    entityId: booking.id,
+    companyId: booking.company_id,
+    metadata: { distanceM, accuracyM: Math.round(input.accuracyM) },
+  });
+  if (verdict === "imprecise") {
+    return {
+      ok: false,
+      reason: "imprecise",
+      error: "Your phone's location isn't precise enough. Turn on Precise Location for your browser and try again, or check in with a photo.",
+    };
+  }
+  if (verdict === "too_far") {
+    return {
+      ok: false,
+      reason: "too_far",
+      error: `You're about ${formatDistance(distanceM)} from ${venue.name}. Check in once you're at the venue.`,
+    };
+  }
+
+  // Rounded to ~11 m: enough to show where they were, no more.
+  const round = (n: number) => Math.round(n * 10_000) / 10_000;
+  const { error } = await db.from("attendance_submissions").insert({
+    booking_id: booking.id,
+    creator_id: input.creatorId,
+    company_id: booking.company_id,
+    status: "submitted",
+    method: "location",
+    latitude: round(input.lat),
+    longitude: round(input.lng),
+    accuracy_m: Math.round(input.accuracyM),
+    distance_m: distanceM,
+    proof_paths: [],
+    note: `Checked in by location, ${formatDistance(distanceM)} from the venue.`,
+  });
+  if (error) return { ok: false, error: "Couldn't save your check-in. Please try again." };
+  await db
+    .from("bookings")
+    .update({ attendance_state: "submitted" })
+    .eq("id", booking.id)
+    .in("attendance_state", ["not_started", "rejected"]);
+
+  const approved = await approveAttendance({
+    bookingId: booking.id,
+    reviewer: { id: null, role: "system" },
+    companyId: booking.company_id,
+    reviewNote: `Verified automatically by location (${formatDistance(distanceM)} from the venue).`,
+  });
+  if (!approved.ok) return { ok: false, error: approved.error };
+
+  await notifyCompany(booking.company_id, {
+    type: "attendance_approved",
+    title: "Creator checked in (verified by location)",
+    body: `A creator is at ${venue.name} for ${booking.shows.artists?.name ?? "the show"}. Their hold was released automatically.`,
+    link: `/label/bookings/${booking.id}`,
+  });
+  return { ok: true, distanceM };
+}
+
 /**
  * Label (or admin) confirms attendance → hold released, attendance complete,
  * booking moves to attended (or completed when no content is owed).
  */
 export async function approveAttendance(input: {
   bookingId: string;
-  reviewer: { id: string; role: string };
+  /** id is null when the system approves (location check-in). */
+  reviewer: { id: string | null; role: string };
   companyId: string;
   reviewNote?: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
