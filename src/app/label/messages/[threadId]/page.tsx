@@ -21,7 +21,8 @@ export default async function LabelThreadPage({
     companyId: context.companyId,
   });
   if (!thread) notFound();
-  await markThreadRead(context.user.id, threadId);
+  // Viewing as this user (owner tool) must not mark their messages read.
+  if (!context.user.viewedBy) await markThreadRead(context.user.id, threadId);
 
   return (
     <div className="space-y-4">

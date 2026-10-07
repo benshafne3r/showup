@@ -39,6 +39,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
 
   return (
     <AppShell
+      viewingAs={user.viewedBy ? { name: user.fullName || user.email, role: user.role } : undefined}
       roleLabel={membership.agencies.name}
       homeHref="/manager"
       userName={user.fullName || user.email}

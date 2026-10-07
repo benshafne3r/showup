@@ -12,6 +12,11 @@ import {
 } from "@/lib/statuses";
 import { formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
+import { readViewAs } from "@/server/auth/view-as";
+import { isPlatformOwner } from "@/server/auth/owner-emails";
+import { viewAsAction } from "./actions";
+import { Button } from "@/components/ui/button";
+import { Eye } from "lucide-react";
 
 export const metadata: Metadata = { title: "Owner dashboard", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
@@ -40,6 +45,7 @@ function Tile({ label, value, sub }: { label: string; value: string | number; su
 
 export default async function OwnerDashboardPage() {
   await requireOwnerPage();
+  const viewing = await readViewAs();
   const db = serviceDb();
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -131,9 +137,15 @@ export default async function OwnerDashboardPage() {
 
   return (
     <div className="space-y-8">
+      {viewing ? (
+        <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          You&apos;re viewing the app as someone else. Use <span className="font-medium">Stop viewing</span> in
+          the banner before viewing another account.
+        </p>
+      ) : null}
       <PageHeader
         title="Owner dashboard"
-        description="Private to you. Live numbers, refreshed every time you open this page."
+        description="Private to you. Live numbers, refreshed every time you open this page. Use View as to see the app exactly as someone else does (read-only)."
       />
 
       <section className="space-y-3" aria-labelledby="people-heading">
@@ -186,6 +198,14 @@ export default async function OwnerDashboardPage() {
                     <span className="text-xs whitespace-nowrap text-muted-foreground" title={formatDateTime(u.created_at)}>
                       {ago(u.created_at)}
                     </span>
+                    {!viewing && !isPlatformOwner(u.email) ? (
+                      <form action={viewAsAction}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <Button type="submit" variant="outline" size="sm" aria-label={`View as ${u.full_name || u.email}`}>
+                          <Eye className="size-3.5" aria-hidden /> View as
+                        </Button>
+                      </form>
+                    ) : null}
                   </div>
                 </li>
               ))}

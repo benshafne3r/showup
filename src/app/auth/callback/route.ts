@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { userDb } from "@/server/db/server-client";
+import { sessionClient } from "@/server/db/server-client";
 import { destinationFor } from "@/server/auth/destination";
 import { log, errorFields } from "@/server/log";
 import { publicEnv } from "@/lib/env";
@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   const explicitNext = nextParam?.startsWith("/") ? nextParam : null;
 
   if (code) {
-    const db = await userDb();
+    const db = await sessionClient();
     const { data, error } = await db.auth.exchangeCodeForSession(code);
     if (!error) {
       // Password reset passes an explicit next (/update-password); email

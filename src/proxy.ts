@@ -36,7 +36,24 @@ const MARKETING_PATHS = new Set([
  * role claim. This is a convenience layer only — real authorization happens
  * server-side in src/server/auth/guards.ts on every data access.
  */
+/** Kept in sync with VIEW_AS_COOKIE in src/server/auth/view-as.ts. */
+const VIEW_AS_COOKIE = "showup_view_as";
+
 export default async function proxy(request: NextRequest) {
+  // "View as" is read-only: refuse every server action (the only way the app
+  // writes) while the owner is viewing as someone. Leaving goes through the
+  // GET route /owner/stop-viewing.
+  if (
+    request.method === "POST" &&
+    request.headers.has("next-action") &&
+    request.cookies.has(VIEW_AS_COOKIE)
+  ) {
+    return NextResponse.json(
+      { error: "Read-only: you're viewing ShowUp as another user. Stop viewing to make changes." },
+      { status: 403 },
+    );
+  }
+
   // Cross-host redirects run first so they short-circuit before session work.
   if (process.env.PORTAL_SPLIT === "on") {
     const host = (request.headers.get("host") ?? "").toLowerCase();

@@ -25,6 +25,7 @@ export function AppShell({
   userName,
   notificationsHref,
   unreadNotifications,
+  viewingAs,
   children,
 }: {
   navItems: NavItem[];
@@ -33,10 +34,25 @@ export function AppShell({
   userName: string;
   notificationsHref: string;
   unreadNotifications: number;
+  /** Shown while the platform owner is viewing the app as this user. */
+  viewingAs?: { name: string; role: string };
   children: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-screen flex-col">
+      {viewingAs ? (
+        <div
+          role="status"
+          className="sticky top-0 z-50 flex flex-wrap items-center justify-center gap-x-3 gap-y-1 bg-amber-400 px-4 py-2 text-center text-sm font-medium text-amber-950"
+        >
+          <span>
+            Viewing as {viewingAs.name} ({viewingAs.role}). Read-only: nothing you click changes their account.
+          </span>
+          <a href="/owner/stop-viewing" className="rounded-md bg-amber-950 px-2.5 py-0.5 text-amber-50 underline-offset-2 hover:underline">
+            Stop viewing
+          </a>
+        </div>
+      ) : null}
       <header className="sticky top-0 z-40 border-b bg-background/85 backdrop-blur">
         <div className="mx-auto flex h-14 w-full max-w-7xl items-center gap-3 px-4">
           <Sheet>

@@ -20,7 +20,8 @@ export default async function CreatorThreadPage({
   if (await agencyForCreator(user.id)) redirect("/creator/messages?tab=messages");
   const thread = await getThreadForViewer(threadId, { id: user.id, side: "creator" });
   if (!thread) notFound();
-  await markThreadRead(user.id, threadId);
+  // Viewing as this user (owner tool) must not mark their messages read.
+  if (!user.viewedBy) await markThreadRead(user.id, threadId);
 
   return (
     <div className="space-y-4">

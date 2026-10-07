@@ -21,7 +21,8 @@ export default async function ManagerThreadPage({
     agencyId: ctx.agencyId,
   });
   if (!thread) notFound();
-  await markThreadRead(ctx.user.id, threadId);
+  // Viewing as this user (owner tool) must not mark their messages read.
+  if (!ctx.user.viewedBy) await markThreadRead(ctx.user.id, threadId);
 
   return (
     <div className="space-y-4">

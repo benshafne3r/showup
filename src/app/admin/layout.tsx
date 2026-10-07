@@ -23,6 +23,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <AppShell
+      viewingAs={user.viewedBy ? { name: user.fullName || user.email, role: user.role } : undefined}
       roleLabel="Platform Admin"
       homeHref="/admin"
       userName={user.fullName || user.email}

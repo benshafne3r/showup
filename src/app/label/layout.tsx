@@ -37,6 +37,7 @@ export default async function LabelLayout({ children }: { children: React.ReactN
 
   return (
     <AppShell
+      viewingAs={user.viewedBy ? { name: user.fullName || user.email, role: user.role } : undefined}
       roleLabel={membership.companies?.name ?? "Label"}
       homeHref="/label/tours"
       userName={user.fullName || user.email}

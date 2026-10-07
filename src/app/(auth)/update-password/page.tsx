@@ -1,13 +1,13 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
-import { userDb } from "@/server/db/server-client";
+import { sessionClient } from "@/server/db/server-client";
 import { UpdatePasswordForm } from "./update-password-form";
 
 export const metadata: Metadata = { title: "Set a new password" };
 
 export default async function UpdatePasswordPage() {
   // Reachable only with the recovery session the callback route established.
-  const db = await userDb();
+  const db = await sessionClient();
   const {
     data: { user },
   } = await db.auth.getUser();

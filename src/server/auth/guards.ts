@@ -1,6 +1,6 @@
 import "server-only";
 
-import { userDb } from "@/server/db/server-client";
+import { readViewAs, realAuthUser } from "./view-as";
 import { serviceDb } from "@/server/db/service";
 import type { Database } from "@/lib/database.types";
 
@@ -24,21 +24,48 @@ export type SessionUser = {
   role: UserRow["role"];
   status: UserRow["status"];
   avatarUrl: string | null;
+  /** Set while the platform owner is viewing the app as this user (read-only). */
+  viewedBy?: { id: string };
 };
 
-/** Resolve the signed-in user from cookies, or null. */
-export async function getSessionUser(): Promise<SessionUser | null> {
-  const db = await userDb();
-  const {
-    data: { user },
-  } = await db.auth.getUser();
-  if (!user) return null;
-
-  const { data: row } = await serviceDb()
+async function loadUser(id: string) {
+  const { data } = await serviceDb()
     .from("users")
     .select("id, email, full_name, role, status, avatar_url")
-    .eq("id", user.id)
+    .eq("id", id)
     .maybeSingle();
+  return data;
+}
+
+/**
+ * Resolve the signed-in user from cookies, or null. While the platform owner
+ * is "viewing as" someone, this is that person (with `viewedBy` set), so every
+ * guard and page renders exactly what they'd see. Writes are blocked in proxy.
+ */
+export async function getSessionUser(): Promise<SessionUser | null> {
+  const viewAs = await readViewAs();
+  if (viewAs) {
+    const target = await loadUser(viewAs.targetId);
+    if (target) {
+      return {
+        id: target.id,
+        email: target.email,
+        fullName: target.full_name,
+        role: target.role,
+        status: target.status,
+        avatarUrl: target.avatar_url,
+        viewedBy: { id: viewAs.ownerId },
+      };
+    }
+  }
+  return getRealSessionUser();
+}
+
+/** The real signed-in user, ignoring any "view as" (owner tools, auth). */
+export async function getRealSessionUser(): Promise<SessionUser | null> {
+  const user = await realAuthUser();
+  if (!user) return null;
+  const row = await loadUser(user.id);
   if (!row) return null;
 
   return {

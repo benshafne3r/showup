@@ -57,6 +57,18 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Owner "View as" (2026-10-06)
+On `/owner`, each signup has **View as** → the owner sees the app exactly as that user (their
+portal + data), with an amber banner and **Stop viewing** (`/owner/stop-viewing`, a GET).
+- Signed httpOnly cookie `showup_view_as` (`src/server/auth/view-as.ts`, HMAC with the service
+  key, 1 h), honored only when the REAL session is a platform owner. `getSessionUser()` returns the
+  viewed user (`viewedBy` set); `getRealSessionUser()` ignores it (owner guard, auth).
+- **Read-only:** `proxy.ts` 403s every server action while the cookie exists; thread pages skip
+  `markThreadRead` when `viewedBy`; `error.tsx` shows a "read-only" page (no Sentry report) using
+  the browser-readable `showup_viewing` flag. `userDb()` → service client while viewing (pages
+  filter by the viewed user's id); auth code uses `sessionClient()`.
+- Audit: `owner.view_as_start` / `owner.view_as_stop`.
+
 ## Location check-in (2026-10-06)
 On show day the creator taps **"I'm here"** (creator booking page); the browser sends its GPS fix,
 the server compares it with the venue's pin (`lib/geo.ts`: within 350 m + up to 150 m of the phone's

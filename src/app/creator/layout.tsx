@@ -20,6 +20,7 @@ export default async function CreatorLayout({ children }: { children: React.Reac
 
   return (
     <AppShell
+      viewingAs={user.viewedBy ? { name: user.fullName || user.email, role: user.role } : undefined}
       roleLabel="Creator"
       homeHref="/creator"
       userName={user.fullName || user.email}

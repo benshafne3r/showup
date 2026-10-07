@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
-import { userDb } from "@/server/db/server-client";
+import { sessionClient } from "@/server/db/server-client";
 import { serviceDb } from "@/server/db/service";
 import { enforceRateLimit, RateLimitError } from "@/server/services/rate-limit";
 import { destinationFor } from "@/server/auth/destination";
@@ -56,7 +56,7 @@ export async function signIn(_prev: AuthFormState, formData: FormData): Promise<
     throw err;
   }
 
-  const db = await userDb();
+  const db = await sessionClient();
   const { data, error } = await db.auth.signInWithPassword({ email, password });
   if (error || !data.user) return { error: "Incorrect email or password" };
 
@@ -102,7 +102,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
     throw err;
   }
 
-  const db = await userDb();
+  const db = await sessionClient();
   const { data, error } = await db.auth.signUp({
     email,
     password,
@@ -143,7 +143,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
 }
 
 export async function signOut(): Promise<void> {
-  const db = await userDb();
+  const db = await sessionClient();
   await db.auth.signOut();
   redirect("/");
 }
@@ -175,7 +175,7 @@ export async function requestPasswordReset(
     throw err;
   }
 
-  const db = await userDb();
+  const db = await sessionClient();
   const redirectTo = `${publicEnv.appUrl}/auth/callback?next=${encodeURIComponent("/update-password")}`;
   await db.auth.resetPasswordForEmail(email, { redirectTo });
   return { sent: true };
@@ -196,7 +196,7 @@ export async function updatePassword(
   const parsed = updatePasswordSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0].message };
 
-  const db = await userDb();
+  const db = await sessionClient();
   const {
     data: { user },
   } = await db.auth.getUser();
