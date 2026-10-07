@@ -17,10 +17,10 @@ import type {
  * Stripe adapter behind the same interface as the mock provider.
  *
  * ⚠️ PRODUCTION CHECKLIST — verify against current Stripe docs before going live:
- *   1. Authorization validity: standard card auths expire after ~7 days;
- *      extended authorizations (up to 31 days) require eligibility and are
- *      network-dependent. Our scheduler places holds inside the window, but
- *      confirm `authorization_window_days` ≤ the real validity period.
+ *   1. Authorization validity: our holds are merchant-initiated (off-session),
+ *      which Visa keeps only 4 days 18 hours (others ~7 days). Holds are placed
+ *      `authorization_window_days` (2) before the show, and each hold's real
+ *      expiry (`capture_before`) is stored so lapsed holds are marked expired.
  *   2. Reauthorization / incremental authorization support per network.
  *   3. Manual capture flow (`capture_method: "manual"`) and partial capture rules.
  *   4. Card-network restrictions for delayed capture in the events/ticketing MCC.
@@ -157,11 +157,18 @@ export class StripePaymentProvider implements PaymentProvider {
           customer: typeof pm.customer === "string" ? pm.customer : undefined,
           off_session: true,
           metadata: input.metadata,
+          expand: ["latest_charge"],
         },
         { idempotencyKey: input.idempotencyKey },
       );
       if (intent.status === "requires_capture") {
-        return { ok: true, providerIntentId: intent.id };
+        const charge = typeof intent.latest_charge === "object" ? intent.latest_charge : null;
+        const captureBefore = charge?.payment_method_details?.card?.capture_before;
+        return {
+          ok: true,
+          providerIntentId: intent.id,
+          expiresAt: captureBefore ? new Date(captureBefore * 1000).toISOString() : null,
+        };
       }
       return { ok: false, failureReason: `Unexpected intent status: ${intent.status}` };
     } catch (err) {

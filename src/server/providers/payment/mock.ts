@@ -3,6 +3,7 @@ import "server-only";
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { serviceDb } from "@/server/db/service";
 import { serverEnv, publicEnv } from "@/lib/env";
+import { fallbackHoldExpiry } from "@/lib/holds";
 import type {
   AuthorizationResult,
   CaptureResult,
@@ -165,7 +166,7 @@ export class MockPaymentProvider implements PaymentProvider {
     if (existing) {
       return existing.state.status === "failed"
         ? { ok: false, failureReason: "Card was declined" }
-        : { ok: true, providerIntentId: existing.id };
+        : { ok: true, providerIntentId: existing.id, expiresAt: fallbackHoldExpiry(new Date()).toISOString() };
     }
 
     const method = await loadState<{ declineAtAuthorize?: boolean }>(input.providerMethodId);
@@ -190,7 +191,7 @@ export class MockPaymentProvider implements PaymentProvider {
       idempotencyKey: input.idempotencyKey,
     } satisfies IntentState);
     await emitWebhook("authorization.succeeded", { intentId: id, amountCents: input.amountCents, ...input.metadata });
-    return { ok: true, providerIntentId: id };
+    return { ok: true, providerIntentId: id, expiresAt: fallbackHoldExpiry(new Date()).toISOString() };
   }
 
   async release(input: { providerIntentId: string; idempotencyKey: string }): Promise<ReleaseResult> {

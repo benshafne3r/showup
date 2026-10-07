@@ -406,6 +406,7 @@ export type Database = {
           company_id: string
           created_at: string
           creator_id: string
+          expires_at: string | null
           failed_at: string | null
           failure_reason: string | null
           grace_deadline_at: string | null
@@ -430,6 +431,7 @@ export type Database = {
           company_id: string
           created_at?: string
           creator_id: string
+          expires_at?: string | null
           failed_at?: string | null
           failure_reason?: string | null
           grace_deadline_at?: string | null
@@ -454,6 +456,7 @@ export type Database = {
           company_id?: string
           created_at?: string
           creator_id?: string
+          expires_at?: string | null
           failed_at?: string | null
           failure_reason?: string | null
           grace_deadline_at?: string | null
@@ -2073,6 +2076,7 @@ export type Database = {
         | "released"
         | "captured"
         | "canceled"
+        | "expired"
       booking_status:
         | "awaiting_acceptance"
         | "awaiting_payment_method"
@@ -2146,6 +2150,7 @@ export type Database = {
         | "account_verified"
         | "new_show_nearby"
         | "setup_reminder"
+        | "no_show_decision_due"
       request_status:
         | "pending"
         | "approved"
@@ -2318,6 +2323,7 @@ export const Constants = {
         "released",
         "captured",
         "canceled",
+        "expired",
       ],
       booking_status: [
         "awaiting_acceptance",
@@ -2396,6 +2402,7 @@ export const Constants = {
         "account_verified",
         "new_show_nearby",
         "setup_reminder",
+        "no_show_decision_due",
       ],
       request_status: [
         "pending",

@@ -8,10 +8,15 @@ import { SubmitButton } from "@/components/submit-button";
 export function NoShowActions({
   bookingId,
   holdActive,
+  holdExpired,
+  hoursToDecide,
   holdCents,
 }: {
   bookingId: string;
   holdActive: boolean;
+  holdExpired: boolean;
+  /** Hours until the active hold expires on its own (null when unknown). */
+  hoursToDecide: number | null;
   holdCents: number;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(resolveNoShowAction, null);
@@ -29,6 +34,11 @@ export function NoShowActions({
       <p className="text-sm font-medium text-amber-300">
         The show has passed without verified attendance.
       </p>
+      {holdActive && hoursToDecide !== null ? (
+        <p className="text-xs text-muted-foreground">
+          {`Decide within ${hoursToDecide} hours. After that the hold expires and the creator isn't charged.`}
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <form action={formAction}>
           <input type="hidden" name="bookingId" value={bookingId} />
@@ -47,7 +57,9 @@ export function NoShowActions({
       </div>
       {!holdActive ? (
         <p className="text-xs text-muted-foreground">
-          No active hold on this booking, so only "excuse" is available.
+          {holdExpired
+            ? "The hold expired before anyone charged it, so only \"excuse\" is available."
+            : "No active hold on this booking, so only \"excuse\" is available."}
         </p>
       ) : null}
       {state && "error" in state ? (

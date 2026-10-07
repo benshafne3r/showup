@@ -45,11 +45,12 @@ export function SettingsForm({
                 name="authorizationWindowDays"
                 type="number"
                 min={0}
-                max={30}
+                max={4}
                 defaultValue={initial.authorizationWindowDays}
               />
               <p className="text-xs text-muted-foreground">
-                When the card hold is placed. Keep within card-network validity (~7 days).
+                When the card hold is placed. Visa holds last 4 days 18 hours, so 2 days leaves time
+                after the show to settle no-shows.
               </p>
             </div>
             <div className="space-y-1.5">

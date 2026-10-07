@@ -57,7 +57,24 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## "Finish your setup" emails (2026-10-06)
+## Card hold expiry (2026-10-06)
+Holds are merchant-initiated (off-session saved card), and **Visa keeps those only 4 days 18 h**
+(others ~7 days). Holds were placed 5 days out, so Visa holds would have lapsed before the show.
+Now (migration **0018**, applied to prod):
+- Holds go on **2 days before the show** (`authorization_window_days` = 2; admin max 4).
+- Each hold stores `expires_at` (Stripe `capture_before`, else 4d18h fallback, `lib/holds.ts`).
+- Cron step 12: the morning after the show (`showIsOver`: 08:00 UTC next day) the label gets one
+  "Did X make it?" email (`no_show_decision_due`) with hours left. Step 13: holds past expiry →
+  status `expired`, **never charged** (Ben's rule). Stripe `payment_intent.*` webhooks now reconcile too.
+- Postponed show: an already-placed hold is released and a new one scheduled for the new date.
+- No-show buttons on the label booking page only appear once the show is over; they show hours left.
+- ⬜ Confirm the live Stripe webhook includes `payment_intent.canceled` (backstop only; cron covers it).
+- Gotcha: in client components, JSX text like `{name} hasn&apos;t` dropped the space after the
+  expression; use a template string there.
+
+Discover's "Paid only" switch was removed (creator + manager), per Ben.
+
+
 Cron step 11 (`services/setup-reminders.ts`, timing in `lib/setup-reminders.ts`): creators who
 haven't finished their profile (→ `/creator/onboarding`) or added a card (→ `/creator/payments`)
 get a reminder 1 day and 4 days after sign-up (max 2, 3+ days apart, only accounts < 21 days

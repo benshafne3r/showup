@@ -2,12 +2,12 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { expireBooking, cancelBooking } from "./bookings";
-import { placeAuthorization } from "./payments";
+import { expireLapsedHolds, placeAuthorization } from "./payments";
 import { notify } from "./notifications";
 import { verifyContentSubmissions } from "./content-verification";
 import { sendNewShowAlerts } from "./show-alerts";
 import { geocodePendingVenues } from "./venues";
-import { autoReleaseUnreviewedCheckIns } from "./attendance";
+import { autoReleaseUnreviewedCheckIns, sendNoShowDecisionReminders } from "./attendance";
 import { sendSetupReminders } from "./setup-reminders";
 import { log, errorFields } from "@/server/log";
 
@@ -43,6 +43,8 @@ export async function runScheduledJobs(): Promise<JobResults> {
     venuesLocated: 0,
     attendanceAutoReleased: 0,
     setupReminders: 0,
+    noShowDecisionReminders: 0,
+    holdsExpired: 0,
     errors: 0,
   };
   const db = serviceDb();
@@ -207,6 +209,18 @@ export async function runScheduledJobs(): Promise<JobResults> {
   await step("setupReminders", async () => {
     const counts = await sendSetupReminders(db);
     results.setupReminders += counts.sent;
+  });
+
+  // 12. Ask labels to decide on no-shows (mark attended or charge) before holds lapse.
+  await step("noShowDecisionReminders", async () => {
+    const counts = await sendNoShowDecisionReminders();
+    results.noShowDecisionReminders += counts.reminded;
+  });
+
+  // 13. Mark holds past their network expiry as expired (never charged).
+  await step("expireLapsedHolds", async () => {
+    const counts = await expireLapsedHolds();
+    results.holdsExpired += counts.expired;
   });
 
   return results;

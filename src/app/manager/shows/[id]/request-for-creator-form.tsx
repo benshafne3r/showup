@@ -47,8 +47,7 @@ export function RequestForCreatorForm({
         </select>
         {selected && !selected.hasCard ? (
           <p className="text-xs text-amber-300">
-            {selected.name.split(" ")[0]} hasn&apos;t added a card yet. They&apos;ll need one to
-            accept if approved.
+            {`${selected.name.split(" ")[0]} hasn't added a card yet. They'll need one to accept if approved.`}
           </p>
         ) : null}
       </div>

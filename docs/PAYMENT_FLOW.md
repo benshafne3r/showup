@@ -40,7 +40,7 @@ UI code never touches a provider; only `src/server/services/payments.ts` does.
 ## Lifecycle
 
 ```
-approval                    acceptance                    T-5 days             show day              post-show
+approval                    acceptance                    T-2 days             show day              post-show
    │                            │                             │                    │                     │
 booking:awaiting_acceptance → creator reviews terms       cron places hold     creator checks in     content submitted
 authorization:not_scheduled   adds payment method         authorization:       attendance approved   content approved
@@ -72,3 +72,11 @@ authorization:not_scheduled   adds payment method         authorization:       a
 - `stated ticket value` — what the label says a ticket is worth (per ticket).
 - `temporary hold` — value × tickets × pct. **Never** presented as creator earnings; copy always says it is released when they attend.
 - `creator payment` — the only number ever labeled as earnings.
+
+## Hold expiry (2026-10-06)
+Holds are merchant-initiated, so Visa keeps them only **4 days 18 hours** (others ~7 days). Each
+hold stores `authorization_records.expires_at` (Stripe `capture_before`, else the 4d18h fallback).
+The morning after the show (08:00 UTC next day) the label is emailed once to mark attended or charge
+the no-show. If nobody decides, cron marks the hold `expired` (also via Stripe's
+`payment_intent.canceled` webhook) and **the creator is not charged**. Postponed shows release an
+already-placed hold and schedule a new one for the new date.

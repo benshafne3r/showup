@@ -68,7 +68,7 @@ Postgres 17 (hosted Supabase). All money = **integer cents** (USD). All timestam
 ### Governance
 - **`disputes`** — n:1 booking. `kind dispute_kind`, `status dispute_status`, `opened_by`, `reason`, `evidence_paths text[]`, `resolution`, `resolved_by`, `resolved_at`.
 - **`audit_logs`** — append-only. `actor_id`, `actor_role`, `action` (verb string, e.g. `booking.approve_attendance`), `entity_type`, `entity_id`, `company_id`, `metadata jsonb`, `ip`. No UPDATE/DELETE grants.
-- **`platform_settings`** — `key text pk`, `value jsonb`, `updated_by`. Keys: `deposit_percentage_templates` (`[25,50,75,100]`), `acceptance_window_hours` (24), `authorization_window_days` (5), `payment_method_grace_days` (3), `content_deadline_default_days` (7).
+- **`platform_settings`** — `key text pk`, `value jsonb`, `updated_by`. Keys: `deposit_percentage_templates` (`[25,50,75,100]`), `acceptance_window_hours` (24), `authorization_window_days` (2), `payment_method_grace_days` (3), `content_deadline_default_days` (7).
 
 ## Key integrity rules
 

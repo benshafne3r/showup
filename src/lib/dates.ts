@@ -33,6 +33,15 @@ export function isDeadlinePast(iso: string): boolean {
 }
 
 /**
+ * Whether a show date is over: 08:00 UTC the next day, which is after
+ * midnight everywhere in the US, so late shows have finished. No-show
+ * decisions open (and labels are reminded) only after this.
+ */
+export function showIsOver(showDate: string, now = new Date()): boolean {
+  return now.getTime() >= Date.parse(`${showDate}T00:00:00Z`) + 32 * 3_600_000;
+}
+
+/**
  * Show-day check for attendance check-in. Uses the UTC date, like every other
  * "today" in the app (Discover, deadlines), so dev machines in other time
  * zones behave like production (which runs in UTC). Evening US shows are

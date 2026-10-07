@@ -5,7 +5,9 @@ import { audit } from "./audit";
 import { notify, notifyCompany } from "./notifications";
 import { releaseAuthorization, captureAuthorization } from "./payments";
 import { uploadFile } from "./uploads";
-import { isShowDay } from "@/lib/dates";
+import { formatShowDate, isShowDay, showIsOver } from "@/lib/dates";
+import { formatCents } from "@/lib/money";
+import { hoursLeft } from "@/lib/holds";
 import type { Database } from "@/lib/database.types";
 import { distanceMeters, formatDistance, locationCheckInVerdict } from "@/lib/geo";
 import { geocodeAndStore } from "./venues";
@@ -500,7 +502,19 @@ export async function resolveNoShow(input: {
 
   if (input.action === "capture") {
     if (!activeAuth || activeAuth.status !== "authorized") {
-      return { ok: false, error: "No active hold to capture" };
+      const { data: lapsed } = await db
+        .from("authorization_records")
+        .select("id")
+        .eq("booking_id", booking.id)
+        .eq("status", "expired")
+        .limit(1)
+        .maybeSingle();
+      return {
+        ok: false,
+        error: lapsed
+          ? "The hold expired before anyone charged it, so this no-show can't be charged. Excuse it to close the booking."
+          : "No active hold to capture",
+      };
     }
     const captured = await captureAuthorization(activeAuth.id, input.reviewer);
     if (!captured.ok) return captured;
@@ -546,4 +560,71 @@ export async function resolveNoShow(input: {
     companyId: booking.company_id,
   });
   return { ok: true };
+}
+
+/**
+ * The morning after a show, remind the label about creators who never checked
+ * in while their hold is still active: mark them attended or charge the
+ * no-show before the hold expires. If nobody decides, the hold lapses and the
+ * creator isn't charged. One reminder per booking.
+ */
+export async function sendNoShowDecisionReminders(): Promise<{ reminded: number }> {
+  const db = serviceDb();
+  const now = new Date();
+  const { data: holds } = await db
+    .from("authorization_records")
+    .select(
+      `amount_cents, expires_at,
+       bookings!inner(id, status, attendance_state, company_id,
+         users!bookings_creator_id_fkey(full_name), shows!inner(date, artists(name)))`,
+    )
+    .eq("status", "authorized")
+    .gt("expires_at", now.toISOString())
+    .limit(500);
+
+  const due = (holds ?? []).filter(
+    (h) =>
+      ["confirmed", "no_show_review"].includes(h.bookings.status) &&
+      ["not_started", "rejected"].includes(h.bookings.attendance_state) &&
+      showIsOver(h.bookings.shows.date, now),
+  );
+
+  let reminded = 0;
+  for (const hold of due) {
+    const booking = hold.bookings;
+    const link = `/label/bookings/${booking.id}`;
+    const { data: already } = await db
+      .from("notifications")
+      .select("id")
+      .eq("type", "no_show_decision_due")
+      .eq("link", link)
+      .limit(1)
+      .maybeSingle();
+    if (already) continue;
+
+    const creator = booking.users?.full_name || "A creator";
+    const artist = booking.shows.artists?.name ?? "the show";
+    const amount = formatCents(hold.amount_cents);
+    const hours = hoursLeft(hold.expires_at!, now);
+    await notifyCompany(booking.company_id, {
+      type: "no_show_decision_due",
+      title: `Did ${creator} make it to ${artist}?`,
+      body:
+        `${creator} didn't check in for ${artist} on ${formatShowDate(booking.shows.date)}. ` +
+        `Mark them attended, or charge the ${amount} no-show hold, within the next ${hours} hours. ` +
+        "If you do nothing, the hold expires and they won't be charged.",
+      link,
+      email: {
+        details: [
+          { label: "Creator", value: creator },
+          { label: "Show", value: `${artist}, ${formatShowDate(booking.shows.date)}` },
+          { label: "Hold", value: amount },
+          { label: "Decide within", value: `${hours} hours` },
+        ],
+        ctaLabel: "Open the booking",
+      },
+    });
+    reminded++;
+  }
+  return { reminded };
 }

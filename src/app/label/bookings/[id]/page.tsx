@@ -12,7 +12,8 @@ import {
   CONTENT_VERIFICATION_META,
   CREATOR_PAYMENT_STATUS_META,
 } from "@/lib/statuses";
-import { formatShowDateLong, formatDateTime, isShowDay } from "@/lib/dates";
+import { formatShowDateLong, formatDateTime, isShowDay, showIsOver } from "@/lib/dates";
+import { hoursLeft } from "@/lib/holds";
 import { MarkAttendedButton } from "../../mark-attended-button";
 import { formatCents } from "@/lib/money";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -46,7 +47,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
        canceled_at, cancel_reason, completed_at, created_at,
        shows!inner(date, artists(name), venues(name, city)),
        users:users!creator_id(full_name),
-       authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, capture_amount_cents, failure_reason, created_at),
+       authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, capture_amount_cents, failure_reason, expires_at, created_at),
        creator_payment_records(status, amount_cents, paid_at, failure_reason),
        attendance_submissions(id, status, method, distance_m, checked_in_at, note, proof_paths, review_note, created_at),
        content_submissions(id, status, post_url, caption_note, proof_paths, review_note, submitted_at, platform, verification_status, view_count, like_count, last_checked_at)`,
@@ -95,7 +96,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
   const showNoShowActions =
     ["confirmed", "no_show_review"].includes(booking.status) &&
     booking.attendance_state !== "approved" &&
-    new Date(`${booking.shows.date}T23:59:59`) < new Date();
+    showIsOver(booking.shows.date);
 
   return (
     <div className="space-y-6">
@@ -213,6 +214,10 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                 <NoShowActions
                   bookingId={booking.id}
                   holdActive={activeAuth?.status === "authorized"}
+                  holdExpired={activeAuth?.status === "expired"}
+                  hoursToDecide={
+                    activeAuth?.status === "authorized" && activeAuth.expires_at ? hoursLeft(activeAuth.expires_at) : null
+                  }
                   holdCents={booking.authorization_amount_cents}
                 />
               ) : null}
@@ -328,6 +333,11 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
               {activeAuth?.scheduled_for && activeAuth.status === "scheduled" ? (
                 <p className="text-xs text-muted-foreground">
                   Placement scheduled {formatDateTime(activeAuth.scheduled_for)}
+                </p>
+              ) : null}
+              {activeAuth?.status === "authorized" && activeAuth.expires_at ? (
+                <p className="text-xs text-muted-foreground">
+                  Expires on its own in {hoursLeft(activeAuth.expires_at)} hours
                 </p>
               ) : null}
               {activeAuth?.capture_amount_cents ? (

@@ -59,11 +59,12 @@ export const AUTHORIZATION_TRANSITIONS: Record<AuthorizationStatus, Authorizatio
   not_scheduled: ["scheduled", "canceled"],
   scheduled: ["pending", "canceled"],
   pending: ["authorized", "failed", "canceled"],
-  authorized: ["released", "captured", "canceled"],
+  authorized: ["released", "captured", "canceled", "expired"],
   failed: ["scheduled", "pending", "canceled"], // retry after payment method update
   released: [],
   captured: [],
   canceled: [],
+  expired: [],
 };
 
 export const CREATOR_PAYMENT_TRANSITIONS: Record<CreatorPaymentStatus, CreatorPaymentStatus[]> = {
@@ -150,6 +151,7 @@ export const AUTHORIZATION_STATUS_META: Record<AuthorizationStatus, { label: str
   released: { label: "Hold released", tone: "success" },
   captured: { label: "Hold charged", tone: "danger" },
   canceled: { label: "Hold canceled", tone: "neutral" },
+  expired: { label: "Hold expired", tone: "neutral" },
 };
 
 export const CREATOR_PAYMENT_STATUS_META: Record<CreatorPaymentStatus, { label: string; tone: Tone }> = {

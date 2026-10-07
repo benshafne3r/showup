@@ -10,6 +10,8 @@ import { enforceRateLimit } from "./rate-limit";
 import { payoutDestinationFor, syncPayoutStatusByAccount } from "./connect";
 import { serverEnv } from "@/lib/env";
 import { formatCents } from "@/lib/money";
+import { fallbackHoldExpiry } from "@/lib/holds";
+import { log } from "@/server/log";
 
 /**
  * All money movement lives here. Every provider mutation carries a
@@ -228,6 +230,7 @@ export async function placeAuthorization(authRecordId: string): Promise<
       provider_intent_id: result.providerIntentId,
       idempotency_key: `auth:${claimed.booking_id}:attempt${attempt}`,
       authorized_at: new Date().toISOString(),
+      expires_at: result.expiresAt ?? fallbackHoldExpiry(new Date()).toISOString(),
       attempt_count: attempt,
       payment_method_id: pm.id,
       failure_reason: null,
@@ -379,6 +382,58 @@ export async function captureAuthorization(
     metadata: { capturedCents: result.capturedCents },
   });
   return { ok: true, capturedCents: result.capturedCents };
+}
+
+/**
+ * Holds lapse on their own (Visa after 4 days 18 hours). Once a hold is past
+ * its expiry, mark it 'expired' so nobody tries to charge it, and make sure
+ * it's gone at the provider. Nobody is charged: a no-show the label never
+ * decided on simply lapses (Ben's rule, 2026-10-06).
+ */
+export async function expireLapsedHolds(): Promise<{ expired: number }> {
+  const db = serviceDb();
+  const now = new Date().toISOString();
+  const { data: lapsed } = await db
+    .from("authorization_records")
+    .select("id")
+    .eq("status", "authorized")
+    .lt("expires_at", now)
+    .limit(100);
+
+  let expired = 0;
+  for (const hold of lapsed ?? []) {
+    // Claim first, so a concurrent capture or release can't race this.
+    const { data: claimed } = await db
+      .from("authorization_records")
+      .update({ status: "expired", released_at: now })
+      .eq("id", hold.id)
+      .eq("status", "authorized")
+      .select("id, company_id, amount_cents, provider_intent_id")
+      .maybeSingle();
+    if (!claimed) continue;
+    expired++;
+    if (claimed.provider_intent_id) {
+      // Normally already canceled by the network; this cancels any that aren't.
+      const result = await paymentProvider().release({
+        providerIntentId: claimed.provider_intent_id,
+        idempotencyKey: `expire:${claimed.id}`,
+      });
+      if (!result.ok) {
+        log.error("Could not cancel an expired hold at the provider", {
+          authRecordId: claimed.id,
+          reason: result.failureReason,
+        });
+      }
+    }
+    await audit({
+      action: "authorization.expired",
+      entityType: "authorization_record",
+      entityId: claimed.id,
+      companyId: claimed.company_id,
+      metadata: { amountCents: claimed.amount_cents },
+    });
+  }
+  return { expired };
 }
 
 /** Cancel a scheduled/failed/active authorization (booking or show canceled). */
@@ -533,24 +588,35 @@ export async function handleWebhookEvent(event: {
   }
 
   // Reconcile: if the provider says an intent changed state but our record
-  // is stale (e.g. process died mid-call), advance it.
+  // is stale (e.g. process died mid-call), advance it. Mock events use
+  // authorization.*; Stripe sends payment_intent.*.
   const intentId =
     (event.data.intentId as string | undefined) ??
     (event.data.id as string | undefined);
+  const cancelReason = event.data.cancellation_reason as string | undefined;
+  const lapsed =
+    event.type === "payment_intent.canceled" && (cancelReason === "automatic" || cancelReason === "expired");
   if (intentId) {
-    if (event.type === "authorization.succeeded") {
+    if (lapsed) {
+      // The card network let the hold expire before anyone captured it.
+      await db
+        .from("authorization_records")
+        .update({ status: "expired", released_at: new Date().toISOString() })
+        .eq("provider_intent_id", intentId)
+        .eq("status", "authorized");
+    } else if (event.type === "authorization.succeeded" || event.type === "payment_intent.amount_capturable_updated") {
       await db
         .from("authorization_records")
         .update({ status: "authorized", authorized_at: new Date().toISOString() })
         .eq("provider_intent_id", intentId)
         .eq("status", "pending");
-    } else if (event.type === "authorization.released") {
+    } else if (event.type === "authorization.released" || event.type === "payment_intent.canceled") {
       await db
         .from("authorization_records")
         .update({ status: "released", released_at: new Date().toISOString() })
         .eq("provider_intent_id", intentId)
         .eq("status", "authorized");
-    } else if (event.type === "authorization.captured") {
+    } else if (event.type === "authorization.captured" || event.type === "payment_intent.succeeded") {
       await db
         .from("authorization_records")
         .update({ status: "captured", captured_at: new Date().toISOString() })

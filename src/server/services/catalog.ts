@@ -5,6 +5,7 @@ import { audit } from "./audit";
 import { notify } from "./notifications";
 import { cancelBooking } from "./bookings";
 import { getPlatformSettings } from "./settings";
+import { releaseAuthorization, scheduleAuthorizationForBooking } from "./payments";
 import { uploadFile, publicFileUrl } from "./uploads";
 
 /** Artists, venues, tours, shows — label catalog management. */
@@ -392,6 +393,20 @@ async function postponeShowInternal(
       .update({ scheduled_for: newScheduled.toISOString() })
       .eq("booking_id", booking.id)
       .eq("status", "scheduled");
+    // A hold already on the card was timed for the old date and would expire
+    // before the new one: release it and schedule a fresh hold.
+    if (newScheduled.getTime() > Date.now()) {
+      const { data: active } = await db
+        .from("authorization_records")
+        .select("id")
+        .eq("booking_id", booking.id)
+        .eq("status", "authorized")
+        .maybeSingle();
+      if (active) {
+        const released = await releaseAuthorization(active.id, actor);
+        if (released.ok) await scheduleAuthorizationForBooking(booking.id);
+      }
+    }
     await notify({
       userId: booking.creator_id,
       type: "show_postponed",

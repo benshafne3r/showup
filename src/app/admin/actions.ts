@@ -15,6 +15,7 @@ import {
   payoutCreatorPayment,
 } from "@/server/services/payments";
 import { updatePlatformSetting } from "@/server/services/settings";
+import { MAX_AUTHORIZATION_WINDOW_DAYS } from "@/lib/holds";
 import { runScheduledJobs } from "@/server/services/jobs";
 import { toActionError } from "@/server/action-error";
 
@@ -262,7 +263,11 @@ export async function resolveDisputeAction(
 
 const settingsSchema = z.object({
   acceptanceWindowHours: z.coerce.number().int().min(1).max(168),
-  authorizationWindowDays: z.coerce.number().int().min(0).max(30),
+  authorizationWindowDays: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(MAX_AUTHORIZATION_WINDOW_DAYS, "Place holds at most 4 days before the show (Visa holds only last 4 days 18 hours)"),
   paymentMethodGraceDays: z.coerce.number().int().min(0).max(30),
   contentDeadlineDefaultDays: z.coerce.number().int().min(0).max(90),
 });

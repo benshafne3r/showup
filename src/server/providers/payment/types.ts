@@ -35,7 +35,8 @@ export type PaymentMethodInfo = {
 };
 
 export type AuthorizationResult =
-  | { ok: true; providerIntentId: string }
+  /** expiresAt: when the hold lapses on its own (null when the provider doesn't say). */
+  | { ok: true; providerIntentId: string; expiresAt: string | null }
   | { ok: false; failureReason: string };
 
 export type ReleaseResult =

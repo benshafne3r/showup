@@ -8,7 +8,7 @@ Decisions made without asking, per the brief ("make reasonable MVP assumptions a
 3. **Mock provider is the default** (`PAYMENT_PROVIDER=mock`). The Stripe adapter ships behind the same interface but activates only with `sk_test_` sandbox keys; it refuses live keys.
 4. **No-show capture is all-or-nothing** in MVP (full authorization amount). Per-ticket partial capture is supported by the data model (`booking_tickets`) but not the UI.
 5. Creator payouts in the mock provider settle instantly. Production path documented as Stripe Connect Express (requires creator KYC onboarding — out of MVP scope).
-6. Authorization window default **5 days** before show; payment-method grace period default **3 days**; both admin-editable platform settings.
+6. Authorization window default **2 days** before show (was 5; Visa merchant-initiated holds last only 4 days 18 hours, max allowed 4); payment-method grace period default **3 days**; both admin-editable platform settings.
 7. If a card hold fails on the day of the show, the booking is canceled rather than letting the creator attend unheld.
 
 ## Product behavior
