@@ -13,6 +13,15 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
       <main className="flex flex-1 items-center justify-center p-6">
         <div className="w-full max-w-md">{children}</div>
       </main>
+      <footer className="p-6 text-center text-xs text-muted-foreground">
+        Trouble signing in?{" "}
+        <a
+          href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent(`${BRAND.name} sign-in help`)}`}
+          className="font-medium text-primary hover:underline"
+        >
+          Email support
+        </a>
+      </footer>
     </div>
   );
 }

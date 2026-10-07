@@ -8,6 +8,8 @@ export type EmailMessage = {
   subject: string;
   text: string;
   html?: string;
+  /** Where replies go (e.g. the user who wrote to support). */
+  replyTo?: string;
 };
 
 export interface EmailProviderI {
@@ -20,7 +22,7 @@ class ConsoleEmailProvider implements EmailProviderI {
   readonly name = "console" as const;
   async send(message: EmailMessage) {
     console.info(
-      `\n━━━ 📧 EMAIL (console transport) ━━━\nTo: ${message.to}\nSubject: ${message.subject}\n\n${message.text}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`,
+      `\n━━━ 📧 EMAIL (console transport) ━━━\nTo: ${message.to}${message.replyTo ? `\nReply-To: ${message.replyTo}` : ""}\nSubject: ${message.subject}\n\n${message.text}\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`,
     );
     return { ok: true };
   }
@@ -37,6 +39,7 @@ class ResendEmailProvider implements EmailProviderI {
         subject: message.subject,
         text: message.text,
         html: message.html,
+        ...(message.replyTo ? { replyTo: message.replyTo } : {}),
       });
       return error ? { ok: false, error: error.message } : { ok: true };
     } catch (err) {

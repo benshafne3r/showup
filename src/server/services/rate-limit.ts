@@ -15,6 +15,7 @@ const LIMITS: Record<string, { windowSeconds: number; max: number }> = {
   "auth.reset": { windowSeconds: 3600, max: 6 },
   "request.create": { windowSeconds: 3600, max: 20 },
   "message.send": { windowSeconds: 60, max: 30 },
+  "support.message": { windowSeconds: 3600, max: 5 },
   "payment_method.attach": { windowSeconds: 3600, max: 10 },
   "upload.file": { windowSeconds: 3600, max: 60 },
 };

@@ -6,6 +6,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { Bell, Menu } from "lucide-react";
 import { NavLink } from "@/components/nav-link";
 import { Logo } from "@/components/logo";
+import { SupportDialog } from "@/components/support-dialog";
 
 export type NavItem = {
   href: string;
@@ -84,6 +85,7 @@ export function AppShell({
           </Link>
 
           <div className="ml-auto flex items-center gap-1.5">
+            <SupportDialog />
             <Button asChild variant="ghost" size="icon" className="relative" aria-label={`Notifications${unreadNotifications ? ` (${unreadNotifications} unread)` : ""}`}>
               <Link href={notificationsHref}>
                 <Bell className="size-5" aria-hidden />

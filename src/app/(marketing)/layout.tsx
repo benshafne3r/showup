@@ -44,6 +44,12 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
           <nav aria-label="Legal" className="flex gap-4">
             <Link href="/terms" className="hover:text-foreground">Terms</Link>
             <Link href="/privacy" className="hover:text-foreground">Privacy</Link>
+            <a
+              href={`mailto:${BRAND.supportEmail}?subject=${encodeURIComponent(`${BRAND.name} support`)}`}
+              className="hover:text-foreground"
+            >
+              Support
+            </a>
           </nav>
         </div>
       </footer>

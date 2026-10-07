@@ -57,6 +57,12 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Help / support (2026-10-06)
+"Help" button in every portal header (`components/support-dialog.tsx`) → topic + message →
+`services/support.ts` emails `BRAND.supportEmail` (ben@50-50ventures.com) with who/role/page,
+Reply-To = the user (5 per hour per user). Signed-out: "Email support" mailto on sign-in pages
+and "Support" in the marketing footer. Sentry email alerts confirmed working.
+
 ## Owner "View as" (2026-10-06)
 On `/owner`, each signup has **View as** → the owner sees the app exactly as that user (their
 portal + data), with an amber banner and **Stop viewing** (`/owner/stop-viewing`, a GET).

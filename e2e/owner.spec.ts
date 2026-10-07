@@ -60,3 +60,12 @@ test("the owner can view the app as a creator, read-only", async ({ page }) => {
   await page.goto("/label/tours");
   await expect(page).toHaveURL(/\/label\/tours/);
 });
+
+test("anyone signed in can message support from the Help button", async ({ page }) => {
+  await signIn(page, ACCOUNTS.jay);
+  await page.getByRole("button", { name: "Get help" }).click();
+  await page.getByLabel("Card, hold or payment").check();
+  await page.getByLabel("What's happening?").fill("E2E: my hold still shows after the show.");
+  await page.getByRole("button", { name: "Send to support" }).click();
+  await expect(page.getByText(/Thanks, we got it\. We'll reply to creator\.jay@demo\.showup\.test/)).toBeVisible();
+});
