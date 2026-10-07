@@ -64,7 +64,7 @@ get a reminder 1 day and 4 days after sign-up (max 2, 3+ days apart, only accoun
 old). Includes "N shows open in <city>" when there are any. Notification type `setup_reminder`
 = migration **0017**. Creator only (no manager copy). Tests: `tests/setup-reminders.test.ts`,
 `e2e/setup-reminders.spec.ts`.
-⬜ **0017 must be applied to prod BEFORE pushing** (otherwise `/api/health` reports it missing).
+0017 applied to prod 2026-10-06.
 
 ## Label attendance tools + partner links in owner portal (2026-10-06)
 - **One-tap attendance:** label show page "Bookings & attendance" → **Mark attended** per creator
