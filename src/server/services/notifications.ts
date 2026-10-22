@@ -11,6 +11,7 @@ import { publicEnv } from "@/lib/env";
 import { BRAND } from "@/lib/brand";
 import type { Database } from "@/lib/database.types";
 import { managerLinkFor } from "@/lib/manager-links";
+import { log } from "@/server/log";
 
 type NotificationType = Database["public"]["Enums"]["notification_type"];
 
@@ -23,7 +24,21 @@ export type NotifyInput = {
   link?: string;
   /** Extra email-only content (details table, quoted message, button label). */
   email?: EmailExtras;
+  /**
+   * Makes delivery idempotent: a retried job with the same key finds the
+   * earlier notification and sends nothing again. Copies to other people
+   * (management team, company members) derive their own keys from it.
+   */
+  dedupeKey?: string;
+  /**
+   * Throw when the notification can't be stored (background jobs set this so
+   * they retry). Inline callers leave it off: a notification failure is
+   * logged and never undoes the action that triggered it.
+   */
+  strict?: boolean;
 };
+
+const keyFor = (key: string | undefined, userId: string) => (key ? `${key}:${userId}` : undefined);
 
 /**
  * Notification service: writes the in-app notification and sends a
@@ -59,6 +74,7 @@ async function copyManagementTeam(input: NotifyInput): Promise<void> {
         userId: m.user_id,
         title: `${creatorName}: ${input.title}`,
         link: managerLinkFor(input.link),
+        dedupeKey: keyFor(input.dedupeKey ? `${input.dedupeKey}:copy` : undefined, m.user_id),
       }),
     ),
   );
@@ -87,11 +103,14 @@ export async function deliver(input: NotifyInput): Promise<void> {
       title: input.title,
       body: input.body ?? "",
       link: input.link ?? null,
+      dedupe_key: input.dedupeKey ?? null,
     })
     .select("id")
     .single();
+  if (error?.code === "23505") return; // already delivered by an earlier attempt
   if (error) {
-    console.error("notification insert failed:", error.message);
+    if (input.strict) throw new Error(`notification insert failed: ${error.message}`);
+    log.error("notification insert failed", { type: input.type, message: error.message });
     return;
   }
 
@@ -130,7 +149,7 @@ export async function notifyCompany(
     .from("company_members")
     .select("user_id")
     .eq("company_id", companyId);
-  await notifyMany((members ?? []).map((m) => ({ ...input, userId: m.user_id })));
+  await notifyMany((members ?? []).map((m) => ({ ...input, userId: m.user_id, dedupeKey: keyFor(input.dedupeKey, m.user_id) })));
 }
 
 export async function markNotificationRead(userId: string, notificationId: string): Promise<void> {

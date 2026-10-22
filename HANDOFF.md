@@ -57,7 +57,23 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Recoverable payments + retryable webhooks (2026-10-22, Codex #2/#3)
+## Atomic booking transitions + job outbox (2026-10-22, Codex #4)
+Migration **0023**: `jobs` table (outbox + queue: dedupe_key unique, priority 0 money … 9 marketing,
+per-company fairness in `claim_jobs`, leases, backoff via `fail_job`, `dead` after max_attempts) and
+one-transaction functions: `create_request_tx`, `approve_request_tx`, `offer_request_tx`,
+`accept_booking_tx`, `cancel_booking_tx` (used by cancel / expire / agency pass), plus
+`booking_consistency()` (inventory drift, approvals without a booking → `/api/health` 503).
+- TS builds notifications as outbox jobs (`src/server/jobs/outbox.ts`), passes them into the SQL
+  function, then `runOutboxNow(keys)` right after commit; leftovers run via `drainJobs` (cron step 0c,
+  later the worker). Handlers in `src/server/jobs/handlers.ts` are idempotent (notification
+  `dedupe_key`; hold release is guarded). Inline `notify()` never throws; jobs pass `strict`.
+- Cancel/expire/pass enqueue `release_holds` (priority 0) so a hold can't outlive its booking.
+- Label invites now create a real request (thread + request_tickets) and approve it in one
+  transaction; agencies get one digest per batch (`offer_digest` job, shared key per batch).
+- Tests: `tests/integration/bookings.test.ts` (race for last ticket, rollback, crash after cancel,
+  invites, job idempotency / backoff / dead / fairness / lease reclaim).
+
+
 Migrations **0021** (in-flight enum values: `releasing`, `capturing`, payout `paying`) + **0022**
 (`payment_operations` ledger, leases, `claim_authorization` / `claim_payout` / `claim_webhook_event`,
 webhook status columns).

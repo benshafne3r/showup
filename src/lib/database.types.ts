@@ -1266,6 +1266,63 @@ export type Database = {
           },
         ]
       }
+      jobs: {
+        Row: {
+          attempts: number
+          company_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: number
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          company_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          finished_at?: string | null
+          id?: number
+          kind: string
+          last_error?: string | null
+          lease_until?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          company_id?: string | null
+          created_at?: string
+          dedupe_key?: string | null
+          finished_at?: string | null
+          id?: number
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          locked_by?: string | null
+          max_attempts?: number
+          payload?: Json
+          priority?: number
+          run_at?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       message_threads: {
         Row: {
           company_id: string
@@ -1407,6 +1464,7 @@ export type Database = {
         Row: {
           body: string
           created_at: string
+          dedupe_key: string | null
           emailed_at: string | null
           id: string
           link: string | null
@@ -1418,6 +1476,7 @@ export type Database = {
         Insert: {
           body?: string
           created_at?: string
+          dedupe_key?: string | null
           emailed_at?: string | null
           id?: string
           link?: string | null
@@ -1429,6 +1488,7 @@ export type Database = {
         Update: {
           body?: string
           created_at?: string
+          dedupe_key?: string | null
           emailed_at?: string | null
           id?: string
           link?: string | null
@@ -2168,11 +2228,64 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      accept_booking_tx: {
+        Args: {
+          p_booking_id: string
+          p_creator_id: string
+          p_hold_agency_id: string
+          p_jobs?: Json
+          p_payment_method_id: string
+          p_provider: string
+          p_scheduled_for: string
+          p_terms_version: string
+        }
+        Returns: string
+      }
       applied_migrations: {
         Args: never
         Returns: {
           name: string
           version: string
+        }[]
+      }
+      approve_request_tx: {
+        Args: {
+          p_accept_hours: number
+          p_booking_id: string
+          p_company_id: string
+          p_jobs?: Json
+          p_request_id: string
+          p_reviewer: string
+          p_ticket_count: number
+        }
+        Returns: {
+          accept_by: string
+          booking_id: string
+          hold_cents: number
+          tickets: number
+        }[]
+      }
+      booking_consistency: {
+        Args: never
+        Returns: {
+          detail: string
+          problem: string
+          ref: string
+        }[]
+      }
+      cancel_booking_tx: {
+        Args: {
+          p_booking_id: string
+          p_from: string[]
+          p_jobs?: Json
+          p_reason: string
+          p_request_status: string
+        }
+        Returns: {
+          company_id: string
+          creator_id: string
+          request_id: string
+          show_id: string
         }[]
       }
       claim_authorization: {
@@ -2211,6 +2324,65 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "authorization_records"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_jobs: {
+        Args: {
+          p_kinds?: string[]
+          p_lease_seconds?: number
+          p_limit?: number
+          p_worker: string
+        }
+        Returns: {
+          attempts: number
+          company_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: number
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_jobs_by_keys: {
+        Args: { p_keys: string[]; p_lease_seconds?: number; p_worker: string }
+        Returns: {
+          attempts: number
+          company_id: string | null
+          created_at: string
+          dedupe_key: string | null
+          finished_at: string | null
+          id: number
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          locked_by: string | null
+          max_attempts: number
+          payload: Json
+          priority: number
+          run_at: string
+          status: string
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
           isOneToOne: false
           isSetofReturn: true
         }
@@ -2268,6 +2440,27 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      complete_job: {
+        Args: { p_id: number; p_worker: string }
+        Returns: undefined
+      }
+      create_request_tx: {
+        Args: {
+          p_creator_id: string
+          p_jobs?: Json
+          p_message: string
+          p_offered: boolean
+          p_opportunity_id: string
+          p_request_id: string
+          p_ticket_count: number
+        }
+        Returns: string
+      }
+      enqueue_jobs: { Args: { p_jobs: Json }; Returns: number[] }
+      fail_job: {
+        Args: { p_error: string; p_id: number; p_worker: string }
+        Returns: undefined
+      }
       is_admin: { Args: never; Returns: boolean }
       is_agency_member: { Args: { aid: string }; Returns: boolean }
       is_company_member: { Args: { cid: string }; Returns: boolean }
@@ -2276,6 +2469,25 @@ export type Database = {
       mark_thread_read: {
         Args: { p_thread_id: string; p_user_id: string }
         Returns: undefined
+      }
+      offer_request_tx: {
+        Args: {
+          p_accept_hours: number
+          p_booking_id: string
+          p_company_id: string
+          p_creator_id: string
+          p_jobs?: Json
+          p_message: string
+          p_opportunity_id: string
+          p_request_id: string
+          p_reviewer: string
+        }
+        Returns: {
+          accept_by: string
+          booking_id: string
+          hold_cents: number
+          tickets: number
+        }[]
       }
       release_tickets: {
         Args: { p_count: number; p_opportunity_id: string }

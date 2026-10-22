@@ -2,18 +2,25 @@ import "server-only";
 
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
-import { deliver, notify, notifyCompany } from "./notifications";
-import { agencyForCreator, notifyAgency } from "./agencies";
+import { notify } from "./notifications";
+import { agencyForCreator } from "./agencies";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
 import { formatShowDateLong } from "@/lib/dates";
+import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
+import { deliverJob, keysOf, notifyAgencyJob, notifyCompanyJob, notifyJob } from "@/server/jobs/outbox";
+import { randomUUID } from "node:crypto";
 
 /**
  * Request lifecycle: create → (approve | reject | waitlist) → booking.
- * Approval reserves ticket inventory with a guarded arithmetic UPDATE so the
- * opportunity can never oversell, and snapshots the economics onto the
- * booking so later opportunity edits never change agreed terms.
+ * Creating a request (create_request_tx) and approving it
+ * (approve_request_tx) are each ONE transaction: request, ticket rows,
+ * thread, inventory and booking change together or not at all, and their
+ * notifications are written to the job outbox in the same transaction.
+ * Approval can't oversell (the opportunity row is locked and checked), and
+ * snapshots the economics onto the booking so later edits never change
+ * agreed terms.
  */
 
 export async function createRequest(input: {
@@ -47,47 +54,8 @@ export async function createRequest(input: {
     return { ok: false, error: "All tickets for this show have been claimed" };
   }
 
-  const { data: request, error } = await db
-    .from("show_requests")
-    .insert({
-      opportunity_id: opp.id,
-      show_id: opp.show_id,
-      company_id: opp.company_id,
-      creator_id: input.creatorId,
-      ticket_count: input.ticketCount,
-      includes_plus_one: input.ticketCount === 2,
-      message: input.message,
-    })
-    .select("id")
-    .single();
-  if (error) {
-    if (error.code === "23505") {
-      return {
-        ok: false,
-        error:
-          actor.role === "manager"
-            ? "That creator already has an active request for this show"
-            : "You already have an active request for this show",
-      };
-    }
-    return { ok: false, error: error.message };
-  }
-
-  await db.from("request_tickets").insert(
-    Array.from({ length: input.ticketCount }, (_, i) => ({
-      request_id: request.id,
-      kind: (i === 0 ? "primary" : "plus_one") as "primary" | "plus_one",
-    })),
-  );
-
+  const requestId = randomUUID();
   const artistName = opp.shows!.artists?.name ?? "the artist";
-  await db.from("message_threads").insert({
-    request_id: request.id,
-    creator_id: input.creatorId,
-    company_id: opp.company_id,
-    subject: `${artistName} · ${opp.shows!.date}`,
-  });
-
   const agency = await agencyForCreator(input.creatorId);
   const tickets = `${input.ticketCount} ticket${input.ticketCount > 1 ? "s" : ""}`;
   // The email carries the whole request so the team can triage from their inbox.
@@ -107,52 +75,82 @@ export async function createRequest(input: {
     .map((sa) => `${sa.platform} @${sa.handle} (${compact.format(sa.followers)})`)
     .join(", ");
   const venue = opp.shows!.venues;
-  await notifyCompany(opp.company_id, {
-    type: "request_submitted",
-    title: `${creatorName} requested tickets for ${artistName}`,
-    body: agency
-      ? `${agency.name} requested ${tickets} for ${artistName} for ${creatorName}, one of their creators.`
-      : `${creatorName} requested ${tickets} for ${artistName}.`,
-    link: `/label/requests/${request.id}`,
-    email: {
-      details: [
-        { label: "Show", value: `${artistName}${venue ? ` · ${venue.name}, ${venue.city}` : ""}` },
-        { label: "Date", value: formatShowDateLong(opp.shows!.date) },
-        { label: "Tickets", value: input.ticketCount === 2 ? "2 (creator + a guest)" : "1" },
-        { label: "Creator", value: [creatorName, creatorProfile?.city].filter(Boolean).join(" · ") },
-        ...(creatorProfile?.audience_size
-          ? [{
-              label: "Audience",
-              value: `${compact.format(creatorProfile.audience_size)} followers · ~${compact.format(creatorProfile.avg_views)} avg views`,
-            }]
-          : []),
-        ...(socials ? [{ label: "Socials", value: socials }] : []),
-        ...(agency ? [{ label: "Managed by", value: agency.name }] : []),
-      ],
-      quote: input.message.trim()
-        ? { from: agency && actor.role === "manager" ? agency.name : creatorName, text: input.message.trim() }
-        : undefined,
-      ctaLabel: "Review request",
-    },
-  });
+  const jobs: OutboxJob[] = [
+    notifyCompanyJob(`request:${requestId}:submitted`, opp.company_id, {
+      type: "request_submitted",
+      title: `${creatorName} requested tickets for ${artistName}`,
+      body: agency
+        ? `${agency.name} requested ${tickets} for ${artistName} for ${creatorName}, one of their creators.`
+        : `${creatorName} requested ${tickets} for ${artistName}.`,
+      link: `/label/requests/${requestId}`,
+      email: {
+        details: [
+          { label: "Show", value: `${artistName}${venue ? ` · ${venue.name}, ${venue.city}` : ""}` },
+          { label: "Date", value: formatShowDateLong(opp.shows!.date) },
+          { label: "Tickets", value: input.ticketCount === 2 ? "2 (creator + a guest)" : "1" },
+          { label: "Creator", value: [creatorName, creatorProfile?.city].filter(Boolean).join(" · ") },
+          ...(creatorProfile?.audience_size
+            ? [{
+                label: "Audience",
+                value: `${compact.format(creatorProfile.audience_size)} followers · ~${compact.format(creatorProfile.avg_views)} avg views`,
+              }]
+            : []),
+          ...(socials ? [{ label: "Socials", value: socials }] : []),
+          ...(agency ? [{ label: "Managed by", value: agency.name }] : []),
+        ],
+        quote: input.message.trim()
+          ? { from: agency && actor.role === "manager" ? agency.name : creatorName, text: input.message.trim() }
+          : undefined,
+        ctaLabel: "Review request",
+      },
+    }),
+  ];
   // Keep the other side of a managed relationship in the loop.
   if (agency && actor.role === "creator") {
-    await notifyAgency(agency.id, {
-      type: "request_submitted",
-      title: `${creatorName} requested tickets`,
-      body: `${tickets} for ${artistName} on ${opp.shows!.date}.`,
-      link: "/manager/messages?tab=requests",
-    });
+    jobs.push(
+      notifyAgencyJob(`request:${requestId}:submitted:agency`, agency.id, {
+        type: "request_submitted",
+        title: `${creatorName} requested tickets`,
+        body: `${tickets} for ${artistName} on ${opp.shows!.date}.`,
+        link: "/manager/messages?tab=requests",
+      }),
+    );
   } else if (agency && actor.role === "manager") {
-    // deliver(), not notify(): the agency already knows — it made the request.
-    await deliver({
-      userId: input.creatorId,
-      type: "request_submitted",
-      title: `${agency.name} requested tickets for you`,
-      body: `${tickets} for ${artistName} on ${opp.shows!.date}. If approved, you'll accept the booking and the card hold.`,
-      link: "/creator/messages?tab=requests",
-    });
+    // deliver, not notify: the agency already knows — it made the request.
+    jobs.push(
+      deliverJob(`request:${requestId}:submitted:creator`, {
+        userId: input.creatorId,
+        type: "request_submitted",
+        title: `${agency.name} requested tickets for you`,
+        body: `${tickets} for ${artistName} on ${opp.shows!.date}. If approved, ${agency.name} accepts the booking for you.`,
+        link: "/creator/messages?tab=requests",
+      }),
+    );
   }
+
+  const { error } = await db.rpc("create_request_tx", {
+    p_request_id: requestId,
+    p_opportunity_id: opp.id,
+    p_creator_id: input.creatorId,
+    p_ticket_count: input.ticketCount,
+    p_message: input.message,
+    p_offered: false,
+    p_jobs: jobs as never,
+  });
+  if (error) {
+    if (error.code === "23505") {
+      return {
+        ok: false,
+        error:
+          actor.role === "manager"
+            ? "That creator already has an active request for this show"
+            : "You already have an active request for this show",
+      };
+    }
+    throw new Error(`create request: ${error.message}`);
+  }
+  await runOutboxNow(keysOf(jobs));
+  const request = { id: requestId };
   await audit({
     actorId: actor.id,
     actorRole: actor.role,
@@ -205,132 +203,66 @@ export async function approveRequest(input: {
   quiet?: boolean;
 }): Promise<{ ok: true; bookingId: string; acceptBy: string } | { ok: false; error: string }> {
   const db = serviceDb();
-
   const { data: request } = await db
     .from("show_requests")
-    .select("id, opportunity_id, show_id, company_id, creator_id, ticket_count, status")
+    .select("id, creator_id, ticket_count, show_opportunities(stated_ticket_value_cents, deposit_percentage, shows(artists(name)))")
     .eq("id", input.requestId)
     .eq("company_id", input.companyId)
-    .single();
+    .maybeSingle();
   if (!request) return { ok: false, error: "Request not found" };
 
-  const ticketCount = (input.confirmedTicketCount ?? request.ticket_count) as 1 | 2;
-  if (ticketCount > request.ticket_count) {
-    return { ok: false, error: "Cannot approve more tickets than were requested" };
-  }
-
-  const { data: opp } = await db
-    .from("show_opportunities")
-    .select(
-      "id, stated_ticket_value_cents, deposit_percentage, creator_payment_cents, content_deadline_days, tickets_total, tickets_claimed, shows(id, date, status, title, artists(name))",
-    )
-    .eq("id", request.opportunity_id)
-    .single();
-  if (!opp) return { ok: false, error: "Opportunity not found" };
-  if (opp.shows!.status !== "published") {
-    return { ok: false, error: "The show is not accepting approvals" };
-  }
-
-  // 1. Claim the request (kills double-approval races).
-  const { data: claimed } = await db
-    .from("show_requests")
-    .update({
-      status: "approved",
-      decided_at: new Date().toISOString(),
-      decided_by: input.reviewer.id,
-    })
-    .eq("id", request.id)
-    .in("status", ["pending", "waitlisted"])
-    .select("id")
-    .maybeSingle();
-  if (!claimed) return { ok: false, error: "Request has already been decided" };
-
-  const revertClaim = () =>
-    db
-      .from("show_requests")
-      .update({ status: "pending", decided_at: null, decided_by: null })
-      .eq("id", request.id)
-      .eq("status", "approved");
-
-  // 2. Reserve inventory with a guarded arithmetic update (no oversell).
-  const { data: reserved, error: reserveError } = await db.rpc("reserve_tickets", {
-    p_opportunity_id: request.opportunity_id,
-    p_count: ticketCount,
-  });
-  if (reserveError || !reserved) {
-    await revertClaim();
-    return { ok: false, error: "Not enough tickets remaining to approve this request" };
-  }
-
-  // 3. Snapshot terms → booking.
   const settings = await getPlatformSettings();
-  const deadline = new Date(Date.now() + settings.acceptanceWindowHours * 3600 * 1000);
-  const holdCents = authorizationAmountCents(
-    opp.stated_ticket_value_cents,
-    ticketCount,
-    opp.deposit_percentage,
-  );
-  const contentRequired = opp.creator_payment_cents > 0;
-  const showDate = new Date(`${opp.shows!.date}T00:00:00`);
-  const contentDeadline = new Date(showDate);
-  contentDeadline.setDate(contentDeadline.getDate() + opp.content_deadline_days);
+  const bookingId = randomUUID();
+  const ticketCount = input.confirmedTicketCount ?? (request.ticket_count as 1 | 2);
+  const opp = request.show_opportunities;
+  // For the message only; the transaction computes the authoritative amount.
+  const holdCents = opp ? authorizationAmountCents(opp.stated_ticket_value_cents, ticketCount, opp.deposit_percentage) : 0;
+  const artistName = opp?.shows?.artists?.name ?? "the show";
+  const jobs: OutboxJob[] = input.quiet
+    ? []
+    : [
+        notifyJob(`booking:${bookingId}:approved`, {
+          userId: request.creator_id,
+          type: "request_approved",
+          title: `You're approved for ${artistName}!`,
+          body: `You have ${settings.acceptanceWindowHours} hours to review the terms and secure your spot. The temporary hold will be ${formatCents(holdCents)} across ${ticketCount} ticket${ticketCount > 1 ? "s" : ""}.`,
+          link: `/creator/bookings/${bookingId}`,
+        }, input.companyId),
+      ];
 
-  const { data: booking, error: bookingError } = await db
-    .from("bookings")
-    .insert({
-      request_id: request.id,
-      opportunity_id: request.opportunity_id,
-      show_id: request.show_id,
-      company_id: request.company_id,
-      creator_id: request.creator_id,
-      status: "awaiting_acceptance",
-      stated_ticket_value_cents: opp.stated_ticket_value_cents,
-      deposit_percentage: opp.deposit_percentage,
-      authorization_amount_cents: holdCents,
-      creator_payment_cents: opp.creator_payment_cents,
-      ticket_count: ticketCount,
-      includes_plus_one: ticketCount === 2,
-      content_required: contentRequired,
-      content_state: contentRequired ? "pending" : "not_required",
-      content_deadline_at: contentRequired ? contentDeadline.toISOString() : null,
-      acceptance_deadline_at: deadline.toISOString(),
-    })
-    .select("id")
-    .single();
-  if (bookingError) {
-    await db.rpc("release_tickets", {
-      p_opportunity_id: request.opportunity_id,
-      p_count: ticketCount,
-    });
-    await revertClaim();
-    return { ok: false, error: bookingError.message };
-  }
-
-  await db.from("booking_tickets").insert(
-    Array.from({ length: ticketCount }, (_, i) => ({
-      booking_id: booking.id,
-      kind: (i === 0 ? "primary" : "plus_one") as "primary" | "plus_one",
-    })),
-  );
-
-  const artistName = opp.shows!.artists?.name ?? "the show";
-  if (!input.quiet) await notify({
-    userId: request.creator_id,
-    type: "request_approved",
-    title: `You're approved for ${artistName}!`,
-    body: `You have ${settings.acceptanceWindowHours} hours to review the terms and secure your spot. The temporary hold will be ${formatCents(holdCents)} across ${ticketCount} ticket${ticketCount > 1 ? "s" : ""}.`,
-    link: `/creator/bookings/${booking.id}`,
+  const { data, error } = await db.rpc("approve_request_tx", {
+    p_request_id: input.requestId,
+    p_company_id: input.companyId,
+    p_reviewer: input.reviewer.id,
+    p_ticket_count: ticketCount,
+    p_booking_id: bookingId,
+    p_accept_hours: settings.acceptanceWindowHours,
+    p_jobs: jobs as never,
   });
+  if (error) {
+    const known: Record<string, string> = {
+      request_not_found: "Request not found",
+      request_decided: "Request has already been decided",
+      too_many_tickets: "Cannot approve more tickets than were requested",
+      show_not_open: "The show is not accepting approvals",
+      not_enough_tickets: "Not enough tickets remaining to approve this request",
+    };
+    const code = Object.keys(known).find((k) => error.message.includes(k));
+    if (code) return { ok: false, error: known[code] };
+    throw new Error(`approve request: ${error.message}`);
+  }
+  const row = (data ?? [])[0];
+  await runOutboxNow(keysOf(jobs));
   await audit({
     actorId: input.reviewer.id,
     actorRole: input.reviewer.role,
     action: "request.approve",
     entityType: "show_request",
-    entityId: request.id,
-    companyId: request.company_id,
-    metadata: { bookingId: booking.id, ticketCount, holdCents },
+    entityId: input.requestId,
+    companyId: input.companyId,
+    metadata: { bookingId, ticketCount: row?.tickets ?? ticketCount, holdCents: row?.hold_cents ?? holdCents },
   });
-  return { ok: true, bookingId: booking.id, acceptBy: deadline.toISOString() };
+  return { ok: true, bookingId, acceptBy: row?.accept_by ?? new Date().toISOString() };
 }
 
 export async function rejectRequest(input: {

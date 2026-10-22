@@ -1,9 +1,11 @@
 import "server-only";
 
 import { serviceDb } from "@/server/db/service";
-import { approveRequest } from "./requests";
-import { deliver } from "./notifications";
 import { notifyAgency } from "./agencies";
+import { getPlatformSettings } from "./settings";
+import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
+import { deliverJob, keysOf } from "@/server/jobs/outbox";
+import { randomUUID } from "node:crypto";
 import { audit } from "./audit";
 import { cityKey } from "@/lib/cities";
 import { showStateKey, stateKey } from "@/lib/us-states";
@@ -144,7 +146,7 @@ export async function sendOffers(input: {
 
   const { data: show } = await db
     .from("shows")
-    .select("id, date, status, artists(name), venues(city), companies(name), show_opportunities(id, tickets_total, tickets_claimed)")
+    .select("id, date, status, artists(name), companies(name), show_opportunities(id, tickets_total, tickets_claimed)")
     .eq("id", input.showId)
     .eq("company_id", input.companyId)
     .maybeSingle();
@@ -157,17 +159,28 @@ export async function sendOffers(input: {
     return { ok: false, error: `Only ${left} ticket${left === 1 ? "" : "s"} left for this show` };
   }
 
-  const { data: creators } = await db
-    .from("users")
-    .select("id, full_name, role, status, creator_profiles!inner(onboarded_at)")
-    .in("id", creatorIds)
-    .eq("role", "creator")
-    .eq("status", "active");
+  const [{ data: creators }, { data: rosters }] = await Promise.all([
+    db
+      .from("users")
+      .select("id, full_name, role, status, creator_profiles!inner(onboarded_at)")
+      .in("id", creatorIds)
+      .eq("role", "creator")
+      .eq("status", "active"),
+    db.from("agency_creators").select("creator_id, agency_id").in("creator_id", creatorIds),
+  ]);
   const eligible = new Map((creators ?? []).filter((c) => c.creator_profiles?.onboarded_at).map((c) => [c.id, c]));
+  const agencyOf = new Map((rosters ?? []).map((r) => [r.creator_id, r.agency_id]));
 
   const artist = show.artists?.name ?? "a show";
   const label = show.companies?.name ?? "A label";
-  const sent: { creatorId: string; name: string; bookingId: string; acceptBy: string }[] = [];
+  const settings = await getPlatformSettings();
+  // One summary email per agency per batch: every invite in this batch writes
+  // the same digest job (same key), so it's created once, atomically with the
+  // first invite, and lists whatever invites the batch produced.
+  const batchStartedAt = new Date().toISOString();
+  const batch = randomUUID();
+  const allKeys = new Set<string>();
+  let sent = 0;
   const skipped: string[] = [];
 
   for (const creatorId of creatorIds) {
@@ -176,76 +189,52 @@ export async function sendOffers(input: {
       skipped.push("A creator who isn't available");
       continue;
     }
-    const { data: request, error } = await db
-      .from("show_requests")
-      .insert({
-        opportunity_id: opp.id,
-        show_id: show.id,
-        company_id: input.companyId,
-        creator_id: creatorId,
-        status: "pending",
-        ticket_count: 1,
-        includes_plus_one: false,
-        message: `Invited by ${label}`,
-        offered_at: new Date().toISOString(),
-      })
-      .select("id")
-      .single();
-    if (error || !request) {
-      // Unique index: they already have a live request for this show.
-      skipped.push(`${creator.full_name || "A creator"} (already requested)`);
+    const requestId = randomUUID();
+    const bookingId = randomUUID();
+    const agencyId = agencyOf.get(creatorId);
+    const jobs: OutboxJob[] = agencyId
+      ? [
+          {
+            kind: "offer_digest",
+            payload: { agencyId, showId: show.id, companyId: input.companyId, since: batchStartedAt },
+            dedupe_key: `offers:${batch}:${agencyId}`,
+            priority: 3,
+            company_id: input.companyId,
+          },
+        ]
+      : [
+          deliverJob(`booking:${bookingId}:offered`, {
+            userId: creatorId,
+            type: "offer_received",
+            title: `${label} invited you to ${artist}`,
+            body: `You're invited to ${artist} on ${formatShowDate(show.date)}. Accept within ${settings.acceptanceWindowHours} hours to lock in your ticket.`,
+            link: `/creator/bookings/${bookingId}`,
+          }, input.companyId),
+        ];
+    const { error } = await db.rpc("offer_request_tx", {
+      p_request_id: requestId,
+      p_booking_id: bookingId,
+      p_opportunity_id: opp.id,
+      p_creator_id: creatorId,
+      p_company_id: input.companyId,
+      p_reviewer: input.reviewer.id,
+      p_message: `Invited by ${label}`,
+      p_accept_hours: settings.acceptanceWindowHours,
+      p_jobs: jobs as never,
+    });
+    if (error) {
+      const name = creator.full_name || "A creator";
+      if (error.code === "23505") skipped.push(`${name} (already requested)`);
+      else if (error.message.includes("not_enough_tickets")) skipped.push(`${name} (no tickets left)`);
+      else if (error.message.includes("show_not_open")) skipped.push(`${name} (show not open)`);
+      else throw new Error(`offer: ${error.message}`);
       continue;
     }
-    const approved = await approveRequest({
-      requestId: request.id,
-      reviewer: input.reviewer,
-      companyId: input.companyId,
-      quiet: true,
-    });
-    if (!approved.ok) {
-      await db.from("show_requests").delete().eq("id", request.id).eq("status", "pending");
-      skipped.push(`${creator.full_name || "A creator"} (${approved.error})`);
-      continue;
-    }
-    sent.push({ creatorId, name: creator.full_name || "Creator", bookingId: approved.bookingId, acceptBy: approved.acceptBy });
+    sent++;
+    for (const k of keysOf(jobs)) allKeys.add(k);
   }
 
-  // Tell whoever acts for each creator: their agency, or the creator themself.
-  const { data: rosters } = sent.length
-    ? await db.from("agency_creators").select("creator_id, agency_id").in("creator_id", sent.map((s) => s.creatorId))
-    : { data: [] };
-  const agencyOf = new Map((rosters ?? []).map((r) => [r.creator_id, r.agency_id]));
-  const byAgency = new Map<string, typeof sent>();
-  for (const offer of sent) {
-    const agencyId = agencyOf.get(offer.creatorId);
-    if (agencyId) {
-      byAgency.set(agencyId, [...(byAgency.get(agencyId) ?? []), offer]);
-    } else {
-      await deliver({
-        userId: offer.creatorId,
-        type: "offer_received",
-        title: `${label} invited you to ${artist}`,
-        body: `You're invited to ${artist} on ${formatShowDate(show.date)}. Accept by ${formatDateTime(offer.acceptBy)} to lock in your ticket.`,
-        link: `/creator/bookings/${offer.bookingId}`,
-      });
-    }
-  }
-  for (const [agencyId, offers] of byAgency) {
-    const single = offers.length === 1 ? offers[0] : null;
-    await notifyAgency(agencyId, {
-      type: "offer_received",
-      title: single
-        ? `${label} invited ${single.name} to ${artist}`
-        : `${label} invited ${offers.length} of your creators to ${artist}`,
-      body: `${artist}, ${formatShowDate(show.date)}${show.venues?.city ? ` in ${show.venues.city}` : ""}. Accept or pass for each by ${formatDateTime(offers[0].acceptBy)}. Holds go on your card.`,
-      link: single ? `/manager/bookings/${single.bookingId}` : "/manager",
-      email: {
-        details: offers.map((o) => ({ label: o.name, value: "Invited" })),
-        ctaLabel: "Review invites",
-      },
-    });
-  }
-
+  await runOutboxNow([...allKeys]);
   await audit({
     actorId: input.reviewer.id,
     actorRole: input.reviewer.role,
@@ -253,9 +242,46 @@ export async function sendOffers(input: {
     entityType: "show",
     entityId: show.id,
     companyId: input.companyId,
-    metadata: { sent: sent.length, skipped: skipped.length },
+    metadata: { sent, skipped: skipped.length },
   });
-  return { ok: true, sent: sent.length, skipped };
+  return { ok: true, sent, skipped };
+}
+
+/**
+ * Job: one summary to an agency for a batch of label invites, listing the
+ * invites for its creators on that show since the batch started.
+ */
+export async function sendOfferDigest(p: { agencyId: string; showId: string; companyId: string; since: string }) {
+  const db = serviceDb();
+  const { data: roster } = await db.from("agency_creators").select("creator_id").eq("agency_id", p.agencyId);
+  const ids = (roster ?? []).map((r) => r.creator_id);
+  if (!ids.length) return;
+  const { data: offers, error } = await db
+    .from("bookings")
+    .select(
+      "id, acceptance_deadline_at, users:users!creator_id(full_name), show_requests!inner(offered_at), shows!inner(date, artists(name), venues(city)), companies(name)",
+    )
+    .eq("show_id", p.showId)
+    .in("creator_id", ids)
+    .gte("show_requests.offered_at", p.since)
+    .order("created_at", { ascending: true });
+  if (error) throw new Error(`load offers for digest: ${error.message}`);
+  if (!offers?.length) return;
+
+  const first = offers[0];
+  const label = first.companies?.name ?? "A label";
+  const artist = first.shows.artists?.name ?? "a show";
+  const single = offers.length === 1 ? offers[0] : null;
+  const name = (o: (typeof offers)[number]) => o.users?.full_name || "Creator";
+  await notifyAgency(p.agencyId, {
+    type: "offer_received",
+    title: single ? `${label} invited ${name(single)} to ${artist}` : `${label} invited ${offers.length} of your creators to ${artist}`,
+    body: `${artist}, ${formatShowDate(first.shows.date)}${first.shows.venues?.city ? ` in ${first.shows.venues.city}` : ""}. Accept or pass for each by ${formatDateTime(first.acceptance_deadline_at)}. Holds go on your card.`,
+    link: single ? `/manager/bookings/${single.id}` : "/manager",
+    email: { details: offers.map((o) => ({ label: name(o), value: "Invited" })), ctaLabel: "Review invites" },
+    dedupeKey: `offers:${p.agencyId}:${p.showId}:${p.since}`,
+    strict: true,
+  });
 }
 
 /** Bookings waiting on the agency: label invites and approved requests. */

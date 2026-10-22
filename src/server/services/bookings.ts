@@ -1,27 +1,40 @@
 import "server-only";
 
 import { serviceDb } from "@/server/db/service";
+import { paymentProvider } from "@/server/providers/payment";
 import { audit } from "./audit";
-import { notify, notifyCompany } from "./notifications";
+import { notify } from "./notifications";
 import {
   agencyDefaultPaymentMethod,
-  cancelAuthorizationForBooking,
   defaultPaymentMethod,
-  scheduleAuthorizationForBooking,
+  placeAuthorization,
 } from "./payments";
+import { getPlatformSettings } from "./settings";
 import { formatShowDate } from "@/lib/dates";
+import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
+import { keysOf, notifyCompanyJob, notifyJob, releaseHoldsJob } from "@/server/jobs/outbox";
 
 export const TERMS_VERSION = "2026-07-v1";
 
 /** An agency accepting for a creator on its roster: the hold goes on its card. */
 export type AgencyPayer = { agencyId: string; agencyName: string; actorId: string };
 
+type Actor = { id: string | null; role: string };
+
+/** Turn a transition function's error code into a message (null = unexpected). */
+function txError(error: { message: string } | null, codes: Record<string, string>): string | null {
+  if (!error) return null;
+  for (const [code, message] of Object.entries(codes)) if (error.message.includes(code)) return message;
+  throw new Error(error.message);
+}
+
 /**
  * Booking acceptance: the creator (or their agency, with `agency`) has
  * reviewed the final terms, has a verified card on file, and explicitly
- * consented to the temporary hold. Confirms the booking and schedules (or
- * places) the hold on that card. Callers check the agency represents the
- * creator before passing `agency`.
+ * consented to the temporary hold. One transaction (accept_booking_tx)
+ * confirms the booking, opens the payment record and schedules the hold;
+ * the hold itself is placed after commit if it's already due. Callers check
+ * the agency represents the creator before passing `agency`.
  */
 export async function acceptBooking(input: {
   creatorId: string;
@@ -33,10 +46,9 @@ export async function acceptBooking(input: {
     return { ok: false, error: "You must agree to the temporary hold terms to continue" };
   }
   const db = serviceDb();
-
   const { data: booking } = await db
     .from("bookings")
-    .select("id, status, creator_id, company_id, acceptance_deadline_at, authorization_amount_cents, creator_payment_cents, shows(date, artists(name)), users:users!creator_id(full_name)")
+    .select("id, status, creator_id, company_id, acceptance_deadline_at, shows(date, artists(name)), users:users!creator_id(full_name)")
     .eq("id", input.bookingId)
     .eq("creator_id", input.creatorId)
     .single();
@@ -63,72 +75,55 @@ export async function acceptBooking(input: {
     return { ok: false, error: "Add a verified payment method first" };
   }
 
-  // Claim the acceptance (idempotent under double-submit).
-  const { data: claimed } = await db
-    .from("bookings")
-    .update({
-      status: "confirmed",
-      accepted_at: new Date().toISOString(),
-      terms_accepted_at: new Date().toISOString(),
-      terms_version: TERMS_VERSION,
-      hold_agency_id: input.agency?.agencyId ?? null,
-    })
-    .eq("id", booking.id)
-    .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
-    .select("id")
-    .maybeSingle();
-  if (!claimed) return { ok: false, error: "Booking can no longer be accepted" };
-
-  // Creator payment record (payout ledger) — created up front so both sides
-  // can track it; not_required when the opportunity pays $0.
-  await db.from("creator_payment_records").upsert(
-    {
-      booking_id: booking.id,
-      creator_id: booking.creator_id,
-      company_id: booking.company_id,
-      status: booking.creator_payment_cents > 0 ? "pending_fulfillment" : "not_required",
-      amount_cents: booking.creator_payment_cents,
-      provider: pm.provider as "mock" | "stripe",
-    },
-    { onConflict: "booking_id" },
-  );
-
-  const scheduled = await scheduleAuthorizationForBooking(booking.id);
-  if (!scheduled.ok) {
-    // Roll back so the creator can retry once the issue is fixed.
-    await db
-      .from("bookings")
-      .update({
-        status: input.agency ? "awaiting_acceptance" : "awaiting_payment_method",
-        accepted_at: null,
-        terms_accepted_at: null,
-        terms_version: null,
-        hold_agency_id: null,
-      })
-      .eq("id", booking.id)
-      .eq("status", "confirmed");
-    return { ok: false, error: scheduled.error };
-  }
+  const settings = await getPlatformSettings();
+  const scheduledFor = new Date(`${booking.shows!.date}T00:00:00Z`);
+  scheduledFor.setUTCDate(scheduledFor.getUTCDate() - settings.authorizationWindowDays);
+  const due = scheduledFor.getTime() <= Date.now();
 
   const artistName = booking.shows?.artists?.name ?? "the show";
   const creatorName = booking.users?.full_name || "A creator";
-  await notify({
-    userId: booking.creator_id,
-    type: "booking_confirmed",
-    title: `You're going to ${artistName}!`,
-    body: scheduled.placed
-      ? "Your booking is confirmed and the temporary hold has been placed. Attend the show and it will be released."
-      : "Your booking is confirmed. The temporary hold will be placed on your card a few days before the show. We'll let you know.",
-    link: `/creator/bookings/${booking.id}`,
+  const jobs: OutboxJob[] = [
+    notifyJob(`booking:${booking.id}:confirmed`, {
+      userId: booking.creator_id,
+      type: "booking_confirmed",
+      title: `You're going to ${artistName}!`,
+      body: due
+        ? "Your booking is confirmed and the temporary hold is being placed now. Attend the show and it will be released."
+        : "Your booking is confirmed. The temporary hold will be placed on your card a couple of days before the show. We'll let you know.",
+      link: `/creator/bookings/${booking.id}`,
+    }, booking.company_id),
+    notifyCompanyJob(`booking:${booking.id}:confirmed:label`, booking.company_id, {
+      type: "booking_confirmed",
+      title: input.agency ? `${input.agency.agencyName} confirmed ${creatorName}` : "Creator secured their booking",
+      body: input.agency
+        ? `${input.agency.agencyName} confirmed ${creatorName}'s spot for ${artistName}. Send ticket instructions when ready.`
+        : `A creator confirmed their spot for ${artistName}. Send ticket instructions when ready.`,
+      link: `/label/bookings/${booking.id}`,
+    }),
+  ];
+
+  const { data: authId, error } = await db.rpc("accept_booking_tx", {
+    p_booking_id: booking.id,
+    p_creator_id: input.creatorId,
+    p_hold_agency_id: (input.agency?.agencyId ?? null) as string,
+    p_payment_method_id: pm.id,
+    p_provider: paymentProvider().name,
+    p_terms_version: TERMS_VERSION,
+    p_scheduled_for: scheduledFor.toISOString(),
+    p_jobs: jobs as never,
   });
-  await notifyCompany(booking.company_id, {
-    type: "booking_confirmed",
-    title: input.agency ? `${input.agency.agencyName} confirmed ${creatorName}` : "Creator secured their booking",
-    body: input.agency
-      ? `${input.agency.agencyName} confirmed ${creatorName}'s spot for ${artistName}. Send ticket instructions when ready.`
-      : `A creator confirmed their spot for ${artistName}. Send ticket instructions when ready.`,
-    link: `/label/bookings/${booking.id}`,
+  const failure = txError(error, {
+    booking_not_found: "Booking not found",
+    not_acceptable: "Booking can no longer be accepted",
+    acceptance_expired: "The 24-hour acceptance window has passed",
   });
+  if (failure) return { ok: false, error: failure };
+
+  await runOutboxNow(keysOf(jobs));
+  // Placing the hold calls the provider, so it happens after commit. A
+  // decline leaves the booking confirmed with a grace period to fix the card.
+  if (due) await placeAuthorization(authId as string);
+
   await audit({
     actorId: input.agency?.actorId ?? input.creatorId,
     actorRole: input.agency ? "manager" : "creator",
@@ -136,13 +131,57 @@ export async function acceptBooking(input: {
     entityType: "booking",
     entityId: booking.id,
     companyId: booking.company_id,
-    metadata: {
-      termsVersion: TERMS_VERSION,
-      holdPlacedImmediately: scheduled.placed,
-      holdAgencyId: input.agency?.agencyId ?? null,
-    },
+    metadata: { termsVersion: TERMS_VERSION, holdDueNow: due, holdAgencyId: input.agency?.agencyId ?? null },
   });
   return { ok: true };
+}
+
+const CANCELLABLE = [
+  "awaiting_acceptance",
+  "awaiting_payment_method",
+  "confirmed",
+  "authorization_failed",
+  "no_show_review",
+  "disputed",
+];
+const AWAITING = ["awaiting_acceptance", "awaiting_payment_method"];
+
+/**
+ * Close out a booking in one transaction (cancel_booking_tx): inventory back,
+ * tickets and pending payment canceled, unplaced holds canceled, plus the
+ * jobs for notifications and releasing any active hold, so none of that can
+ * be lost if the process dies right after.
+ */
+async function closeBooking(input: {
+  bookingId: string;
+  reason: string;
+  from: string[];
+  requestStatus: "expired" | "withdrawn" | null;
+  jobs: (b: { creatorId: string; companyId: string }) => OutboxJob[];
+  actor: Actor;
+}): Promise<{ ok: true; creatorId: string; companyId: string } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const { data: before } = await db
+    .from("bookings")
+    .select("creator_id, company_id")
+    .eq("id", input.bookingId)
+    .maybeSingle();
+  if (!before) return { ok: false, error: "Booking not found" };
+  const jobs = [
+    releaseHoldsJob(input.bookingId, input.actor, before.company_id),
+    ...input.jobs({ creatorId: before.creator_id, companyId: before.company_id }),
+  ];
+  const { error } = await db.rpc("cancel_booking_tx", {
+    p_booking_id: input.bookingId,
+    p_reason: input.reason,
+    p_from: input.from,
+    p_request_status: (input.requestStatus ?? null) as string,
+    p_jobs: jobs as never,
+  });
+  const failure = txError(error, { not_cancellable: "Booking cannot be canceled in its current state" });
+  if (failure) return { ok: false, error: failure };
+  await runOutboxNow(keysOf(jobs));
+  return { ok: true, creatorId: before.creator_id, companyId: before.company_id };
 }
 
 /**
@@ -153,39 +192,36 @@ export async function passOnBooking(input: {
   bookingId: string;
   agency: AgencyPayer;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const db = serviceDb();
-  const { data: claimed } = await db
+  const { data: b } = await serviceDb()
     .from("bookings")
-    .update({ status: "canceled", canceled_at: new Date().toISOString(), cancel_reason: "declined" })
+    .select("users:users!creator_id(full_name), shows(date, artists(name))")
     .eq("id", input.bookingId)
-    .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
-    .select("id, request_id, opportunity_id, company_id, ticket_count, users:users!creator_id(full_name), shows(date, artists(name))")
     .maybeSingle();
-  if (!claimed) return { ok: false, error: "This offer can no longer be declined" };
-
-  await db
-    .from("show_requests")
-    .update({ status: "withdrawn", withdrawn_at: new Date().toISOString() })
-    .eq("id", claimed.request_id)
-    .eq("status", "approved");
-  await db.rpc("release_tickets", { p_opportunity_id: claimed.opportunity_id, p_count: claimed.ticket_count });
-  await db.from("booking_tickets").update({ status: "canceled" }).eq("booking_id", claimed.id);
-
-  const creatorName = claimed.users?.full_name || "Their creator";
-  const artistName = claimed.shows?.artists?.name ?? "the show";
-  await notifyCompany(claimed.company_id, {
-    type: "booking_canceled",
-    title: `${input.agency.agencyName} passed on ${artistName}`,
-    body: `${creatorName} can't make it to ${artistName}${claimed.shows?.date ? ` on ${formatShowDate(claimed.shows.date)}` : ""}. The ticket is back in your pool.`,
-    link: `/label/bookings/${claimed.id}`,
+  const creatorName = b?.users?.full_name || "Their creator";
+  const artistName = b?.shows?.artists?.name ?? "the show";
+  const closed = await closeBooking({
+    bookingId: input.bookingId,
+    reason: "declined",
+    from: AWAITING,
+    requestStatus: "withdrawn",
+    actor: { id: input.agency.actorId, role: "manager" },
+    jobs: ({ companyId }) => [
+      notifyCompanyJob(`booking:${input.bookingId}:declined`, companyId, {
+        type: "booking_canceled",
+        title: `${input.agency.agencyName} passed on ${artistName}`,
+        body: `${creatorName} can't make it to ${artistName}${b?.shows?.date ? ` on ${formatShowDate(b.shows.date)}` : ""}. The ticket is back in your pool.`,
+        link: `/label/bookings/${input.bookingId}`,
+      }),
+    ],
   });
+  if (!closed.ok) return { ok: false, error: "This offer can no longer be declined" };
   await audit({
     actorId: input.agency.actorId,
     actorRole: "manager",
     action: "booking.decline",
     entityType: "booking",
-    entityId: claimed.id,
-    companyId: claimed.company_id,
+    entityId: input.bookingId,
+    companyId: closed.companyId,
     metadata: { agencyId: input.agency.agencyId },
   });
   return { ok: true };
@@ -193,47 +229,24 @@ export async function passOnBooking(input: {
 
 /** Expire a booking whose acceptance window lapsed; releases inventory. */
 export async function expireBooking(bookingId: string): Promise<boolean> {
-  const db = serviceDb();
-  const { data: claimed } = await db
-    .from("bookings")
-    .update({
-      status: "canceled",
-      canceled_at: new Date().toISOString(),
-      cancel_reason: "acceptance_expired",
-    })
-    .eq("id", bookingId)
-    .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
-    .select("id, request_id, opportunity_id, creator_id, company_id, ticket_count")
-    .maybeSingle();
-  if (!claimed) return false;
-
-  await db
-    .from("show_requests")
-    .update({ status: "expired", expired_at: new Date().toISOString() })
-    .eq("id", claimed.request_id)
-    .eq("status", "approved");
-  await db.rpc("release_tickets", {
-    p_opportunity_id: claimed.opportunity_id,
-    p_count: claimed.ticket_count,
+  const closed = await closeBooking({
+    bookingId,
+    reason: "acceptance_expired",
+    from: AWAITING,
+    requestStatus: "expired",
+    actor: { id: null, role: "system" },
+    jobs: ({ creatorId }) => [
+      notifyJob(`booking:${bookingId}:expired`, {
+        userId: creatorId,
+        type: "booking_canceled",
+        title: "Your approval expired",
+        body: "The 24-hour acceptance window passed, so the spot was released. You can request other shows anytime.",
+        link: "/creator/messages?tab=requests",
+      }),
+    ],
   });
-  await db
-    .from("booking_tickets")
-    .update({ status: "canceled" })
-    .eq("booking_id", claimed.id);
-
-  await notify({
-    userId: claimed.creator_id,
-    type: "booking_canceled",
-    title: "Your approval expired",
-    body: "The 24-hour acceptance window passed, so the spot was released. You can request other shows anytime.",
-    link: "/creator/messages?tab=requests",
-  });
-  await audit({
-    action: "booking.expire",
-    entityType: "booking",
-    entityId: claimed.id,
-    companyId: claimed.company_id,
-  });
+  if (!closed.ok) return false;
+  await audit({ action: "booking.expire", entityType: "booking", entityId: bookingId, companyId: closed.companyId });
   return true;
 }
 
@@ -243,56 +256,33 @@ export async function expireBooking(bookingId: string): Promise<boolean> {
  */
 export async function cancelBooking(input: {
   bookingId: string;
-  actor: { id: string | null; role: string };
+  actor: Actor;
   reason: string;
 }): Promise<{ ok: true } | { ok: false; error: string }> {
-  const db = serviceDb();
-  const { data: claimed } = await db
-    .from("bookings")
-    .update({
-      status: "canceled",
-      canceled_at: new Date().toISOString(),
-      cancel_reason: input.reason,
-    })
-    .eq("id", input.bookingId)
-    .in("status", [
-      "awaiting_acceptance",
-      "awaiting_payment_method",
-      "confirmed",
-      "authorization_failed",
-      "no_show_review",
-      "disputed",
-    ])
-    .select("id, request_id, opportunity_id, creator_id, company_id, ticket_count, status")
-    .maybeSingle();
-  if (!claimed) return { ok: false, error: "Booking cannot be canceled in its current state" };
-
-  await cancelAuthorizationForBooking(claimed.id, input.actor);
-  await db
-    .from("creator_payment_records")
-    .update({ status: "canceled", canceled_at: new Date().toISOString() })
-    .eq("booking_id", claimed.id)
-    .in("status", ["awaiting_funding", "funded", "pending_fulfillment", "ready", "failed"]);
-  await db.rpc("release_tickets", {
-    p_opportunity_id: claimed.opportunity_id,
-    p_count: claimed.ticket_count,
+  const closed = await closeBooking({
+    bookingId: input.bookingId,
+    reason: input.reason,
+    from: CANCELLABLE,
+    requestStatus: null,
+    actor: input.actor,
+    jobs: ({ creatorId }) => [
+      notifyJob(`booking:${input.bookingId}:canceled`, {
+        userId: creatorId,
+        type: "booking_canceled",
+        title: "Your booking was canceled",
+        body: `Reason: ${input.reason}. Any temporary hold has been released.`,
+        link: `/creator/bookings/${input.bookingId}`,
+      }),
+    ],
   });
-  await db.from("booking_tickets").update({ status: "canceled" }).eq("booking_id", claimed.id);
-
-  await notify({
-    userId: claimed.creator_id,
-    type: "booking_canceled",
-    title: "Your booking was canceled",
-    body: `Reason: ${input.reason}. Any temporary hold has been released.`,
-    link: `/creator/bookings/${claimed.id}`,
-  });
+  if (!closed.ok) return closed;
   await audit({
     actorId: input.actor.id,
     actorRole: input.actor.role,
     action: "booking.cancel",
     entityType: "booking",
-    entityId: claimed.id,
-    companyId: claimed.company_id,
+    entityId: input.bookingId,
+    companyId: closed.companyId,
     metadata: { reason: input.reason },
   });
   return { ok: true };

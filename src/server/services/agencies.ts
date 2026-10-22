@@ -141,7 +141,11 @@ export async function notifyAgency(
   input: Omit<NotifyInput, "userId">,
 ): Promise<void> {
   const memberIds = await agencyMemberIds(agencyId);
-  await Promise.all(memberIds.map((userId) => deliver({ ...input, userId })));
+  await Promise.all(
+    memberIds.map((userId) =>
+      deliver({ ...input, userId, dedupeKey: input.dedupeKey ? `${input.dedupeKey}:${userId}` : undefined }),
+    ),
+  );
 }
 
 export type RosterEntry = {

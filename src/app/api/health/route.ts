@@ -8,9 +8,10 @@ import { log, errorFields } from "@/server/log";
 export const dynamic = "force-dynamic";
 
 /**
- * Health check for uptime monitors: 200 when the database answers and has
- * recorded every migration in the repo, 503 otherwise. A missing migration
- * means deployed code may query columns that don't exist (how payouts broke).
+ * Health check for uptime monitors: 200 when the database answers, has
+ * recorded every migration in the repo, and bookings agree with inventory;
+ * 503 otherwise. A missing migration means deployed code may query columns
+ * that don't exist (how payouts broke).
  */
 export async function GET() {
   const problems: string[] = [];
@@ -29,6 +30,14 @@ export async function GET() {
       }
     } catch {
       // Migration files aren't shipped in every build; the DB check still counts.
+    }
+
+    // Booking consistency: inventory that disagrees with live bookings, or an
+    // approval without its booking, means a transition went wrong somewhere.
+    const { data: inconsistent, error: consistencyError } = await serviceDb().rpc("booking_consistency");
+    if (!consistencyError && inconsistent?.length) {
+      problems.push(`booking consistency: ${inconsistent.length} issue(s)`);
+      log.error("Health check: booking consistency", { issues: inconsistent.slice(0, 10) });
     }
   }
 

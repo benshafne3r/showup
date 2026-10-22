@@ -5,6 +5,7 @@ import { expireBooking, cancelBooking } from "./bookings";
 import { expireLapsedHolds, placeAuthorization } from "./payments";
 import { recoverPaymentOperations } from "./payment-recovery";
 import { retryUnfinishedWebhooks } from "./webhooks";
+import { drainJobs } from "@/server/jobs/queue";
 import { notify } from "./notifications";
 import { verifyContentSubmissions } from "./content-verification";
 import { sendNewShowAlerts } from "./show-alerts";
@@ -29,6 +30,7 @@ export async function runScheduledJobs(): Promise<JobResults> {
   const results: JobResults = {
     paymentsRecovered: 0,
     webhooksRetried: 0,
+    jobsRun: 0,
     expiredAcceptances: 0,
     authorizationsPlaced: 0,
     authorizationsFailed: 0,
@@ -74,6 +76,14 @@ export async function runScheduledJobs(): Promise<JobResults> {
   await step("retryWebhooks", async () => {
     const counts = await retryUnfinishedWebhooks();
     results.webhooksRetried += counts.retried;
+    results.errors += counts.failed;
+  });
+
+  // 0c. Outbox: follow-up jobs (notifications, hold releases) a transition
+  //     enqueued but didn't get to run.
+  await step("drainJobs", async () => {
+    const counts = await drainJobs({ budgetMs: 30_000 });
+    results.jobsRun += counts.ran;
     results.errors += counts.failed;
   });
 
