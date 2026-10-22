@@ -78,6 +78,10 @@ directly**; the agency's card covers the deposit holds; creator rates are NOT im
 - **Manager Roster:** "Waiting on you" list (accept/pass, nav badge) + creator cards with TikTok photos.
 - Tests: `tests/roster.test.ts`, `e2e/agency-offers.spec.ts`. Seed adds managed Rae Rivers (LA) +
   Kai Moreno (San Diego) and a Northside agency card (visa 1881).
+- **LIVE 2026-10-22** (commit `612d4da`): 0019 applied; Jason Shields' separate login deleted (he's now
+  a managed profile like the rest); all 63 Spark House creators imported and re-synced after Harold
+  updated cities (62 with photos; Tonito has none on CreatorCore; 18 list no location).
+  ⬜ Harold must add Spark House's card (Manager → Payments) before he can accept tickets.
 
 
 Holds are merchant-initiated (off-session saved card), and **Visa keeps those only 4 days 18 h**
