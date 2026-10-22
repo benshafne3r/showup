@@ -520,6 +520,23 @@ The add-card form no longer has to send a raw PAN to the server:
 
 ## Next steps
 
+**Codex audit follow-ups (2026-10-22). Done: #1 DB permissions (0020), #9 upload body limit.** Remaining, in order:
+1. **Payments crash-safety** (#2): processing states / op ledger so a crash between DB write and Stripe
+   can't leave false "released/captured/paid"; serialize capture/release/cancel; fix
+   `scheduleAuthorizationForBooking()` returning `placed: true` without checking; enforce show-over +
+   hold expiry inside `captureAuthorization`.
+2. **Webhooks** (#3): store processing status/attempts; retry incomplete events instead of skipping;
+   tell duplicate-key apart from DB errors; recover intent identity from metadata.
+3. **SetupIntents for saving cards** (#8) + persisted Stripe customer IDs. ⬜ Ben to decide label funding
+   for content payouts (prepay / invoice / credit) before broad rollout.
+4. **View as = no writes** (#10): `expireIfOverdue()` runs on page render; payment pages persist Stripe
+   status on GET. Atomic rate limiter.
+5. **Transactional bookings** (#4): approval/accept/cancel/expire/pass as SQL functions; label offers
+   should create message threads + request tickets like normal requests.
+6. **Durable jobs** (#5) + **pagination/aggregates** (#6): needed before hundreds of users (Discover caps
+   at 60 shows, chat at 200 messages, creator pool loads all profiles, city alerts sleep 550 ms/email).
+7. Later: measured perf (#7), dead-code cleanup (#11), staging load test + CI gates (#12).
+
 **Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
 and walk a real agency through onboarding + Stripe payout setup (KYC can't be automated);
 (2) decide if managers need teammate invites; (3) seed show dates are hard-coded 2026 dates, so
