@@ -12,9 +12,9 @@ import { DeleteTourButton } from "./delete-tour-button";
 import { ShareButton } from "./share-button";
 import { formatShowDate } from "@/lib/dates";
 import { depositPerTicketCents, formatCents } from "@/lib/money";
-import { CalendarPlus, Route } from "lucide-react";
+import { CalendarArrowDown, CalendarPlus, Route } from "lucide-react";
 
-export const metadata: Metadata = { title: "Tours" };
+export const metadata: Metadata = { title: "Shows" };
 
 type OppTerms = { stated_ticket_value_cents: number; deposit_percentage: number };
 const depositOf = (o: OppTerms) => depositPerTicketCents(o.stated_ticket_value_cents, o.deposit_percentage);
@@ -43,11 +43,20 @@ export const dynamic = "force-dynamic";
 export default async function ToursPage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string }>;
+  searchParams: Promise<{ welcome?: string; imported?: string }>;
 }) {
   const context = await requireLabelPage();
-  const { welcome } = await searchParams;
+  const { welcome, imported } = await searchParams;
   const db = serviceDb();
+  // One-off events (no tour) live under the tours, so everything is in one place.
+  const { data: events } = await db
+    .from("shows")
+    .select(
+      "id, date, status, artists(name), venues(city), show_opportunities(stated_ticket_value_cents, deposit_percentage)",
+    )
+    .eq("company_id", context.companyId)
+    .is("tour_id", null)
+    .order("date", { ascending: true });
   const { data: tours } = await db
     .from("tours")
     .select(
@@ -74,21 +83,35 @@ export default async function ToursPage({
           Company created! Add your first artist while creating their tour, then add show dates.
         </div>
       ) : null}
+      {imported ? (
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300" role="status">
+          Published {imported} show{imported === "1" ? "" : "s"} from the tour import.
+        </div>
+      ) : null}
       <PageHeader
-        title="Tours"
-        description="Every tour, grouped by artist. Add a new artist while you create their tour."
-        action={<CreateDialog artists={artistOptions} />}
+        title="Shows"
+        description="Every tour, grouped by artist. Click a date to see its requests, bookings and creators."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild variant="outline">
+              <Link href="/label/shows/import">
+                <CalendarArrowDown className="size-4" aria-hidden /> Import dates
+              </Link>
+            </Button>
+            <CreateDialog artists={artistOptions} />
+          </div>
+        }
       />
-      {!tours?.length ? (
+      {!tours?.length && !events?.length ? (
         <EmptyState
           icon={Route}
-          title="No tours yet"
-          description="Create your first tour. You can add the artist right in the same step, then add show dates to it."
+          title="No shows yet"
+          description="Create a tour (add the artist in the same step, then its dates) or a one-off event."
           action={<CreateDialog artists={artistOptions} />}
         />
       ) : (
         <div className="space-y-4">
-          {tours.map((tour) => {
+          {(tours ?? []).map((tour) => {
             const artist = tour.artists;
             const shows = [...(tour.shows ?? [])].sort((a, b) => (a.date < b.date ? -1 : 1));
             return (
@@ -193,6 +216,36 @@ export default async function ToursPage({
           })}
         </div>
       )}
+
+      {events?.length ? (
+        <section className="space-y-3" aria-labelledby="events-heading">
+          <h2 id="events-heading" className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
+            Events
+          </h2>
+          <ul className="divide-y rounded-xl border bg-card">
+            {events.map((show) => (
+              <li key={show.id}>
+                <Link
+                  href={`/label/shows/${show.id}`}
+                  className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm hover:bg-muted/40"
+                >
+                  <span className="font-medium">
+                    {show.artists?.name ?? "Event"}
+                    <span className="font-normal text-muted-foreground">
+                      {" "}
+                      · {formatShowDate(show.date)} · {show.venues?.city}
+                    </span>
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    {show.show_opportunities ? `${formatCents(depositOf(show.show_opportunities))} deposit` : ""}
+                    {show.status !== "published" ? ` (${show.status})` : ""}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
     </div>
   );
 }

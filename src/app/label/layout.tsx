@@ -44,8 +44,8 @@ export default async function LabelLayout({ children }: { children: React.ReactN
       notificationsHref="/label/notifications"
       unreadNotifications={unreadNotifs}
       navItems={[
-        { href: "/label/tours", label: "Tours" },
-        { href: "/label/shows", label: "Shows" },
+        { href: "/label/tours", label: "Shows", also: ["/label/shows"] },
+        { href: "/label/creators", label: "Creators" },
         { href: "/label/messages", label: "Messages", badge: pendingRequests + unreadMessages },
         { href: "/label/payments", label: "Payments" },
         { href: "/label/settings", label: "Settings" },

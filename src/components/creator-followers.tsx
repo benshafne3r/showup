@@ -1,4 +1,5 @@
 import { compactCount } from "@/lib/roster";
+import { cn } from "@/lib/utils";
 
 type Platform = "tiktok" | "instagram" | "youtube";
 
@@ -32,13 +33,15 @@ function PlatformIcon({ platform }: { platform: Platform }) {
 /** "TikTok 4.3M · Instagram 951.7K" as tiny icons + counts; platforms with 0 are skipped. */
 export function CreatorFollowers({
   followers,
+  className,
 }: {
   followers: { tiktok: number; instagram: number; youtube: number };
+  className?: string;
 }) {
   const entries = (Object.keys(LABELS) as Platform[]).filter((p) => followers[p] > 0);
   if (!entries.length) return null;
   return (
-    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
+    <ul className={cn("flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground", className)}>
       {entries.map((p) => (
         <li key={p} className="inline-flex items-center gap-1 tabular-nums">
           <PlatformIcon platform={p} />

@@ -103,7 +103,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm text-muted-foreground">
-            <Link href="/label/shows" className="hover:underline">Shows</Link> / booking
+            <Link href="/label/tours" className="hover:underline">Shows</Link> / booking
           </p>
           <h1 className="text-2xl font-bold tracking-tight">
             {creatorName} @ {booking.shows.artists?.name}

@@ -17,6 +17,8 @@ import { MarkAttendedButton } from "../../mark-attended-button";
 import { markAllAttendedAction } from "../../actions";
 import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { CancelShowDialog } from "./cancel-show-dialog";
+import { DeleteShowButton } from "../delete-show-button";
+import { ShareButton } from "../../tours/share-button";
 import { PickCreators } from "./pick-creators";
 import { suggestCreatorsForShow } from "@/server/services/offers";
 import { Pencil } from "lucide-react";
@@ -99,8 +101,16 @@ export default async function ShowDashboardPage({
                 <Pencil className="size-4" aria-hidden /> Edit
               </Link>
             </Button>
+            {opp?.published_at ? <ShareButton path={`/invite/show/${show.id}`} /> : null}
             {["draft", "published", "postponed"].includes(show.status) ? (
               <CancelShowDialog showId={show.id} />
+            ) : null}
+            {(bookings ?? []).length === 0 ? (
+              <DeleteShowButton
+                showId={show.id}
+                showLabel={`${show.artists?.name ?? "this show"} on ${formatShowDateLong(show.date)}`}
+                backToShows
+              />
             ) : null}
           </div>
         }

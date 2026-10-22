@@ -3,11 +3,12 @@
 import { useActionState, useState } from "react";
 import { sendOffersAction, type ActionState } from "../../actions";
 import type { SuggestedCreator } from "@/server/services/offers";
-import { CreatorAvatar } from "@/components/creator-avatar";
+import { CreatorPhoto, tiktokUrl } from "@/components/creator-avatar";
 import { CreatorFollowers } from "@/components/creator-followers";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { ExternalLink } from "lucide-react";
 
 const FIRST_SHOWN = 12;
 
@@ -99,15 +100,15 @@ function Group({
       <legend className="mb-2 text-sm font-semibold">
         {title} <span className="font-normal text-muted-foreground">({creators.length})</span>
       </legend>
-      <ul className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+      <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {shown.map((c) => {
           const checked = picked.has(c.id);
           return (
             <li key={c.id}>
               <label
                 className={cn(
-                  "flex h-full cursor-pointer items-start gap-3 rounded-lg border p-3 transition-colors",
-                  checked ? "border-primary bg-primary/10" : "hover:border-primary/40",
+                  "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border transition-colors",
+                  checked ? "border-primary ring-1 ring-primary" : "hover:border-primary/40",
                   c.taken && "cursor-not-allowed opacity-60",
                 )}
               >
@@ -118,23 +119,34 @@ function Group({
                   checked={checked}
                   disabled={c.taken}
                   onChange={() => onToggle(c.id)}
-                  className="mt-1 size-4 shrink-0 accent-primary"
+                  className="absolute top-2 left-2 z-10 size-4 accent-primary"
                   aria-label={`Invite ${c.name}`}
                 />
-                <CreatorAvatar name={c.name} src={c.avatarUrl} size={36} />
-                <span className="min-w-0 flex-1 space-y-1">
-                  <span className="block truncate text-sm font-medium">{c.name}</span>
-                  <span className="block truncate text-xs text-muted-foreground">
-                    {[c.handle ? `@${c.handle}` : null, c.location].filter(Boolean).join(" · ")}
-                  </span>
-                  <CreatorFollowers followers={c.followers} />
+                <CreatorPhoto name={c.name} src={c.avatarUrl} handle={c.handle} />
+                <span className={cn("min-w-0 flex-1 space-y-0.5 p-2", checked && "bg-primary/10")}>
+                  <span className="block truncate text-sm leading-tight font-medium">{c.name}</span>
+                  {c.handle ? (
+                    <a
+                      href={tiktokUrl(c.handle)!}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-1 truncate text-[11px] text-muted-foreground hover:text-foreground"
+                    >
+                      <span className="truncate">@{c.handle}</span>
+                      <ExternalLink className="size-3 shrink-0" aria-hidden />
+                    </a>
+                  ) : null}
+                  {c.location ? (
+                    <span className="block truncate text-[11px] text-muted-foreground">{c.location}</span>
+                  ) : null}
+                  <CreatorFollowers followers={c.followers} className="gap-x-2 text-[11px]" />
                   {c.tags.length ? (
-                    <span className="block truncate text-xs text-muted-foreground">{c.tags.slice(0, 3).join(" · ")}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">{c.tags.slice(0, 3).join(" · ")}</span>
                   ) : null}
                   {c.taken ? (
-                    <span className="block text-xs text-amber-300">Already requested or invited</span>
+                    <span className="block truncate text-[11px] text-amber-300">Already invited</span>
                   ) : c.agencyName ? (
-                    <span className="block text-xs text-muted-foreground">via {c.agencyName}</span>
+                    <span className="block truncate text-[11px] text-muted-foreground">via {c.agencyName}</span>
                   ) : null}
                 </span>
               </label>

@@ -10,11 +10,11 @@ import { OfferActions } from "./offer-actions";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
-import { CreatorAvatar } from "@/components/creator-avatar";
+import { CreatorAvatar, CreatorPhoto, tiktokUrl } from "@/components/creator-avatar";
 import { CreatorFollowers } from "@/components/creator-followers";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
-import { MapPin, Users } from "lucide-react";
+import { ExternalLink, MapPin, Users } from "lucide-react";
 
 export const metadata: Metadata = { title: "Roster" };
 export const dynamic = "force-dynamic";
@@ -86,40 +86,48 @@ export default async function RosterPage({
           description="Add a creator by email. They get an invite to join your roster."
         />
       ) : (
-        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {roster.map((creator) => (
-            <li key={creator.creatorId}>
-              <Link
-                href={`/manager/creators/${creator.creatorId}`}
-                className="flex h-full flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50"
-              >
-                <div className="flex items-start gap-3">
-                  <CreatorAvatar name={creator.fullName} src={creator.avatarUrl} size={40} />
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{creator.fullName}</p>
-                    {creator.handle ? (
-                      <p className="truncate text-xs text-muted-foreground">@{creator.handle}</p>
-                    ) : null}
-                    <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="size-3 shrink-0" aria-hidden />
-                      <span className="truncate">{creator.location || "Location not set"}</span>
-                    </p>
-                  </div>
-                </div>
-                <CreatorFollowers followers={creator.followers} />
-                {creator.tags.length > 0 ? (
-                  <p className="truncate text-xs text-muted-foreground">{creator.tags.slice(0, 4).join(" · ")}</p>
+            <li
+              key={creator.creatorId}
+              className="flex h-full flex-col overflow-hidden rounded-lg border bg-card transition-colors hover:border-primary/50"
+            >
+              <CreatorPhoto name={creator.fullName} src={creator.avatarUrl} handle={creator.handle} />
+              <div className="flex flex-1 flex-col gap-1 p-2">
+                <Link
+                  href={`/manager/creators/${creator.creatorId}`}
+                  className="truncate text-sm leading-tight font-medium hover:underline"
+                >
+                  {creator.fullName}
+                </Link>
+                {creator.handle ? (
+                  <a
+                    href={tiktokUrl(creator.handle)!}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-1 truncate text-[11px] text-muted-foreground hover:text-foreground"
+                  >
+                    <span className="truncate">@{creator.handle}</span>
+                    <ExternalLink className="size-3 shrink-0" aria-hidden />
+                  </a>
                 ) : null}
-                <div className="mt-auto flex flex-wrap gap-1.5">
-                  {!creator.managedProfile ? <StatusBadge label="Has own login" tone="neutral" /> : null}
-                  {creator.pendingRequests > 0 ? (
-                    <StatusBadge label={`${creator.pendingRequests} pending`} tone="info" />
-                  ) : null}
-                  {creator.activeBookings > 0 ? (
-                    <StatusBadge label={`${creator.activeBookings} active booking${creator.activeBookings > 1 ? "s" : ""}`} tone="neutral" />
-                  ) : null}
-                </div>
-              </Link>
+                <p className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <MapPin className="size-3 shrink-0" aria-hidden />
+                  <span className="truncate">{creator.location || "No location"}</span>
+                </p>
+                <CreatorFollowers followers={creator.followers} className="gap-x-2 text-[11px]" />
+                {!creator.managedProfile || creator.pendingRequests > 0 || creator.activeBookings > 0 ? (
+                  <div className="mt-auto flex flex-wrap gap-1">
+                    {!creator.managedProfile ? <StatusBadge label="Own login" tone="neutral" /> : null}
+                    {creator.pendingRequests > 0 ? (
+                      <StatusBadge label={`${creator.pendingRequests} pending`} tone="info" />
+                    ) : null}
+                    {creator.activeBookings > 0 ? (
+                      <StatusBadge label={`${creator.activeBookings} booked`} tone="neutral" />
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
             </li>
           ))}
         </ul>

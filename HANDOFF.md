@@ -75,7 +75,8 @@ directly**; the agency's card covers the deposit holds; creator rates are NOT im
   "Nearby" (same state, `lib/us-states.ts`), with photo, followers, tags, "via <agency>". Checked ones
   get an approved request (`show_requests.offered_at`) + booking awaiting acceptance; agencies get one
   batched email; independent creators are invited directly.
-- **Manager Roster:** "Waiting on you" list (accept/pass, nav badge) + creator cards with TikTok photos.
+- **Manager Roster:** "Waiting on you" list (accept/pass, nav badge) + compact photo-first creator cards
+  (photo / @handle open their TikTok; name opens the ShowUp page). Same cards in the label picker.
 - Tests: `tests/roster.test.ts`, `e2e/agency-offers.spec.ts`. Seed adds managed Rae Rivers (LA) +
   Kai Moreno (San Diego) and a Northside agency card (visa 1881).
 - **LIVE 2026-10-22** (commit `612d4da`): 0019 applied; Jason Shields' separate login deleted (he's now
@@ -369,7 +370,11 @@ Two headliners carry real 2026 tours: **Baby Keem** (Ca$ino Tour) and **Ella
 Langley** (Dandelion Tour), with photos on cards.
 
 ## Label IA is Tours-first (recent change)
-- **Nav (this session):** `Tours · Requests · Shows · Messages · Payments · Settings`.
+- **Nav (2026-10-22):** `Shows · Creators · Messages · Payments · Settings`. "Shows" is the tour view
+  (`/label/tours`, also lights up on `/label/shows/*`) with one-off events listed under the tours;
+  `/label/shows` redirects there. Share/Delete moved onto the show page. **Creators**
+  (`/label/creators`): city chips (most creators first) → pick one of your upcoming shows there → check
+  creators → invite (reuses `PickCreators` + `services/offers.ts`).
   The **Dashboard** was removed — `/label` now redirects to `/label/tours` (the
   landing), carrying the post-onboarding `?welcome` banner onto the Tours page.
   **Team** was merged into **Settings** (`/label/settings` shows Company profile +

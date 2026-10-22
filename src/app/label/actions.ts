@@ -739,10 +739,12 @@ export async function deleteShowAction(
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/shows");
     revalidatePath("/label/tours");
-    return { success: "Deleted" };
   } catch (err) {
     return fail(err);
   }
+  // Deleted from its own page: there's nothing left to show, so go to Shows.
+  if (formData.get("backToShows") === "1") redirect("/label/tours");
+  return { success: "Deleted" };
 }
 
 // ── Invite creators to a show (offers) ──────────────────────────────────
@@ -760,6 +762,7 @@ export async function sendOffersAction(_prev: ActionState, formData: FormData): 
     });
     if (!result.ok) return { error: result.error };
     revalidatePath(`/label/shows/${showId}`);
+    revalidatePath("/label/creators");
     const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. Their team has 24 hours to accept.`;
     return result.skipped.length
       ? { success: `${sent} Skipped: ${result.skipped.join(", ")}.` }

@@ -35,6 +35,46 @@ export type SuggestedCreator = {
 const MAX_OFFERS_PER_SEND = 25;
 const ACTIVE_REQUEST = ["pending", "approved", "waitlisted"] as const;
 
+/** Every creator who can be invited (finished profile, active). */
+async function loadCreatorPool() {
+  const { data } = await serviceDb()
+    .from("creator_profiles")
+    .select(
+      `id, user_id, city, region, country, categories, audience_size,
+       users!inner(full_name, avatar_url, status, role),
+       creator_social_accounts(platform, handle, followers)`,
+    )
+    .not("onboarded_at", "is", null)
+    .eq("users.status", "active")
+    .eq("users.role", "creator")
+    .limit(5000);
+  return data ?? [];
+}
+type PoolProfile = Awaited<ReturnType<typeof loadCreatorPool>>[number];
+
+/** Creators in a venue's city, then elsewhere in its state; biggest audiences first. */
+function nearVenue(pool: PoolProfile[], venue: { city: string; state?: string | null }) {
+  const showCity = cityKey(venue.city);
+  const showState = showStateKey(venue);
+  const inCity: PoolProfile[] = [];
+  const nearby: PoolProfile[] = [];
+  for (const p of pool) {
+    if (p.city && cityKey(p.city) === showCity) inCity.push(p);
+    else if (showState && stateKey(p.region) === showState) nearby.push(p);
+  }
+  const byAudience = (a: PoolProfile, b: PoolProfile) => b.audience_size - a.audience_size;
+  return { inCity: inCity.sort(byAudience), nearby: nearby.sort(byAudience) };
+}
+
+/** How many creators are in / near each venue (for the Creators tab's city list). */
+export async function creatorCountsNear(venues: { city: string; state?: string | null }[]) {
+  const pool = await loadCreatorPool();
+  return venues.map((v) => {
+    const { inCity, nearby } = nearVenue(pool, v);
+    return { inCity: inCity.length, nearby: nearby.length };
+  });
+}
+
 export async function suggestCreatorsForShow(input: {
   companyId: string;
   showId: string;
@@ -48,25 +88,8 @@ export async function suggestCreatorsForShow(input: {
     .maybeSingle();
   if (!show?.venues || !show.show_opportunities) return null;
 
-  const showCity = cityKey(show.venues.city);
-  const showState = showStateKey(show.venues);
-
-  const { data: profiles } = await db
-    .from("creator_profiles")
-    .select(
-      `id, user_id, city, region, country, categories, audience_size,
-       users!inner(full_name, avatar_url, status, role),
-       creator_social_accounts(platform, handle, followers)`,
-    )
-    .not("onboarded_at", "is", null)
-    .eq("users.status", "active")
-    .eq("users.role", "creator")
-    .limit(5000);
-
-  const matches = (profiles ?? []).filter((p) => {
-    if (p.city && cityKey(p.city) === showCity) return true;
-    return !!showState && stateKey(p.region) === showState;
-  });
+  const near = nearVenue(await loadCreatorPool(), show.venues);
+  const matches = [...near.inCity, ...near.nearby];
   if (!matches.length) return { inCity: [], nearby: [], city: show.venues.city };
 
   const ids = matches.map((p) => p.user_id);
@@ -82,7 +105,7 @@ export async function suggestCreatorsForShow(input: {
   const taken = new Set((requests ?? []).map((r) => r.creator_id));
   const agencyBy = new Map((rosters ?? []).map((r) => [r.creator_id, r.agencies?.name ?? null]));
 
-  const toCard = (p: (typeof matches)[number]): SuggestedCreator => {
+  const toCard = (p: PoolProfile): SuggestedCreator => {
     const followers = { tiktok: 0, instagram: 0, youtube: 0 };
     let handle: string | null = null;
     for (const s of p.creator_social_accounts ?? []) {
@@ -103,10 +126,7 @@ export async function suggestCreatorsForShow(input: {
       taken: taken.has(p.user_id),
     };
   };
-  const byAudience = (a: (typeof matches)[number], b: (typeof matches)[number]) => b.audience_size - a.audience_size;
-  const inCity = matches.filter((p) => p.city && cityKey(p.city) === showCity).sort(byAudience);
-  const nearby = matches.filter((p) => !(p.city && cityKey(p.city) === showCity)).sort(byAudience);
-  return { inCity: inCity.map(toCard), nearby: nearby.map(toCard), city: show.venues.city };
+  return { inCity: near.inCity.map(toCard), nearby: near.nearby.map(toCard), city: show.venues.city };
 }
 
 export async function sendOffers(input: {

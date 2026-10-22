@@ -13,6 +13,8 @@ export type NavItem = {
   label: string;
   badge?: number;
   exact?: boolean;
+  /** Other path prefixes that count as this section (e.g. show pages under Shows). */
+  also?: string[];
 };
 
 /**

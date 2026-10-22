@@ -9,16 +9,19 @@ export function NavLink({
   label,
   badge,
   exact,
+  also,
   variant,
 }: {
   href: string;
   label: string;
   badge?: number;
   exact?: boolean;
+  also?: string[];
   variant: "desktop" | "mobile";
 }) {
   const pathname = usePathname();
-  const active = exact ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+  const under = (base: string) => pathname === base || pathname.startsWith(`${base}/`);
+  const active = exact ? pathname === href : under(href) || (also ?? []).some(under);
   return (
     <Link
       href={href}

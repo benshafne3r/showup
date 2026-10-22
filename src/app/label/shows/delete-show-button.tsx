@@ -16,7 +16,16 @@ import { Button } from "@/components/ui/button";
 import { SubmitButton } from "@/components/submit-button";
 import { Trash2 } from "lucide-react";
 
-export function DeleteShowButton({ showId, showLabel }: { showId: string; showLabel: string }) {
+export function DeleteShowButton({
+  showId,
+  showLabel,
+  backToShows = false,
+}: {
+  showId: string;
+  showLabel: string;
+  /** Used on the show's own page: go back to Shows after deleting. */
+  backToShows?: boolean;
+}) {
   const [state, formAction] = useActionState<ActionState, FormData>(deleteShowAction, null);
 
   return (
@@ -41,6 +50,7 @@ export function DeleteShowButton({ showId, showLabel }: { showId: string; showLa
           <AlertDialogCancel>Keep show</AlertDialogCancel>
           <form action={formAction}>
             <input type="hidden" name="showId" value={showId} />
+            {backToShows ? <input type="hidden" name="backToShows" value="1" /> : null}
             <SubmitButton variant="destructive" pendingLabel="Deleting…">
               Delete
             </SubmitButton>
