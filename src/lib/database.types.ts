@@ -553,6 +553,7 @@ export type Database = {
           creator_id: string
           creator_payment_cents: number
           deposit_percentage: number
+          hold_agency_id: string | null
           id: string
           includes_plus_one: boolean
           opportunity_id: string
@@ -583,6 +584,7 @@ export type Database = {
           creator_id: string
           creator_payment_cents: number
           deposit_percentage: number
+          hold_agency_id?: string | null
           id?: string
           includes_plus_one?: boolean
           opportunity_id: string
@@ -613,6 +615,7 @@ export type Database = {
           creator_id?: string
           creator_payment_cents?: number
           deposit_percentage?: number
+          hold_agency_id?: string | null
           id?: string
           includes_plus_one?: boolean
           opportunity_id?: string
@@ -640,6 +643,13 @@ export type Database = {
             columns: ["creator_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_hold_agency_id_fkey"
+            columns: ["hold_agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
             referencedColumns: ["id"]
           },
           {
@@ -1014,6 +1024,7 @@ export type Database = {
           id: string
           new_show_alerts: boolean
           onboarded_at: string | null
+          region: string
           stripe_account_id: string | null
           stripe_onboarded_at: string | null
           stripe_payouts_enabled: boolean
@@ -1033,6 +1044,7 @@ export type Database = {
           id?: string
           new_show_alerts?: boolean
           onboarded_at?: string | null
+          region?: string
           stripe_account_id?: string | null
           stripe_onboarded_at?: string | null
           stripe_payouts_enabled?: boolean
@@ -1052,6 +1064,7 @@ export type Database = {
           id?: string
           new_show_alerts?: boolean
           onboarded_at?: string | null
+          region?: string
           stripe_account_id?: string | null
           stripe_onboarded_at?: string | null
           stripe_payouts_enabled?: boolean
@@ -1471,6 +1484,7 @@ export type Database = {
       }
       payment_methods: {
         Row: {
+          agency_id: string | null
           brand: string
           created_at: string
           exp_month: number | null
@@ -1485,6 +1499,7 @@ export type Database = {
           verified_at: string | null
         }
         Insert: {
+          agency_id?: string | null
           brand?: string
           created_at?: string
           exp_month?: number | null
@@ -1499,6 +1514,7 @@ export type Database = {
           verified_at?: string | null
         }
         Update: {
+          agency_id?: string | null
           brand?: string
           created_at?: string
           exp_month?: number | null
@@ -1513,6 +1529,13 @@ export type Database = {
           verified_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "payment_methods_agency_id_fkey"
+            columns: ["agency_id"]
+            isOneToOne: false
+            referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payment_methods_user_id_fkey"
             columns: ["user_id"]
@@ -1681,6 +1704,7 @@ export type Database = {
           id: string
           includes_plus_one: boolean
           message: string
+          offered_at: string | null
           opportunity_id: string
           show_id: string
           status: Database["public"]["Enums"]["request_status"]
@@ -1699,6 +1723,7 @@ export type Database = {
           id?: string
           includes_plus_one?: boolean
           message?: string
+          offered_at?: string | null
           opportunity_id: string
           show_id: string
           status?: Database["public"]["Enums"]["request_status"]
@@ -1717,6 +1742,7 @@ export type Database = {
           id?: string
           includes_plus_one?: boolean
           message?: string
+          offered_at?: string | null
           opportunity_id?: string
           show_id?: string
           status?: Database["public"]["Enums"]["request_status"]
@@ -1913,6 +1939,7 @@ export type Database = {
           email: string
           full_name: string
           id: string
+          managed_profile: boolean
           role: Database["public"]["Enums"]["user_role"]
           status: Database["public"]["Enums"]["account_status"]
           suspended_at: string | null
@@ -1925,6 +1952,7 @@ export type Database = {
           email: string
           full_name?: string
           id: string
+          managed_profile?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["account_status"]
           suspended_at?: string | null
@@ -1937,6 +1965,7 @@ export type Database = {
           email?: string
           full_name?: string
           id?: string
+          managed_profile?: boolean
           role?: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["account_status"]
           suspended_at?: string | null
@@ -2151,6 +2180,7 @@ export type Database = {
         | "new_show_nearby"
         | "setup_reminder"
         | "no_show_decision_due"
+        | "offer_received"
       request_status:
         | "pending"
         | "approved"
@@ -2403,6 +2433,7 @@ export const Constants = {
         "new_show_nearby",
         "setup_reminder",
         "no_show_decision_due",
+        "offer_received",
       ],
       request_status: [
         "pending",

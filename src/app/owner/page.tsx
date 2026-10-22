@@ -66,7 +66,7 @@ export default async function OwnerDashboardPage() {
     { data: payouts },
     { data: invites },
   ] = await Promise.all([
-    db.from("users").select("id, full_name, email, role, status, created_at").order("created_at", { ascending: false }).limit(500),
+    db.from("users").select("id, full_name, email, role, status, created_at, managed_profile").order("created_at", { ascending: false }).limit(2000),
     db.from("creator_profiles").select("user_id, city, onboarded_at, new_show_alerts"),
     db.from("payment_methods").select("user_id"),
     db.from("company_members").select("user_id, companies(name)"),
@@ -98,7 +98,9 @@ export default async function OwnerDashboardPage() {
       .limit(20),
   ]);
 
-  const all = users ?? [];
+  // Agency-run roster profiles have no login, so they aren't sign-ups.
+  const all = (users ?? []).filter((u) => !u.managed_profile);
+  const rosterProfiles = (users ?? []).length - all.length;
   const byRole = (role: string) => all.filter((u) => u.role === role);
   const creators = byRole("creator");
   const profileOf = new Map((profiles ?? []).map((p) => [p.user_id, p]));
@@ -166,7 +168,11 @@ export default async function OwnerDashboardPage() {
         <h2 id="people-heading" className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">People</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <Tile label="Total accounts" value={all.length} sub={`+${newThisWeek} in the last 7 days`} />
-          <Tile label="Creators" value={creators.length} sub={`${onboardedCreators} finished profile · ${alertsOn} want city alerts`} />
+          <Tile
+            label="Creators"
+            value={creators.length}
+            sub={`${onboardedCreators} finished profile · ${alertsOn} want city alerts${rosterProfiles ? ` · plus ${rosterProfiles} agency roster profiles` : ""}`}
+          />
           <Tile label="Creators with a card" value={creators.filter((u) => withCard.has(u.id)).length} />
           <Tile label="Label accounts" value={byRole("label").length} />
           <Tile label="Management accounts" value={byRole("manager").length} sub={`${agencies} compan${agencies === 1 ? "y" : "ies"} set up`} />

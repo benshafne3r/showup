@@ -57,7 +57,29 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Card hold expiry (2026-10-06)
+## Agency-run rosters + label picks (2026-10-22)
+Ben's rules: agencies (managers) act for their creators; **labels never deal with an agency's creators
+directly**; the agency's card covers the deposit holds; creator rates are NOT imported.
+- **Managed profiles** (`users.managed_profile`, migration **0019**): creators with no login, run by the
+  agency. Placeholder email `tt-<handle>@profiles.showup.invalid`; `deliver()` skips them (agency gets
+  copies via `notify()`); excluded from setup reminders, city alerts and owner sign-ups.
+- **Import:** `npm run roster:import -- --agency "Spark House" --url https://sparkhouse.creatorcore.co/roster/spark-house-group [--prod] [--dry-run]`
+  scrapes the CreatorCore page (Playwright), copies TikTok photos to the `avatars` bucket
+  (`managed/<id>`), saves city/region/country, tags, TikTok/IG/YT followers. Re-run = sync (matched by
+  TikTok handle). CreatorCore data is live-edited (cities change), so re-run before big pushes.
+- **Agency card:** `payment_methods.agency_id`; manager Payments → "Card for ticket holds". When the
+  agency accepts (`acceptBooking({agency})`), `bookings.hold_agency_id` is set and the hold uses the
+  agency card (`holdPaymentMethod()` in `services/payments.ts`). Agency can also **Pass**
+  (`passOnBooking`, ticket back to label).
+- **Label picks:** show page → "Pick creators" (`services/offers.ts`): creators in the show's city, then
+  "Nearby" (same state, `lib/us-states.ts`), with photo, followers, tags, "via <agency>". Checked ones
+  get an approved request (`show_requests.offered_at`) + booking awaiting acceptance; agencies get one
+  batched email; independent creators are invited directly.
+- **Manager Roster:** "Waiting on you" list (accept/pass, nav badge) + creator cards with TikTok photos.
+- Tests: `tests/roster.test.ts`, `e2e/agency-offers.spec.ts`. Seed adds managed Rae Rivers (LA) +
+  Kai Moreno (San Diego) and a Northside agency card (visa 1881).
+
+
 Holds are merchant-initiated (off-session saved card), and **Visa keeps those only 4 days 18 h**
 (others ~7 days). Holds were placed 5 days out, so Visa holds would have lapsed before the show.
 Now (migration **0018**, applied to prod):

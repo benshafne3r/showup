@@ -17,6 +17,8 @@ import { MarkAttendedButton } from "../../mark-attended-button";
 import { markAllAttendedAction } from "../../actions";
 import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { CancelShowDialog } from "./cancel-show-dialog";
+import { PickCreators } from "./pick-creators";
+import { suggestCreatorsForShow } from "@/server/services/offers";
 import { Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -61,6 +63,10 @@ export default async function ShowDashboardPage({
       .eq("show_id", id)
       .order("created_at", { ascending: false }),
   ]);
+
+  const canInvite =
+    !!opp?.published_at && show.status === "published" && show.date >= new Date().toISOString().slice(0, 10);
+  const suggestions = canInvite ? await suggestCreatorsForShow({ companyId: context.companyId, showId: show.id }) : null;
 
   const showDay = isShowDay(show.date);
   const markable = (bookings ?? []).filter(
@@ -156,6 +162,26 @@ export default async function ShowDashboardPage({
               <span className="text-muted-foreground">Visibility:</span>{" "}
               <strong>{opp.published_at ? "published" : "draft"}</strong>
             </p>
+          </CardContent>
+        </Card>
+      ) : null}
+
+      {suggestions && opp ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Pick creators</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Check the creators you want at this show. Creators with an agency are handled by their agency.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <PickCreators
+              showId={show.id}
+              city={suggestions.city}
+              inCity={suggestions.inCity}
+              nearby={suggestions.nearby}
+              ticketsLeft={Math.max(0, opp.tickets_total - opp.tickets_claimed)}
+            />
           </CardContent>
         </Card>
       ) : null}

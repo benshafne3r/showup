@@ -2,19 +2,22 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireManagerPage } from "./require-manager";
 import { listOpenInvites, listRoster } from "@/server/services/agencies";
+import { pendingOffersForAgency } from "@/server/services/offers";
+import { agencyDefaultPaymentMethod } from "@/server/services/payments";
 import { revokeInviteAction } from "./actions";
 import { AddCreatorDialog } from "./add-creator-dialog";
+import { OfferActions } from "./offer-actions";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
+import { CreatorAvatar } from "@/components/creator-avatar";
+import { CreatorFollowers } from "@/components/creator-followers";
 import { Button } from "@/components/ui/button";
-import { formatDateTime } from "@/lib/dates";
-import { ChevronRight, MapPin, Users } from "lucide-react";
+import { formatDateTime, formatShowDate } from "@/lib/dates";
+import { MapPin, Users } from "lucide-react";
 
 export const metadata: Metadata = { title: "Roster" };
 export const dynamic = "force-dynamic";
-
-const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
 export default async function RosterPage({
   searchParams,
@@ -23,10 +26,14 @@ export default async function RosterPage({
 }) {
   const ctx = await requireManagerPage();
   const params = await searchParams;
-  const [roster, invites] = await Promise.all([
+  const [roster, invites, offers, card] = await Promise.all([
     listRoster(ctx.agencyId),
     listOpenInvites(ctx.agencyId),
+    pendingOffersForAgency(ctx.agencyId),
+    agencyDefaultPaymentMethod(ctx.agencyId),
   ]);
+  const cardLabel = card ? `${card.brand} •••• ${card.last4}` : null;
+  roster.sort((a, b) => b.audienceSize - a.audienceSize);
 
   return (
     <div className="space-y-6">
@@ -37,9 +44,40 @@ export default async function RosterPage({
       ) : null}
       <PageHeader
         title="Roster"
-        description="Creators you represent. Label conversations and content payouts for them route to your team."
+        description="Creators you represent. Labels deal only with your team: invites, conversations, ticket holds and content payouts all route to you."
         action={<AddCreatorDialog agencyName={ctx.agencyName} />}
       />
+
+      {offers.length > 0 ? (
+        <section className="space-y-3" aria-label="Waiting on you">
+          <h2 className="text-sm font-semibold">Waiting on you ({offers.length})</h2>
+          <ul className="divide-y rounded-xl border bg-card">
+            {offers.map((offer) => (
+              <li key={offer.bookingId} className="flex flex-wrap items-start justify-between gap-3 px-4 py-3">
+                <Link href={`/manager/bookings/${offer.bookingId}`} className="flex min-w-0 items-start gap-3">
+                  <CreatorAvatar name={offer.creatorName} src={offer.avatarUrl} size={36} />
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-medium hover:underline">
+                      {offer.creatorName} · {offer.artist}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {offer.invited ? `Invited by ${offer.label}` : `Approved by ${offer.label}`} ·{" "}
+                      {formatShowDate(offer.date)}
+                      {offer.city ? ` · ${offer.city}` : ""} · answer by {formatDateTime(offer.acceptBy)}
+                    </p>
+                  </div>
+                </Link>
+                <OfferActions
+                  bookingId={offer.bookingId}
+                  creatorName={offer.creatorName}
+                  hold={offer.hold}
+                  card={cardLabel}
+                />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {roster.length === 0 ? (
         <EmptyState
@@ -55,22 +93,25 @@ export default async function RosterPage({
                 href={`/manager/creators/${creator.creatorId}`}
                 className="flex h-full flex-col gap-3 rounded-xl border bg-card p-4 transition-colors hover:border-primary/50"
               >
-                <div className="flex items-start justify-between gap-2">
+                <div className="flex items-start gap-3">
+                  <CreatorAvatar name={creator.fullName} src={creator.avatarUrl} size={40} />
                   <div className="min-w-0">
                     <p className="truncate font-medium">{creator.fullName}</p>
+                    {creator.handle ? (
+                      <p className="truncate text-xs text-muted-foreground">@{creator.handle}</p>
+                    ) : null}
                     <p className="flex items-center gap-1 text-xs text-muted-foreground">
-                      <MapPin className="size-3" aria-hidden />
-                      {creator.city || "City not set"}
-                      {creator.audienceSize > 0 ? ` · ${compact.format(creator.audienceSize)} audience` : ""}
+                      <MapPin className="size-3 shrink-0" aria-hidden />
+                      <span className="truncate">{creator.location || "Location not set"}</span>
                     </p>
                   </div>
-                  <ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                 </div>
-                <div className="flex flex-wrap gap-1.5">
-                  <StatusBadge
-                    label={creator.hasCard ? "Card on file" : "No card yet"}
-                    tone={creator.hasCard ? "success" : "warning"}
-                  />
+                <CreatorFollowers followers={creator.followers} />
+                {creator.tags.length > 0 ? (
+                  <p className="truncate text-xs text-muted-foreground">{creator.tags.slice(0, 4).join(" · ")}</p>
+                ) : null}
+                <div className="mt-auto flex flex-wrap gap-1.5">
+                  {!creator.managedProfile ? <StatusBadge label="Has own login" tone="neutral" /> : null}
                   {creator.pendingRequests > 0 ? (
                     <StatusBadge label={`${creator.pendingRequests} pending`} tone="info" />
                   ) : null}

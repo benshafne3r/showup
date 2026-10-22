@@ -8,7 +8,15 @@ import {
   syncAgencyPayoutStatus,
 } from "@/server/services/connect";
 import { serviceDb } from "@/server/db/service";
-import { startAgencyPayoutOnboardingAction } from "../actions";
+import { agencyDefaultPaymentMethod } from "@/server/services/payments";
+import { publicEnv, serverEnv } from "@/lib/env";
+import {
+  addAgencyCardAction,
+  addAgencyCardTokenAction,
+  startAgencyPayoutOnboardingAction,
+} from "../actions";
+import { AddCardForm } from "@/app/creator/payments/add-card-form";
+import { StripeCardForm } from "@/app/creator/payments/stripe-card-form";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -17,7 +25,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CREATOR_PAYMENT_STATUS_META } from "@/lib/statuses";
 import { formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
-import { Banknote, CheckCircle2 } from "lucide-react";
+import { Banknote, CheckCircle2, CreditCard } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments" };
 export const dynamic = "force-dynamic";
@@ -31,6 +39,7 @@ export default async function ManagerPaymentsPage({
   const params = await searchParams;
   const canManage = ctx.memberRole !== "member";
 
+  const card = await agencyDefaultPaymentMethod(ctx.agencyId);
   const payoutStatus = payoutsConfigured()
     ? params.onboarding === "done" || params.onboarding === "refresh"
       ? await syncAgencyPayoutStatus(ctx.agencyId)
@@ -67,13 +76,49 @@ export default async function ManagerPaymentsPage({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="size-4 text-primary" aria-hidden /> Card for ticket holds
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            When you accept tickets for a creator, a temporary hold for the deposit goes on this card a couple of
+            days before the show. It comes off when they check in, and is only charged if they don&apos;t show up.
+          </p>
+          {card ? (
+            <p className="font-medium">
+              {card.brand} •••• {card.last4}
+              {card.exp_month && card.exp_year ? (
+                <span className="font-normal text-muted-foreground">
+                  {" "}
+                  · expires {String(card.exp_month).padStart(2, "0")}/{card.exp_year}
+                </span>
+              ) : null}
+            </p>
+          ) : (
+            <p className="text-amber-300">No card yet. Add one before accepting tickets for your creators.</p>
+          )}
+          {canManage ? (
+            serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
+              <StripeCardForm hasCard={!!card} action={addAgencyCardTokenAction} />
+            ) : (
+              <AddCardForm hasCard={!!card} action={addAgencyCardAction} />
+            )
+          ) : (
+            <p className="text-xs text-muted-foreground">Only your company owner can change the card.</p>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
             <Banknote className="size-4 text-primary" aria-hidden /> Getting paid
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p className="text-muted-foreground">
             When an artist team approves content from one of your creators, the payment goes to{" "}
-            {ctx.agencyName}&apos;s payout account. Ticket holds stay on each creator&apos;s own card.
+            {ctx.agencyName}&apos;s payout account.
           </p>
           {params.onboarding === "error" ? (
             <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-300">

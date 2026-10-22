@@ -3,6 +3,7 @@ import Image from "next/image";
 import { notFound } from "next/navigation";
 import { requireManagerPage } from "../../require-manager";
 import { listRoster } from "@/server/services/agencies";
+import { agencyDefaultPaymentMethod } from "@/server/services/payments";
 import { serviceDb } from "@/server/db/service";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDateLong, formatShowTime } from "@/lib/dates";
@@ -58,7 +59,7 @@ export default async function ManagerShowPage({
   if (!show || !show.show_opportunities?.published_at) notFound();
 
   const opp = show.show_opportunities;
-  const roster = await listRoster(ctx.agencyId);
+  const [roster, card] = await Promise.all([listRoster(ctx.agencyId), agencyDefaultPaymentMethod(ctx.agencyId)]);
   const { data: rosterRequests } = roster.length
     ? await db
         .from("show_requests")
@@ -196,7 +197,8 @@ export default async function ManagerShowPage({
             ) : (
               <RequestForCreatorForm
                 opportunityId={opp.id}
-                creators={available.map((c) => ({ id: c.creatorId, name: c.fullName, city: c.city, hasCard: c.hasCard }))}
+                creators={available.map((c) => ({ id: c.creatorId, name: c.fullName, city: c.city || c.location }))}
+                agencyCard={card ? `${card.brand} •••• ${card.last4}` : null}
                 defaultCreatorId={available.some((c) => c.creatorId === forCreator) ? forCreator : undefined}
                 plusOneAllowed={opp.plus_one_allowed}
                 holdOneCents={holdOne}

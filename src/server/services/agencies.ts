@@ -8,6 +8,7 @@ import { emailProvider } from "@/server/providers/email";
 import { notificationEmailHtml } from "@/server/providers/email/template";
 import { publicEnv } from "@/lib/env";
 import { BRAND } from "@/lib/brand";
+import { locationLabel } from "@/lib/roster";
 
 /**
  * Management companies ("agencies") and their creator rosters. A managed
@@ -148,7 +149,15 @@ export type RosterEntry = {
   fullName: string;
   email: string;
   city: string;
+  /** "Los Angeles, California" / "Kentucky" / "Spain" */
+  location: string;
   audienceSize: number;
+  avatarUrl: string | null;
+  handle: string | null;
+  followers: { tiktok: number; instagram: number; youtube: number };
+  tags: string[];
+  /** Agency-run profile with no login of its own. */
+  managedProfile: boolean;
   hasCard: boolean;
   pendingRequests: number;
   activeBookings: number;
@@ -159,7 +168,7 @@ export async function listRoster(agencyId: string): Promise<RosterEntry[]> {
   const db = serviceDb();
   const { data: rows } = await db
     .from("agency_creators")
-    .select("creator_id, created_at, users!agency_creators_creator_id_fkey(full_name, email)")
+    .select("creator_id, created_at, users!agency_creators_creator_id_fkey(full_name, email, avatar_url, managed_profile)")
     .eq("agency_id", agencyId)
     .order("created_at", { ascending: true });
   if (!rows?.length) return [];
@@ -167,7 +176,10 @@ export async function listRoster(agencyId: string): Promise<RosterEntry[]> {
 
   const [{ data: profiles }, { data: cards }, { data: requests }, { data: bookings }] =
     await Promise.all([
-      db.from("creator_profiles").select("user_id, city, audience_size").in("user_id", ids),
+      db
+        .from("creator_profiles")
+        .select("user_id, city, region, country, categories, audience_size, creator_social_accounts(platform, handle, followers)")
+        .in("user_id", ids),
       db.from("payment_methods").select("user_id").in("user_id", ids),
       db.from("show_requests").select("creator_id").in("creator_id", ids).eq("status", "pending"),
       db
@@ -181,17 +193,34 @@ export async function listRoster(agencyId: string): Promise<RosterEntry[]> {
   const count = (list: { creator_id: string }[] | null, id: string) =>
     (list ?? []).filter((r) => r.creator_id === id).length;
 
-  return rows.map((r) => ({
-    creatorId: r.creator_id,
-    fullName: r.users?.full_name || r.users?.email || "Creator",
-    email: r.users?.email ?? "",
-    city: profileBy.get(r.creator_id)?.city ?? "",
-    audienceSize: profileBy.get(r.creator_id)?.audience_size ?? 0,
-    hasCard: withCard.has(r.creator_id),
-    pendingRequests: count(requests, r.creator_id),
-    activeBookings: count(bookings, r.creator_id),
-    joinedAt: r.created_at,
-  }));
+  return rows.map((r) => {
+    const profile = profileBy.get(r.creator_id);
+    const followers = { tiktok: 0, instagram: 0, youtube: 0 };
+    let handle: string | null = null;
+    for (const s of profile?.creator_social_accounts ?? []) {
+      if (s.platform === "tiktok" || s.platform === "instagram" || s.platform === "youtube") {
+        followers[s.platform] = Math.max(followers[s.platform], s.followers);
+      }
+      if (s.platform === "tiktok" && s.handle) handle = s.handle;
+    }
+    return {
+      creatorId: r.creator_id,
+      fullName: r.users?.full_name || r.users?.email || "Creator",
+      email: r.users?.managed_profile ? "" : (r.users?.email ?? ""),
+      city: profile?.city ?? "",
+      location: profile ? locationLabel(profile) : "",
+      audienceSize: profile?.audience_size ?? 0,
+      avatarUrl: r.users?.avatar_url ?? null,
+      handle,
+      followers,
+      tags: profile?.categories ?? [],
+      managedProfile: !!r.users?.managed_profile,
+      hasCard: withCard.has(r.creator_id),
+      pendingRequests: count(requests, r.creator_id),
+      activeBookings: count(bookings, r.creator_id),
+      joinedAt: r.created_at,
+    };
+  });
 }
 
 export async function listOpenInvites(agencyId: string) {

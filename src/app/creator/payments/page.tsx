@@ -21,7 +21,7 @@ import {
   syncPayoutStatus,
 } from "@/server/services/connect";
 import { agencyForCreator } from "@/server/services/agencies";
-import { startPayoutOnboardingAction } from "../actions";
+import { addPaymentMethod, addPaymentMethodToken, startPayoutOnboardingAction } from "../actions";
 import { CreditCard, Landmark, Banknote, CheckCircle2 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments" };
@@ -110,9 +110,9 @@ export default async function CreatorPaymentsPage({
             </p>
           )}
           {serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
-            <StripeCardForm hasCard={!!methods?.length} />
+            <StripeCardForm hasCard={!!methods?.length} action={addPaymentMethodToken} />
           ) : (
-            <AddCardForm hasCard={!!methods?.length} />
+            <AddCardForm hasCard={!!methods?.length} action={addPaymentMethod} />
           )}
         </CardContent>
       </Card>

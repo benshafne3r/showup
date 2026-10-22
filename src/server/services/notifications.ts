@@ -64,9 +64,20 @@ async function copyManagementTeam(input: NotifyInput): Promise<void> {
   );
 }
 
-/** Write one in-app notification + send its email. No management copy. */
+/**
+ * Write one in-app notification + send its email. No management copy.
+ * Managed profiles (agency-run creators with no login) are skipped: their
+ * agency already gets a copy of everything through notify().
+ */
 export async function deliver(input: NotifyInput): Promise<void> {
   const db = serviceDb();
+
+  const { data: user } = await db
+    .from("users")
+    .select("email, full_name, managed_profile")
+    .eq("id", input.userId)
+    .maybeSingle();
+  if (!user || user.managed_profile) return;
 
   const { data: row, error } = await db
     .from("notifications")
@@ -85,12 +96,7 @@ export async function deliver(input: NotifyInput): Promise<void> {
   }
 
   // Email channel (best effort — never blocks the triggering action).
-  const { data: user } = await db
-    .from("users")
-    .select("email, full_name")
-    .eq("id", input.userId)
-    .maybeSingle();
-  if (!user?.email) return;
+  if (!user.email) return;
 
   const href = input.link ? `${publicEnv.appUrl}${input.link}` : null;
   const linkLine = href ? `\n\nOpen ${BRAND.name}: ${href}` : "";

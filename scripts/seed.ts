@@ -74,7 +74,8 @@ async function wipe() {
 
   const { data: userList } = await db.auth.admin.listUsers({ perPage: 1000 });
   for (const user of userList?.users ?? []) {
-    if (user.email?.endsWith(`@${DOMAIN}`)) {
+    // Demo accounts, plus agency-run roster profiles (no login).
+    if (user.email?.endsWith(`@${DOMAIN}`) || user.email?.endsWith("@profiles.showup.invalid")) {
       await db.auth.admin.deleteUser(user.id);
     }
   }
@@ -374,6 +375,51 @@ async function main() {
     }
     shows[def.key] = { showId: show!.id, oppId: opp!.id, def };
   }
+
+  console.log("Creating Northside's managed roster profiles + agency card…");
+  // Managed profiles: agency-run creators with no login (like an imported
+  // CreatorCore roster). Rae is in LA; Kai is elsewhere in California.
+  for (const m of [
+    { handle: "raerivers", name: "Rae Rivers", city: "Los Angeles", region: "California", tiktok: 1_200_000, instagram: 240_000, tags: ["Dance", "Lip Sync"] },
+    { handle: "kaimoreno", name: "Kai Moreno", city: "San Diego", region: "California", tiktok: 640_000, instagram: 0, tags: ["Comedy"] },
+  ]) {
+    const { data: auth, error } = await db.auth.admin.createUser({
+      email: `tt-${m.handle}@profiles.showup.invalid`,
+      email_confirm: true,
+      user_metadata: { full_name: m.name },
+    });
+    if (error || !auth.user) throw new Error(`managed profile ${m.handle}: ${error?.message}`);
+    for (let i = 0; i < 20; i++) {
+      const { data: row } = await db.from("users").select("id").eq("id", auth.user.id).maybeSingle();
+      if (row) break;
+      await new Promise((r) => setTimeout(r, 200));
+    }
+    await db.from("users").update({ managed_profile: true }).eq("id", auth.user.id);
+    const { data: profile } = await db
+      .from("creator_profiles")
+      .insert({
+        user_id: auth.user.id, city: m.city, region: m.region, categories: m.tags,
+        audience_size: m.tiktok + m.instagram, onboarded_at: iso(new Date()), new_show_alerts: false,
+      })
+      .select("id").single();
+    await db.from("creator_social_accounts").insert(
+      [
+        { profile_id: profile!.id, platform: "tiktok" as const, handle: m.handle, followers: m.tiktok },
+        { profile_id: profile!.id, platform: "instagram" as const, handle: "", followers: m.instagram },
+      ].filter((s) => s.followers > 0),
+    );
+    await db.from("agency_creators").insert({ agency_id: agency!.id, creator_id: auth.user.id, added_by: managerId });
+    console.log(`  managed profile @${m.handle}`);
+  }
+  const agencyCardId = "pm_mock_seed_agency";
+  await db.from("mock_payment_state").insert({
+    id: agencyCardId, kind: "payment_method",
+    state: { userId: managerId, brand: "visa", last4: "1881", expMonth: 12, expYear: 2030, declineAtAuthorize: false } as never,
+  });
+  await db.from("payment_methods").insert({
+    user_id: managerId, agency_id: agency!.id, provider: "mock", provider_method_id: agencyCardId,
+    brand: "visa", last4: "1881", exp_month: 12, exp_year: 2030, verified_at: iso(new Date()), is_default: true,
+  });
 
   console.log("Creating payment methods (mock)…");
   const pmIds: Record<string, string> = {};

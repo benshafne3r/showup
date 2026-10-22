@@ -201,7 +201,9 @@ export async function approveRequest(input: {
   reviewer: { id: string; role: string };
   companyId: string;
   confirmedTicketCount?: 1 | 2;
-}): Promise<{ ok: true; bookingId: string } | { ok: false; error: string }> {
+  /** Skip the "you're approved" notification (label invites send their own). */
+  quiet?: boolean;
+}): Promise<{ ok: true; bookingId: string; acceptBy: string } | { ok: false; error: string }> {
   const db = serviceDb();
 
   const { data: request } = await db
@@ -312,7 +314,7 @@ export async function approveRequest(input: {
   );
 
   const artistName = opp.shows!.artists?.name ?? "the show";
-  await notify({
+  if (!input.quiet) await notify({
     userId: request.creator_id,
     type: "request_approved",
     title: `You're approved for ${artistName}!`,
@@ -328,7 +330,7 @@ export async function approveRequest(input: {
     companyId: request.company_id,
     metadata: { bookingId: booking.id, ticketCount, holdCents },
   });
-  return { ok: true, bookingId: booking.id };
+  return { ok: true, bookingId: booking.id, acceptBy: deadline.toISOString() };
 }
 
 export async function rejectRequest(input: {

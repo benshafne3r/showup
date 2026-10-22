@@ -38,10 +38,29 @@ export async function attachPaymentMethodByToken(userId: string, paymentMethodId
   return recordPaymentMethod(userId, provider.name, info);
 }
 
+/**
+ * An agency's card: covers ticket holds for the creators it accepts bookings
+ * for. Saved under the manager who added it (their Stripe customer).
+ */
+export async function attachAgencyPaymentMethod(agencyId: string, userId: string, card: CardInput) {
+  await enforceRateLimit("payment_method.attach", userId);
+  const provider = paymentProvider();
+  const info = await provider.attachPaymentMethod(userId, card);
+  return recordPaymentMethod(userId, provider.name, info, agencyId);
+}
+
+export async function attachAgencyPaymentMethodByToken(agencyId: string, userId: string, paymentMethodId: string) {
+  await enforceRateLimit("payment_method.attach", userId);
+  const provider = paymentProvider();
+  const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
+  return recordPaymentMethod(userId, provider.name, info, agencyId);
+}
+
 async function recordPaymentMethod(
   userId: string,
   providerName: PaymentProvider["name"],
   info: Awaited<ReturnType<PaymentProvider["attachPaymentMethod"]>>,
+  agencyId?: string,
 ) {
   if (!info.verified) {
     return { ok: false as const, error: info.failureReason ?? "Card verification failed" };
@@ -49,12 +68,17 @@ async function recordPaymentMethod(
 
   const provider = { name: providerName };
   const db = serviceDb();
-  // Single default per user (MVP keeps one active card).
-  await db.from("payment_methods").update({ is_default: false }).eq("user_id", userId);
+  // Single default per user, or per agency for an agency card.
+  if (agencyId) {
+    await db.from("payment_methods").update({ is_default: false }).eq("agency_id", agencyId);
+  } else {
+    await db.from("payment_methods").update({ is_default: false }).eq("user_id", userId).is("agency_id", null);
+  }
   const { data: row, error } = await db
     .from("payment_methods")
     .insert({
       user_id: userId,
+      agency_id: agencyId ?? null,
       provider: provider.name,
       provider_method_id: info.providerMethodId,
       brand: info.brand,
@@ -70,11 +94,11 @@ async function recordPaymentMethod(
 
   await audit({
     actorId: userId,
-    actorRole: "creator",
+    actorRole: agencyId ? "manager" : "creator",
     action: "payment_method.attach",
     entityType: "payment_method",
     entityId: row.id,
-    metadata: { brand: row.brand, last4: row.last4, provider: provider.name },
+    metadata: { brand: row.brand, last4: row.last4, provider: provider.name, agencyId: agencyId ?? null },
   });
   return { ok: true as const, paymentMethodId: row.id };
 }
@@ -84,10 +108,29 @@ export async function defaultPaymentMethod(userId: string) {
     .from("payment_methods")
     .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
     .eq("user_id", userId)
+    .is("agency_id", null)
     .eq("is_default", true)
     .not("verified_at", "is", null)
     .maybeSingle();
   return data;
+}
+
+export async function agencyDefaultPaymentMethod(agencyId: string) {
+  const { data } = await serviceDb()
+    .from("payment_methods")
+    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
+    .eq("agency_id", agencyId)
+    .eq("is_default", true)
+    .not("verified_at", "is", null)
+    .maybeSingle();
+  return data;
+}
+
+/** The card a booking's hold goes on: the agency's when it accepted for its creator. */
+async function holdPaymentMethod(booking: { creator_id: string; hold_agency_id: string | null }) {
+  return booking.hold_agency_id
+    ? agencyDefaultPaymentMethod(booking.hold_agency_id)
+    : defaultPaymentMethod(booking.creator_id);
 }
 
 // ── Authorization lifecycle ─────────────────────────────────────────────
@@ -104,7 +147,7 @@ export async function scheduleAuthorizationForBooking(bookingId: string): Promis
   const db = serviceDb();
   const { data: booking } = await db
     .from("bookings")
-    .select("id, creator_id, company_id, authorization_amount_cents, shows(date)")
+    .select("id, creator_id, company_id, hold_agency_id, authorization_amount_cents, shows(date)")
     .eq("id", bookingId)
     .single();
   if (!booking) return { ok: false, error: "Booking not found" };
@@ -114,7 +157,7 @@ export async function scheduleAuthorizationForBooking(bookingId: string): Promis
   const scheduledFor = new Date(showDate);
   scheduledFor.setDate(scheduledFor.getDate() - settings.authorizationWindowDays);
 
-  const pm = await defaultPaymentMethod(booking.creator_id);
+  const pm = await holdPaymentMethod(booking);
   if (!pm) return { ok: false, error: "No verified payment method on file" };
 
   const { data: authRecord, error } = await db
@@ -159,7 +202,12 @@ export async function placeAuthorization(authRecordId: string): Promise<
   if (!claimed) return { ok: false, error: "Authorization is not in a placeable state" };
 
   const attempt = claimed.attempt_count + 1;
-  const pm = await defaultPaymentMethod(claimed.creator_id);
+  const { data: payer } = await db
+    .from("bookings")
+    .select("creator_id, hold_agency_id")
+    .eq("id", claimed.booking_id)
+    .single();
+  const pm = payer ? await holdPaymentMethod(payer) : null;
 
   const fail = async (reason: string) => {
     const settings = await getPlatformSettings();

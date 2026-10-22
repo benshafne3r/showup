@@ -16,6 +16,11 @@ import {
   updateAgency,
 } from "@/server/services/agencies";
 import { createRequest, withdrawRequest } from "@/server/services/requests";
+import { acceptBooking, passOnBooking } from "@/server/services/bookings";
+import {
+  attachAgencyPaymentMethod,
+  attachAgencyPaymentMethodByToken,
+} from "@/server/services/payments";
 import { createAgencyOnboardingLink } from "@/server/services/connect";
 import { serviceDb } from "@/server/db/service";
 import { log, errorFields } from "@/server/log";
@@ -157,6 +162,86 @@ export async function withdrawForCreatorAction(formData: FormData): Promise<void
   const ctx = await requireManagerOf(request.creator_id);
   await withdrawRequest(request.creator_id, requestId, { id: ctx.user.id, role: "manager" });
   revalidatePath("/manager/messages");
+}
+
+// ── Accepting for a creator (hold on the agency's card) ─────────────────
+
+async function rosterBooking(bookingId: string) {
+  const { data: booking } = await serviceDb()
+    .from("bookings")
+    .select("creator_id")
+    .eq("id", bookingId)
+    .maybeSingle();
+  if (!booking) throw new Error("Booking not found");
+  const ctx = await requireManagerOf(booking.creator_id);
+  return { ctx, creatorId: booking.creator_id };
+}
+
+export async function acceptForCreatorAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const bookingId = z.string().uuid().parse(formData.get("bookingId"));
+    const { ctx, creatorId } = await rosterBooking(bookingId);
+    const result = await acceptBooking({
+      creatorId,
+      bookingId,
+      agreedToTerms: formData.get("agreeTerms") === "on",
+      agency: { agencyId: ctx.agencyId, agencyName: ctx.agencyName, actorId: ctx.user.id },
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/manager", "layout");
+    return { success: "Accepted. The hold goes on your card a couple of days before the show." };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function passForCreatorAction(formData: FormData): Promise<void> {
+  const bookingId = z.string().uuid().parse(formData.get("bookingId"));
+  const { ctx } = await rosterBooking(bookingId);
+  await passOnBooking({
+    bookingId,
+    agency: { agencyId: ctx.agencyId, agencyName: ctx.agencyName, actorId: ctx.user.id },
+  });
+  revalidatePath("/manager", "layout");
+}
+
+// ── The agency's card (covers holds for its creators) ───────────────────
+
+const agencyCardSchema = z.object({
+  cardNumber: z.string().regex(/^[\d\s]{13,23}$/, "Enter a valid card number"),
+  expMonth: z.coerce.number().int().min(1, "Month").max(12, "Month"),
+  expYear: z.coerce.number().int().min(2024).max(2050),
+  cvc: z.string().regex(/^\d{3,4}$/, "Enter the 3–4 digit CVC"),
+});
+
+export async function addAgencyCardAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const ctx = await requireManagerWithAgency();
+    if (ctx.memberRole === "member") return { error: "Ask your company owner to add the card" };
+    const parsed = agencyCardSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const result = await attachAgencyPaymentMethod(ctx.agencyId, ctx.user.id, parsed.data);
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/manager", "layout");
+    return { success: "Card verified and saved" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function addAgencyCardTokenAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const ctx = await requireManagerWithAgency();
+    if (ctx.memberRole === "member") return { error: "Ask your company owner to add the card" };
+    // Stripe Elements tokenized the card in the browser; we only get a pm_ id.
+    const paymentMethodId = z.string().startsWith("pm_").max(255).parse(formData.get("paymentMethodId"));
+    const result = await attachAgencyPaymentMethodByToken(ctx.agencyId, ctx.user.id, paymentMethodId);
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/manager", "layout");
+    return { success: "Card verified and saved" };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 // ── Payouts ─────────────────────────────────────────────────────────────

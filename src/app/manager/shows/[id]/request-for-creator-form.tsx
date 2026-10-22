@@ -14,13 +14,16 @@ export function RequestForCreatorForm({
   plusOneAllowed,
   holdOneCents,
   holdTwoCents,
+  agencyCard,
 }: {
   opportunityId: string;
-  creators: { id: string; name: string; city: string; hasCard: boolean }[];
+  creators: { id: string; name: string; city: string }[];
   defaultCreatorId?: string;
   plusOneAllowed: boolean;
   holdOneCents: number;
   holdTwoCents: number;
+  /** "Visa •••• 4242", or null when the agency hasn't added a card */
+  agencyCard: string | null;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(requestForCreatorAction, null);
   const [creatorId, setCreatorId] = useState(defaultCreatorId ?? creators[0]?.id ?? "");
@@ -45,10 +48,16 @@ export function RequestForCreatorForm({
             </option>
           ))}
         </select>
-        {selected && !selected.hasCard ? (
-          <p className="text-xs text-amber-300">
-            {`${selected.name.split(" ")[0]} hasn't added a card yet. They'll need one to accept if approved.`}
-          </p>
+        {selected ? (
+          agencyCard ? (
+            <p className="text-xs text-muted-foreground">
+              {`If approved, you accept for ${selected.name.split(" ")[0]} and the hold goes on ${agencyCard}.`}
+            </p>
+          ) : (
+            <p className="text-xs text-amber-300">
+              Add a card in Payments before you accept. Holds for your creators go on it.
+            </p>
+          )
         ) : null}
       </div>
       <fieldset className="space-y-2">

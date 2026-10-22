@@ -1,14 +1,21 @@
 "use client";
 
 import { useActionState, useState } from "react";
-import { addPaymentMethod, type ActionState } from "../actions";
+import type { ActionState } from "../actions";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SubmitButton } from "@/components/submit-button";
 
-export function AddCardForm({ hasCard }: { hasCard: boolean }) {
-  const [state, formAction] = useActionState<ActionState, FormData>(addPaymentMethod, null);
+export function AddCardForm({
+  hasCard,
+  action,
+}: {
+  hasCard: boolean;
+  /** Server action that saves the card (creator's own, or an agency's). */
+  action: (prev: ActionState, formData: FormData) => Promise<ActionState>;
+}) {
+  const [state, formAction] = useActionState<ActionState, FormData>(action, null);
   const [open, setOpen] = useState(false);
 
   if (!open) {

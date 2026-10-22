@@ -3,7 +3,7 @@
 import { type FormEvent, useState, useTransition } from "react";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
-import { addPaymentMethodToken, type ActionState } from "../actions";
+import type { ActionState } from "../actions";
 import { Button } from "@/components/ui/button";
 
 // Stripe.js must be loaded from Stripe's domain (a PCI requirement); loading it
@@ -11,7 +11,16 @@ import { Button } from "@/components/ui/button";
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
 
-export function StripeCardForm({ hasCard }: { hasCard: boolean }) {
+type SaveCard = (prev: ActionState, formData: FormData) => Promise<ActionState>;
+
+export function StripeCardForm({
+  hasCard,
+  action,
+}: {
+  hasCard: boolean;
+  /** Server action that saves the tokenized card (creator's own, or an agency's). */
+  action: SaveCard;
+}) {
   const [open, setOpen] = useState(false);
 
   if (!open) {
@@ -26,12 +35,12 @@ export function StripeCardForm({ hasCard }: { hasCard: boolean }) {
   }
   return (
     <Elements stripe={stripePromise}>
-      <CardFields onCancel={() => setOpen(false)} />
+      <CardFields action={action} onCancel={() => setOpen(false)} />
     </Elements>
   );
 }
 
-function CardFields({ onCancel }: { onCancel: () => void }) {
+function CardFields({ action, onCancel }: { action: SaveCard; onCancel: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
   const [pending, start] = useTransition();
@@ -51,7 +60,7 @@ function CardFields({ onCancel }: { onCancel: () => void }) {
     start(async () => {
       const fd = new FormData();
       fd.set("paymentMethodId", paymentMethod.id);
-      setState(await addPaymentMethodToken(null, fd));
+      setState(await action(null, fd));
     });
   }
 

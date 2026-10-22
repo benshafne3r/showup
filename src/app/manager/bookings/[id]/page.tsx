@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireManagerPage } from "../../require-manager";
 import { isOnRoster } from "@/server/services/agencies";
+import { agencyDefaultPaymentMethod } from "@/server/services/payments";
 import { serviceDb } from "@/server/db/service";
+import { OfferActions } from "../../offer-actions";
 import { StatusBadge } from "@/components/status-badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,9 +25,9 @@ export const dynamic = "force-dynamic";
 const compactNumber = new Intl.NumberFormat("en-US", { notation: "compact" });
 
 /**
- * Read-only booking view for a roster creator. Accepting the booking (and the
- * card hold) and checking in stay with the creator; the manager follows
- * along and talks to the artist team in the thread.
+ * Booking view for a roster creator. The agency accepts (the hold goes on its
+ * card) or passes, follows check-in and content, and talks to the artist team
+ * in the thread. Labels never deal with the creator directly.
  */
 export default async function ManagerBookingPage({ params }: { params: Promise<{ id: string }> }) {
   const ctx = await requireManagerPage();
@@ -60,7 +62,8 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
   const auth = [...(booking.authorization_records ?? [])].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   const attendance = [...(booking.attendance_submissions ?? [])].sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0];
   const payment = booking.creator_payment_records;
-  const waitingOnCreator = ["awaiting_acceptance", "awaiting_payment_method"].includes(booking.status);
+  const waitingOnAgency = ["awaiting_acceptance", "awaiting_payment_method"].includes(booking.status);
+  const card = waitingOnAgency ? await agencyDefaultPaymentMethod(ctx.agencyId) : null;
 
   return (
     <div className="space-y-6">
@@ -91,11 +94,19 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
         </div>
       </div>
 
-      {waitingOnCreator ? (
-        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          Waiting on {creatorName.split(" ")[0]} to accept the booking
-          {booking.status === "awaiting_payment_method" ? " and add a card" : ""} from their own login, since
-          the ticket hold goes on their card. Accept by {formatDateTime(booking.acceptance_deadline_at)}.
+      {waitingOnAgency ? (
+        <div className="space-y-3 rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm">
+          <p className="text-amber-200">
+            Accept or pass for {creatorName.split(" ")[0]} by {formatDateTime(booking.acceptance_deadline_at)}.
+            The {formatCents(booking.authorization_amount_cents)} hold goes on {ctx.agencyName}&apos;s card a couple of
+            days before the show and comes off when they check in.
+          </p>
+          <OfferActions
+            bookingId={booking.id}
+            creatorName={creatorName}
+            hold={formatCents(booking.authorization_amount_cents)}
+            card={card ? `${card.brand} •••• ${card.last4}` : null}
+          />
         </div>
       ) : null}
 

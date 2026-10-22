@@ -24,7 +24,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
   if (membership.agencies.suspended_at) redirect("/sign-in");
 
   const roster = await rosterCreatorIds(membership.agency_id);
-  const [unreadNotifs, unreadMessages, pendingRequests] = await Promise.all([
+  const [unreadNotifs, unreadMessages, pendingRequests, waitingOnYou] = await Promise.all([
     unreadNotificationCount(user.id),
     unreadMessageCount(user.id),
     roster.length
@@ -33,6 +33,16 @@ export default async function ManagerLayout({ children }: { children: React.Reac
           .select("id", { count: "exact", head: true })
           .in("creator_id", roster)
           .eq("status", "pending")
+          .then((r) => r.count ?? 0)
+      : Promise.resolve(0),
+    // Label invites + approvals the agency still has to accept or pass.
+    roster.length
+      ? serviceDb()
+          .from("bookings")
+          .select("id", { count: "exact", head: true })
+          .in("creator_id", roster)
+          .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
+          .gt("acceptance_deadline_at", new Date().toISOString())
           .then((r) => r.count ?? 0)
       : Promise.resolve(0),
   ]);
@@ -46,7 +56,7 @@ export default async function ManagerLayout({ children }: { children: React.Reac
       notificationsHref="/manager/notifications"
       unreadNotifications={unreadNotifs}
       navItems={[
-        { href: "/manager", label: "Roster", exact: true },
+        { href: "/manager", label: "Roster", exact: true, badge: waitingOnYou },
         { href: "/manager/shows", label: "Shows" },
         { href: "/manager/messages", label: "Messages", badge: pendingRequests + unreadMessages },
         { href: "/manager/payments", label: "Payments" },

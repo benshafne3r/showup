@@ -60,11 +60,12 @@ export async function sendNewShowAlerts(db: ServiceClient): Promise<{ shows: num
   // Everyone who opted in, matched to a city the same way.
   const { data: subscribers } = await db
     .from("creator_profiles")
-    .select("user_id, city, users!inner(status, role)")
+    .select("user_id, city, users!inner(status, role, managed_profile)")
     .eq("new_show_alerts", true)
     .not("onboarded_at", "is", null)
     .eq("users.status", "active")
-    .eq("users.role", "creator");
+    .eq("users.role", "creator")
+    .eq("users.managed_profile", false);
 
   let alerts = 0;
   for (const sub of subscribers ?? []) {

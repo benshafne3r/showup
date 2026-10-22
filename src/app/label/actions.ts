@@ -9,6 +9,7 @@ import { serviceDb } from "@/server/db/service";
 import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
 import { setTourDeposit, upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
+import { sendOffers } from "@/server/services/offers";
 import { sendTicketInstructions, cancelBooking } from "@/server/services/bookings";
 import {
   approveAttendance,
@@ -739,6 +740,30 @@ export async function deleteShowAction(
     revalidatePath("/label/shows");
     revalidatePath("/label/tours");
     return { success: "Deleted" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// ── Invite creators to a show (offers) ──────────────────────────────────
+
+export async function sendOffersAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    const showId = z.string().uuid().parse(formData.get("showId"));
+    const creatorIds = z.array(z.string().uuid()).parse(formData.getAll("creatorId"));
+    const result = await sendOffers({
+      companyId: context.companyId,
+      showId,
+      creatorIds,
+      reviewer: { id: context.user.id, role: "label" },
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath(`/label/shows/${showId}`);
+    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. Their team has 24 hours to accept.`;
+    return result.skipped.length
+      ? { success: `${sent} Skipped: ${result.skipped.join(", ")}.` }
+      : { success: sent };
   } catch (err) {
     return fail(err);
   }

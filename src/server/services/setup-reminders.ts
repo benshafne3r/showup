@@ -28,6 +28,7 @@ export async function sendSetupReminders(db: ServiceClient): Promise<{ sent: num
     .select("id, created_at, creator_profiles(city, onboarded_at)")
     .eq("role", "creator")
     .eq("status", "active")
+    .eq("managed_profile", false)
     .lt("created_at", new Date(now.getTime() - SETUP_REMINDER_DAYS[0] * DAY_MS).toISOString())
     .gt("created_at", new Date(now.getTime() - SETUP_REMINDER_WINDOW_DAYS * DAY_MS).toISOString())
     .order("created_at", { ascending: true })
