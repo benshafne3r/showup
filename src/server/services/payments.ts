@@ -7,18 +7,35 @@ import { audit } from "./audit";
 import { notify } from "./notifications";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
-import { payoutDestinationFor, syncPayoutStatusByAccount } from "./connect";
+import { payoutDestinationFor } from "./connect";
 import { serverEnv } from "@/lib/env";
 import { formatCents } from "@/lib/money";
 import { fallbackHoldExpiry } from "@/lib/holds";
+import { showIsOver } from "@/lib/dates";
 import { log } from "@/server/log";
+import { checkpoint } from "@/server/checkpoints";
+import type { AuthorizationResult, CaptureResult, PayoutResult, ReleaseResult } from "@/server/providers/payment/types";
+import {
+  check,
+  finishOperation,
+  leaseUntil,
+  operationCount,
+  startOperation,
+  type Actor,
+} from "./payment-ledger";
 
 /**
- * All money movement lives here. Every provider mutation carries a
- * deterministic idempotency key, and every state transition is claimed with
- * a status-guarded UPDATE (affected-rows check) so duplicate approvals,
- * double releases, double captures, and double payouts are impossible even
- * under concurrent requests.
+ * All money movement lives here. The rules that keep it safe:
+ *  - Every provider mutation carries an idempotency key that is stored BEFORE
+ *    the call (payment_operations), so a replay can never move money twice.
+ *  - A record moves to an in-flight state (pending / releasing / capturing /
+ *    paying) with a lease before the provider call, and to its final state
+ *    only after the provider confirms. A crash leaves the in-flight state;
+ *    payment-recovery.ts reconciles it with the provider once the lease
+ *    expires.
+ *  - Every transition is a status-guarded UPDATE, so concurrent capture /
+ *    release / cancel / payout attempts serialize: exactly one wins.
+ *  - Critical writes throw on error instead of continuing on stale state.
  */
 
 // ── Payment methods ─────────────────────────────────────────────────────
@@ -135,10 +152,24 @@ async function holdPaymentMethod(booking: { creator_id: string; hold_agency_id: 
 
 // ── Authorization lifecycle ─────────────────────────────────────────────
 
+type AuthRow = {
+  id: string;
+  booking_id: string;
+  creator_id: string;
+  company_id: string;
+  amount_cents: number;
+  attempt_count: number;
+  idempotency_key: string | null;
+  provider_intent_id: string | null;
+  payment_method_id: string | null;
+};
+const AUTH_COLUMNS =
+  "id, booking_id, creator_id, company_id, amount_cents, attempt_count, idempotency_key, provider_intent_id, payment_method_id";
+
 /**
  * Create the authorization record at booking confirmation. If the show is
  * already inside the authorization window the hold is placed immediately;
- * otherwise it is scheduled for (show date − window days).
+ * otherwise it is scheduled for (show date − window days, UTC).
  */
 export async function scheduleAuthorizationForBooking(bookingId: string): Promise<
   | { ok: true; placed: boolean; scheduledFor: string }
@@ -153,9 +184,8 @@ export async function scheduleAuthorizationForBooking(bookingId: string): Promis
   if (!booking) return { ok: false, error: "Booking not found" };
 
   const settings = await getPlatformSettings();
-  const showDate = new Date(`${booking.shows!.date}T00:00:00`);
-  const scheduledFor = new Date(showDate);
-  scheduledFor.setDate(scheduledFor.getDate() - settings.authorizationWindowDays);
+  const scheduledFor = new Date(`${booking.shows!.date}T00:00:00Z`);
+  scheduledFor.setUTCDate(scheduledFor.getUTCDate() - settings.authorizationWindowDays);
 
   const pm = await holdPaymentMethod(booking);
   if (!pm) return { ok: false, error: "No verified payment method on file" };
@@ -177,121 +207,127 @@ export async function scheduleAuthorizationForBooking(bookingId: string): Promis
   if (error) return { ok: false, error: error.message };
 
   if (scheduledFor.getTime() <= Date.now()) {
-    await placeAuthorization(authRecord.id);
-    return { ok: true, placed: true, scheduledFor: scheduledFor.toISOString() };
+    const placed = await placeAuthorization(authRecord.id);
+    // A decline leaves the booking confirmed with a failed hold and a grace
+    // period to fix the card, so this still counts as scheduled, not placed.
+    return { ok: true, placed: placed.ok, scheduledFor: scheduledFor.toISOString() };
   }
   return { ok: true, placed: false, scheduledFor: scheduledFor.toISOString() };
 }
 
 /**
- * Place a scheduled/failed authorization. Claims the record with a guarded
- * UPDATE first so two workers can never double-authorize.
+ * Place a scheduled/failed authorization. The claim (claim_authorization)
+ * atomically moves it to 'pending' with a lease and a fresh per-attempt
+ * idempotency key, so two workers can never double-authorize, and a crash
+ * after the provider call is recoverable with the same key.
  */
-export async function placeAuthorization(authRecordId: string): Promise<
-  { ok: true } | { ok: false; error: string }
-> {
+export async function placeAuthorization(
+  authRecordId: string,
+): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = serviceDb();
-
-  const { data: claimed } = await db
+  const { data: current } = await db
     .from("authorization_records")
-    .update({ status: "pending" })
+    .select("status, booking_id")
     .eq("id", authRecordId)
-    .in("status", ["scheduled", "failed"])
-    .select("id, booking_id, creator_id, company_id, amount_cents, attempt_count, payment_method_id")
     .maybeSingle();
-  if (!claimed) return { ok: false, error: "Authorization is not in a placeable state" };
-
-  const attempt = claimed.attempt_count + 1;
+  if (!current || !["scheduled", "failed"].includes(current.status)) {
+    return { ok: false, error: "Authorization is not in a placeable state" };
+  }
+  // The card is fixed at claim time so a replay sends identical parameters.
   const { data: payer } = await db
     .from("bookings")
     .select("creator_id, hold_agency_id")
-    .eq("id", claimed.booking_id)
+    .eq("id", current.booking_id)
     .single();
   const pm = payer ? await holdPaymentMethod(payer) : null;
 
-  const fail = async (reason: string) => {
-    const settings = await getPlatformSettings();
-    const { data: booking } = await db
-      .from("bookings")
-      .select("shows(date)")
-      .eq("id", claimed.booking_id)
-      .single();
-    const showDate = booking?.shows?.date
-      ? new Date(`${booking.shows.date}T00:00:00`)
-      : new Date(Date.now() + 86400000);
-    const grace = new Date(
-      Math.min(Date.now() + settings.paymentMethodGraceDays * 86400000, showDate.getTime()),
-    );
-
-    await db
-      .from("authorization_records")
-      .update({
-        status: "failed",
-        failed_at: new Date().toISOString(),
-        failure_reason: reason,
-        grace_deadline_at: grace.toISOString(),
-        attempt_count: attempt,
-      })
-      .eq("id", authRecordId);
-    await db
-      .from("bookings")
-      .update({ status: "authorization_failed" })
-      .eq("id", claimed.booking_id)
-      .in("status", ["confirmed", "authorization_failed"]);
-    await notify({
-      userId: claimed.creator_id,
-      type: "payment_method_problem",
-      title: "We couldn't place the hold on your card",
-      body: `${reason}. Update your payment method before ${grace.toLocaleDateString()} or your booking will be canceled.`,
-      link: `/creator/bookings/${claimed.booking_id}`,
-    });
-    await audit({
-      action: "authorization.failed",
-      entityType: "authorization_record",
-      entityId: authRecordId,
-      companyId: claimed.company_id,
-      metadata: { reason, attempt },
-    });
-  };
+  const claimedRows = check(
+    // No card still claims the attempt, so the failure is recorded on it (SQL accepts null).
+    await db.rpc("claim_authorization", { p_id: authRecordId, p_payment_method_id: (pm?.id ?? null) as string }),
+    "claim authorization",
+  );
+  const claimed = (claimedRows ?? [])[0] as AuthRow | undefined;
+  if (!claimed) return { ok: false, error: "Authorization is not in a placeable state" };
+  const key = claimed.idempotency_key!;
 
   if (!pm) {
-    await fail("No verified payment method on file");
+    await failAuthorization(claimed, "No verified payment method on file");
     return { ok: false, error: "No verified payment method on file" };
   }
 
+  const op = await startOperation({ kind: "authorize", idempotencyKey: key, authorizationRecordId: claimed.id });
+  await checkpoint("authorize.before_provider");
   const result = await paymentProvider().authorize({
     providerMethodId: pm.provider_method_id,
     amountCents: claimed.amount_cents,
-    idempotencyKey: `auth:${claimed.booking_id}:attempt${attempt}`,
-    metadata: { bookingId: claimed.booking_id, authRecordId },
+    idempotencyKey: key,
+    metadata: { bookingId: claimed.booking_id, authRecordId: claimed.id, attemptKey: key },
   });
+  await checkpoint("authorize.after_provider");
+  return finishAuthorization(claimed, op.id, result);
+}
 
+/**
+ * Write the outcome of an authorize call (live, or replayed by recovery).
+ * Guarded on the record still being this attempt's 'pending': if the booking
+ * was canceled while the call was in flight, the new hold is voided.
+ */
+export async function finishAuthorization(
+  claimed: AuthRow,
+  operationId: string,
+  result: AuthorizationResult,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const key = claimed.idempotency_key!;
   if (!result.ok) {
-    await fail(result.failureReason);
+    await failAuthorization(claimed, result.failureReason);
+    await finishOperation(operationId, { status: "failed", error: result.failureReason });
     return { ok: false, error: result.failureReason };
   }
 
-  await db
-    .from("authorization_records")
-    .update({
-      status: "authorized",
-      provider_intent_id: result.providerIntentId,
-      idempotency_key: `auth:${claimed.booking_id}:attempt${attempt}`,
-      authorized_at: new Date().toISOString(),
-      expires_at: result.expiresAt ?? fallbackHoldExpiry(new Date()).toISOString(),
-      attempt_count: attempt,
-      payment_method_id: pm.id,
-      failure_reason: null,
-      grace_deadline_at: null,
-    })
-    .eq("id", authRecordId);
-  // Recover bookings that had previously failed.
-  await db
-    .from("bookings")
-    .update({ status: "confirmed" })
-    .eq("id", claimed.booking_id)
-    .eq("status", "authorization_failed");
+  const finalized = check(
+    await db
+      .from("authorization_records")
+      .update({
+        status: "authorized",
+        provider_intent_id: result.providerIntentId,
+        authorized_at: new Date().toISOString(),
+        expires_at: result.expiresAt ?? fallbackHoldExpiry(new Date()).toISOString(),
+        lease_until: null,
+        failure_reason: null,
+        grace_deadline_at: null,
+      })
+      .eq("id", claimed.id)
+      .eq("status", "pending")
+      .eq("idempotency_key", key)
+      .select("id")
+      .maybeSingle(),
+    "finalize authorization",
+  );
 
+  if (!finalized) {
+    const { data: now } = await db
+      .from("authorization_records")
+      .select("status, provider_intent_id")
+      .eq("id", claimed.id)
+      .single();
+    if (now?.provider_intent_id === result.providerIntentId && now.status !== "pending") {
+      // Someone else (recovery or a webhook) already recorded this same hold.
+      await finishOperation(operationId, { status: "succeeded", providerRef: result.providerIntentId });
+      return { ok: true };
+    }
+    // Canceled while we were placing it: don't leave a hold on the card.
+    await voidHold(claimed.id, result.providerIntentId, `void:${key}`);
+    await finishOperation(operationId, { status: "succeeded", providerRef: result.providerIntentId });
+    return { ok: false, error: "The booking was canceled while the hold was being placed; the hold was voided" };
+  }
+  await finishOperation(operationId, { status: "succeeded", providerRef: result.providerIntentId });
+
+  // Recover bookings that had previously failed.
+  check(
+    await db.from("bookings").update({ status: "confirmed" }).eq("id", claimed.booking_id).eq("status", "authorization_failed"),
+    "recover booking after authorization",
+  );
   await notify({
     userId: claimed.creator_id,
     type: "authorization_placed",
@@ -302,11 +338,85 @@ export async function placeAuthorization(authRecordId: string): Promise<
   await audit({
     action: "authorization.placed",
     entityType: "authorization_record",
-    entityId: authRecordId,
+    entityId: claimed.id,
     companyId: claimed.company_id,
-    metadata: { amountCents: claimed.amount_cents, attempt },
+    metadata: { amountCents: claimed.amount_cents, attempt: claimed.attempt_count },
   });
   return { ok: true };
+}
+
+/** Record a failed attempt (guarded on it still being this attempt) and start the grace period. */
+async function failAuthorization(claimed: AuthRow, reason: string): Promise<void> {
+  const db = serviceDb();
+  const settings = await getPlatformSettings();
+  const { data: booking } = await db.from("bookings").select("shows(date)").eq("id", claimed.booking_id).single();
+  const showStart = booking?.shows?.date
+    ? new Date(`${booking.shows.date}T00:00:00Z`)
+    : new Date(Date.now() + 86_400_000);
+  const grace = new Date(Math.min(Date.now() + settings.paymentMethodGraceDays * 86_400_000, showStart.getTime()));
+
+  const failed = check(
+    await db
+      .from("authorization_records")
+      .update({
+        status: "failed",
+        failed_at: new Date().toISOString(),
+        failure_reason: reason,
+        last_error: reason,
+        grace_deadline_at: grace.toISOString(),
+        lease_until: null,
+      })
+      .eq("id", claimed.id)
+      .eq("status", "pending")
+      .eq("idempotency_key", claimed.idempotency_key!)
+      .select("id")
+      .maybeSingle(),
+    "record failed authorization",
+  );
+  if (!failed) return; // canceled meanwhile; nothing to tell anyone
+
+  check(
+    await db
+      .from("bookings")
+      .update({ status: "authorization_failed" })
+      .eq("id", claimed.booking_id)
+      .in("status", ["confirmed", "authorization_failed"]),
+    "flag booking authorization failure",
+  );
+  await notify({
+    userId: claimed.creator_id,
+    type: "payment_method_problem",
+    title: "We couldn't place the hold on your card",
+    body: `${reason}. Update your payment method before ${grace.toLocaleDateString()} or your booking will be canceled.`,
+    link: `/creator/bookings/${claimed.booking_id}`,
+  });
+  await audit({
+    action: "authorization.failed",
+    entityType: "authorization_record",
+    entityId: claimed.id,
+    companyId: claimed.company_id,
+    metadata: { reason, attempt: claimed.attempt_count },
+  });
+}
+
+/** Cancel a hold that must not exist (its booking was canceled mid-placement). */
+export async function voidHold(authRecordId: string, providerIntentId: string, key: string): Promise<void> {
+  const op = await startOperation({ kind: "void", idempotencyKey: key, authorizationRecordId: authRecordId });
+  const result = await paymentProvider().release({ providerIntentId, idempotencyKey: key });
+  check(
+    await serviceDb()
+      .from("authorization_records")
+      .update({ provider_intent_id: providerIntentId })
+      .eq("id", authRecordId)
+      .is("provider_intent_id", null),
+    "record voided hold",
+  );
+  await finishOperation(op.id, {
+    status: result.ok ? "succeeded" : "failed",
+    providerRef: providerIntentId,
+    error: result.ok ? null : result.failureReason,
+  });
+  if (!result.ok) log.error("Could not void a hold for a canceled booking", { authRecordId, reason: result.failureReason });
 }
 
 /** Creator fixed their card → retry a failed authorization immediately. */
@@ -323,42 +433,94 @@ export async function retryAuthorizationForBooking(bookingId: string) {
   return placeAuthorization(record.id);
 }
 
+type HeldRow = {
+  id: string;
+  booking_id: string;
+  creator_id: string;
+  company_id: string;
+  amount_cents: number;
+  provider_intent_id: string | null;
+};
+const HELD_COLUMNS = "id, booking_id, creator_id, company_id, amount_cents, provider_intent_id";
+
+/**
+ * Release an active hold. authorized → releasing (claimed, leased) →
+ * released once the provider confirms; back to authorized if it refuses.
+ * Idempotent: an already released / releasing / expired hold is fine.
+ */
 export async function releaseAuthorization(
   authRecordId: string,
-  actor: { id: string | null; role: string },
+  actor: Actor,
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const db = serviceDb();
-  // Claim first — a second concurrent release sees 0 rows and treats it as done.
-  const { data: claimed } = await db
-    .from("authorization_records")
-    .update({ status: "released", released_at: new Date().toISOString() })
-    .eq("id", authRecordId)
-    .eq("status", "authorized")
-    .select("id, booking_id, creator_id, company_id, amount_cents, provider_intent_id")
-    .maybeSingle();
-  if (!claimed) {
-    const { data: current } = await db
+  const claimed = check(
+    await db
       .from("authorization_records")
-      .select("status")
+      .update({ status: "releasing", lease_until: leaseUntil(), last_error: null })
       .eq("id", authRecordId)
-      .single();
-    if (current?.status === "released") return { ok: true }; // already done
+      .eq("status", "authorized")
+      .select(HELD_COLUMNS)
+      .maybeSingle(),
+    "claim release",
+  );
+  if (!claimed) {
+    const { data: current } = await db.from("authorization_records").select("status").eq("id", authRecordId).single();
+    // Already done, or in flight elsewhere (recovery finishes it if that process died).
+    if (current && ["released", "releasing", "expired"].includes(current.status)) return { ok: true };
     return { ok: false, error: `Cannot release a hold in status ${current?.status ?? "unknown"}` };
   }
 
-  const result = await paymentProvider().release({
-    providerIntentId: claimed.provider_intent_id!,
-    idempotencyKey: `release:${authRecordId}`,
-  });
+  const key = `release:${claimed.id}:${(await operationCount("release", claimed.id)) + 1}`;
+  const op = await startOperation({ kind: "release", idempotencyKey: key, authorizationRecordId: claimed.id, actor });
+  await checkpoint("release.before_provider");
+  const result = await paymentProvider().release({ providerIntentId: claimed.provider_intent_id!, idempotencyKey: key });
+  await checkpoint("release.after_provider");
+  return finishRelease(claimed, op.id, result, actor);
+}
+
+export async function finishRelease(
+  claimed: HeldRow,
+  operationId: string,
+  result: ReleaseResult,
+  actor: Actor,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const db = serviceDb();
   if (!result.ok) {
-    // Roll the claim back so it can be retried.
-    await db
-      .from("authorization_records")
-      .update({ status: "authorized", released_at: null })
-      .eq("id", authRecordId)
-      .eq("status", "released");
+    // Find out why before deciding: the hold may already be gone or charged.
+    const seen = await paymentProvider().lookupIntent({
+      providerIntentId: claimed.provider_intent_id,
+      authRecordId: claimed.id,
+    });
+    if (seen.found && seen.state === "canceled") return finishRelease(claimed, operationId, { ok: true }, actor);
+    if (seen.found && seen.state === "succeeded") {
+      await settleCaptured(claimed, seen.capturedCents, "releasing");
+      await finishOperation(operationId, { status: "failed", error: "Hold had already been captured" });
+      return { ok: false, error: "This hold was already charged" };
+    }
+    check(
+      await db
+        .from("authorization_records")
+        .update({ status: "authorized", lease_until: null, last_error: result.failureReason })
+        .eq("id", claimed.id)
+        .eq("status", "releasing"),
+      "roll back release",
+    );
+    await finishOperation(operationId, { status: "failed", error: result.failureReason });
     return { ok: false, error: result.failureReason };
   }
+
+  const done = check(
+    await db
+      .from("authorization_records")
+      .update({ status: "released", released_at: new Date().toISOString(), lease_until: null })
+      .eq("id", claimed.id)
+      .eq("status", "releasing")
+      .select("id")
+      .maybeSingle(),
+    "finalize release",
+  );
+  await finishOperation(operationId, { status: "succeeded", providerRef: claimed.provider_intent_id });
+  if (!done) return { ok: true }; // finalized by someone else already
 
   await notify({
     userId: claimed.creator_id,
@@ -372,47 +534,105 @@ export async function releaseAuthorization(
     actorRole: actor.role,
     action: "authorization.release",
     entityType: "authorization_record",
-    entityId: authRecordId,
+    entityId: claimed.id,
     companyId: claimed.company_id,
     metadata: { amountCents: claimed.amount_cents },
   });
   return { ok: true };
 }
 
+/**
+ * Charge an active hold (no-show). Refused before the show is over and once
+ * the hold has expired. authorized → capturing → captured on confirmation.
+ */
 export async function captureAuthorization(
   authRecordId: string,
-  actor: { id: string | null; role: string },
+  actor: Actor,
 ): Promise<{ ok: true; capturedCents: number } | { ok: false; error: string }> {
   const db = serviceDb();
-  const { data: claimed } = await db
+  const { data: hold } = await db
     .from("authorization_records")
-    .update({ status: "captured", captured_at: new Date().toISOString() })
+    .select("status, expires_at, bookings!inner(shows!inner(date))")
     .eq("id", authRecordId)
-    .eq("status", "authorized")
-    .select("id, booking_id, creator_id, company_id, amount_cents, provider_intent_id")
     .maybeSingle();
-  if (!claimed) {
+  if (!hold || hold.status !== "authorized") {
     return { ok: false, error: "Hold is not active (already released, captured, or never placed)" };
   }
+  if (hold.expires_at && new Date(hold.expires_at) <= new Date()) {
+    return { ok: false, error: "The hold expired before anyone charged it, so this no-show can't be charged" };
+  }
+  if (!showIsOver(hold.bookings.shows.date)) {
+    return { ok: false, error: "A no-show can only be charged after the show is over" };
+  }
 
+  const claimed = check(
+    await db
+      .from("authorization_records")
+      .update({ status: "capturing", lease_until: leaseUntil(), last_error: null })
+      .eq("id", authRecordId)
+      .eq("status", "authorized")
+      .select(HELD_COLUMNS)
+      .maybeSingle(),
+    "claim capture",
+  );
+  if (!claimed) return { ok: false, error: "Hold is not active (already released, captured, or never placed)" };
+
+  const key = `capture:${claimed.id}:${(await operationCount("capture", claimed.id)) + 1}`;
+  const op = await startOperation({ kind: "capture", idempotencyKey: key, authorizationRecordId: claimed.id, actor });
+  await checkpoint("capture.before_provider");
   const result = await paymentProvider().capture({
     providerIntentId: claimed.provider_intent_id!,
     amountCents: claimed.amount_cents,
-    idempotencyKey: `capture:${authRecordId}`,
+    idempotencyKey: key,
   });
+  await checkpoint("capture.after_provider");
+  return finishCapture(claimed, op.id, result, actor);
+}
+
+export async function finishCapture(
+  claimed: HeldRow,
+  operationId: string,
+  result: CaptureResult,
+  actor: Actor,
+): Promise<{ ok: true; capturedCents: number } | { ok: false; error: string }> {
+  const db = serviceDb();
   if (!result.ok) {
-    await db
-      .from("authorization_records")
-      .update({ status: "authorized", captured_at: null })
-      .eq("id", authRecordId)
-      .eq("status", "captured");
+    const seen = await paymentProvider().lookupIntent({
+      providerIntentId: claimed.provider_intent_id,
+      authRecordId: claimed.id,
+    });
+    if (seen.found && seen.state === "succeeded") {
+      return finishCapture(claimed, operationId, { ok: true, capturedCents: seen.capturedCents }, actor);
+    }
+    if (seen.found && seen.state === "canceled") {
+      // The network let the hold lapse (or it was released): nothing to charge.
+      check(
+        await db
+          .from("authorization_records")
+          .update({ status: "expired", released_at: new Date().toISOString(), lease_until: null, last_error: result.failureReason })
+          .eq("id", claimed.id)
+          .eq("status", "capturing"),
+        "mark hold expired",
+      );
+      await finishOperation(operationId, { status: "failed", error: result.failureReason });
+      return { ok: false, error: "The hold expired before it could be charged" };
+    }
+    check(
+      await db
+        .from("authorization_records")
+        .update({ status: "authorized", lease_until: null, last_error: result.failureReason })
+        .eq("id", claimed.id)
+        .eq("status", "capturing"),
+      "roll back capture",
+    );
+    await finishOperation(operationId, { status: "failed", error: result.failureReason });
     return { ok: false, error: result.failureReason };
   }
 
-  await db
-    .from("authorization_records")
-    .update({ capture_amount_cents: result.capturedCents })
-    .eq("id", authRecordId);
+  const done = await settleCaptured(claimed, result.capturedCents, "capturing");
+  await finishOperation(operationId, { status: "succeeded", providerRef: claimed.provider_intent_id });
+  if (!done) return { ok: true, capturedCents: result.capturedCents };
+
   await notify({
     userId: claimed.creator_id,
     type: "authorization_captured",
@@ -425,11 +645,31 @@ export async function captureAuthorization(
     actorRole: actor.role,
     action: "authorization.capture",
     entityType: "authorization_record",
-    entityId: authRecordId,
+    entityId: claimed.id,
     companyId: claimed.company_id,
     metadata: { capturedCents: result.capturedCents },
   });
   return { ok: true, capturedCents: result.capturedCents };
+}
+
+/** Record a confirmed capture (guarded on the in-flight state). True if this call wrote it. */
+async function settleCaptured(claimed: HeldRow, capturedCents: number, from: "capturing" | "releasing"): Promise<boolean> {
+  const row = check(
+    await serviceDb()
+      .from("authorization_records")
+      .update({
+        status: "captured",
+        captured_at: new Date().toISOString(),
+        capture_amount_cents: capturedCents,
+        lease_until: null,
+      })
+      .eq("id", claimed.id)
+      .eq("status", from)
+      .select("id")
+      .maybeSingle(),
+    "finalize capture",
+  );
+  return !!row;
 }
 
 /**
@@ -441,23 +681,24 @@ export async function captureAuthorization(
 export async function expireLapsedHolds(): Promise<{ expired: number }> {
   const db = serviceDb();
   const now = new Date().toISOString();
-  const { data: lapsed } = await db
-    .from("authorization_records")
-    .select("id")
-    .eq("status", "authorized")
-    .lt("expires_at", now)
-    .limit(100);
+  const lapsed = check(
+    await db.from("authorization_records").select("id").eq("status", "authorized").lt("expires_at", now).limit(100),
+    "load lapsed holds",
+  );
 
   let expired = 0;
   for (const hold of lapsed ?? []) {
     // Claim first, so a concurrent capture or release can't race this.
-    const { data: claimed } = await db
-      .from("authorization_records")
-      .update({ status: "expired", released_at: now })
-      .eq("id", hold.id)
-      .eq("status", "authorized")
-      .select("id, company_id, amount_cents, provider_intent_id")
-      .maybeSingle();
+    const claimed = check(
+      await db
+        .from("authorization_records")
+        .update({ status: "expired", released_at: now })
+        .eq("id", hold.id)
+        .eq("status", "authorized")
+        .select("id, company_id, amount_cents, provider_intent_id")
+        .maybeSingle(),
+      "expire hold",
+    );
     if (!claimed) continue;
     expired++;
     if (claimed.provider_intent_id) {
@@ -484,112 +725,164 @@ export async function expireLapsedHolds(): Promise<{ expired: number }> {
   return { expired };
 }
 
-/** Cancel a scheduled/failed/active authorization (booking or show canceled). */
+/**
+ * Booking or show canceled: make sure no hold survives it. Active holds are
+ * released; unplaced ones canceled. A hold being placed right now is canceled
+ * too: the placing worker sees that and voids what it created (or, if it
+ * died, recovery does).
+ */
 export async function cancelAuthorizationForBooking(
   bookingId: string,
-  actor: { id: string | null; role: string },
-): Promise<void> {
+  actor: Actor,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  let outcome: { ok: true } | { ok: false; error: string } = { ok: true };
   const db = serviceDb();
-  const { data: records } = await db
-    .from("authorization_records")
-    .select("id, status")
-    .eq("booking_id", bookingId)
-    .in("status", ["scheduled", "pending", "failed", "authorized"]);
+  const records = check(
+    await db
+      .from("authorization_records")
+      .select("id, status")
+      .eq("booking_id", bookingId)
+      .in("status", ["scheduled", "pending", "failed", "authorized"]),
+    "load holds to cancel",
+  );
 
   for (const record of records ?? []) {
     if (record.status === "authorized") {
-      await releaseAuthorization(record.id, actor);
+      const released = await releaseAuthorization(record.id, actor);
+      if (!released.ok) {
+        log.error("Hold release failed during cancellation", { authRecordId: record.id, reason: released.error });
+        outcome = released;
+      }
     } else {
-      await db
-        .from("authorization_records")
-        .update({ status: "canceled", canceled_at: new Date().toISOString() })
-        .eq("id", record.id)
-        .in("status", ["scheduled", "pending", "failed"]);
+      check(
+        await db
+          .from("authorization_records")
+          .update({ status: "canceled", canceled_at: new Date().toISOString(), lease_until: null })
+          .eq("id", record.id)
+          .in("status", ["scheduled", "pending", "failed"]),
+        "cancel hold",
+      );
     }
   }
+  return outcome;
 }
 
 // ── Creator payment (payout) ────────────────────────────────────────────
 
+type PayoutRow = { id: string; booking_id: string; creator_id: string; company_id: string; amount_cents: number; idempotency_key: string | null };
+
+/**
+ * Pay the creator (or their agency) for approved content. ready/failed →
+ * paying (claimed with a per-attempt key, leased) → paid once the transfer is
+ * confirmed. A crash leaves 'paying'; recovery finds the transfer by its
+ * transfer group or replays the same key, so it can't pay twice.
+ */
 export async function payoutCreatorPayment(
   bookingId: string,
-  actor: { id: string | null; role: string },
+  actor: Actor,
 ): Promise<{ ok: true; amountCents: number } | { ok: false; error: string }> {
   const db = serviceDb();
-  // Claim: only a record in `ready` (or retryable `failed`) can be paid.
-  const { data: claimed } = await db
+  const { data: record } = await db
     .from("creator_payment_records")
-    .update({ status: "paid", paid_at: new Date().toISOString() })
+    .select("id, creator_id, status, paused_at")
     .eq("booking_id", bookingId)
-    .in("status", ["ready", "failed"])
-    .is("paused_at", null)
-    .select("id, creator_id, company_id, amount_cents")
     .maybeSingle();
-  if (!claimed) {
+  if (!record || !["ready", "failed"].includes(record.status) || record.paused_at) {
     return { ok: false, error: "Creator payment is not ready to pay (or is paused)" };
   }
 
-  // A managed creator is paid through their management company's account.
-  // In Stripe mode we can only transfer to an account whose transfers
-  // capability is active. Resolve it first and fail cleanly (rolling the
-  // claim back) if the payee hasn't finished payout onboarding.
-  const destination = await payoutDestinationFor(claimed.creator_id);
-  let destinationAccountId: string | undefined;
-  if (serverEnv.paymentProvider === "stripe") {
-    if (!destination.accountId) {
-      const reason = destination.agency
-        ? `${destination.agency.name} (the creator's management) hasn't finished payout setup`
-        : "Creator hasn't finished payout setup";
+  // A managed creator is paid through their management company's account. In
+  // Stripe mode we can only transfer to an account with active transfers, so
+  // resolve it before claiming and fail cleanly if setup isn't finished.
+  const destination = await payoutDestinationFor(record.creator_id);
+  if (serverEnv.paymentProvider === "stripe" && !destination.accountId) {
+    const reason = destination.agency
+      ? `${destination.agency.name} (the creator's management) hasn't finished payout setup`
+      : "Creator hasn't finished payout setup";
+    check(
+      await db
+        .from("creator_payment_records")
+        .update({ status: "failed", failed_at: new Date().toISOString(), failure_reason: reason })
+        .eq("id", record.id)
+        .in("status", ["ready", "failed"]),
+      "record payout setup gap",
+    );
+    return { ok: false, error: reason };
+  }
+
+  const claimedRows = check(await db.rpc("claim_payout", { p_booking_id: bookingId }), "claim payout");
+  const claimed = (claimedRows ?? [])[0] as PayoutRow | undefined;
+  if (!claimed) return { ok: false, error: "Creator payment is not ready to pay (or is paused)" };
+  const key = claimed.idempotency_key!;
+
+  const op = await startOperation({ kind: "payout", idempotencyKey: key, paymentRecordId: claimed.id, actor });
+  await checkpoint("payout.before_provider");
+  const result = await paymentProvider().payout({
+    creatorUserId: claimed.creator_id,
+    amountCents: claimed.amount_cents,
+    idempotencyKey: key,
+    metadata: { bookingId, paymentRecordId: claimed.id, attemptKey: key },
+    destinationAccountId: destination.accountId ?? undefined,
+    transferGroup: claimed.id,
+  });
+  await checkpoint("payout.after_provider");
+  return finishPayout(claimed, op.id, result, actor, destination.agency);
+}
+
+export async function finishPayout(
+  claimed: PayoutRow,
+  operationId: string,
+  result: PayoutResult,
+  actor: Actor,
+  agency: { id: string; name: string } | null,
+): Promise<{ ok: true; amountCents: number } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const key = claimed.idempotency_key!;
+  if (!result.ok) {
+    check(
       await db
         .from("creator_payment_records")
         .update({
           status: "failed",
-          paid_at: null,
           failed_at: new Date().toISOString(),
-          failure_reason: reason,
+          failure_reason: result.failureReason,
+          last_error: result.failureReason,
+          lease_until: null,
         })
         .eq("id", claimed.id)
-        .eq("status", "paid");
-      return { ok: false, error: reason };
-    }
-    destinationAccountId = destination.accountId;
-  }
-
-  const result = await paymentProvider().payout({
-    creatorUserId: claimed.creator_id,
-    amountCents: claimed.amount_cents,
-    idempotencyKey: `payout:${bookingId}`,
-    metadata: { bookingId },
-    destinationAccountId,
-  });
-  if (!result.ok) {
-    await db
-      .from("creator_payment_records")
-      .update({
-        status: "failed",
-        paid_at: null,
-        failed_at: new Date().toISOString(),
-        failure_reason: result.failureReason,
-      })
-      .eq("id", claimed.id)
-      .eq("status", "paid");
+        .eq("status", "paying")
+        .eq("idempotency_key", key),
+      "record failed payout",
+    );
+    await finishOperation(operationId, { status: "failed", error: result.failureReason });
     return { ok: false, error: result.failureReason };
   }
 
-  await db
-    .from("creator_payment_records")
-    .update({
-      provider_transfer_id: result.providerTransferId,
-      payee_agency_id: destination.agency?.id ?? null,
-    })
-    .eq("id", claimed.id);
+  const paid = check(
+    await db
+      .from("creator_payment_records")
+      .update({
+        status: "paid",
+        paid_at: new Date().toISOString(),
+        provider_transfer_id: result.providerTransferId,
+        payee_agency_id: agency?.id ?? null,
+        lease_until: null,
+      })
+      .eq("id", claimed.id)
+      .eq("status", "paying")
+      .eq("idempotency_key", key)
+      .select("id")
+      .maybeSingle(),
+    "finalize payout",
+  );
+  await finishOperation(operationId, { status: "succeeded", providerRef: result.providerTransferId });
+  if (!paid) return { ok: true, amountCents: claimed.amount_cents }; // finalized elsewhere
+
   await notify({
     userId: claimed.creator_id,
     type: "payment_released",
-    title: destination.agency
-      ? `${formatCents(claimed.amount_cents)} paid to ${destination.agency.name}`
-      : `You've been paid ${formatCents(claimed.amount_cents)}`,
-    body: destination.agency
+    title: agency ? `${formatCents(claimed.amount_cents)} paid to ${agency.name}` : `You've been paid ${formatCents(claimed.amount_cents)}`,
+    body: agency
       ? "Your content payment was released to your management company. Nice work!"
       : "Your creator payment for completed deliverables has been released. Nice work!",
     link: `/creator/payments`,
@@ -601,76 +894,7 @@ export async function payoutCreatorPayment(
     entityType: "creator_payment_record",
     entityId: claimed.id,
     companyId: claimed.company_id,
-    metadata: { amountCents: claimed.amount_cents, payeeAgencyId: destination.agency?.id ?? null },
+    metadata: { amountCents: claimed.amount_cents, payeeAgencyId: agency?.id ?? null },
   });
   return { ok: true, amountCents: claimed.amount_cents };
-}
-
-// ── Webhooks ────────────────────────────────────────────────────────────
-
-/**
- * Process a verified provider webhook. Events are deduplicated by id and
- * only ever advance state — the synchronous service path is the primary
- * writer, webhooks are the confirmation/backstop channel.
- */
-export async function handleWebhookEvent(event: {
-  id: string;
-  type: string;
-  data: Record<string, unknown>;
-}): Promise<{ processed: boolean }> {
-  const db = serviceDb();
-  const { error: dedupeError } = await db.from("webhook_events").insert({
-    id: event.id,
-    provider: paymentProvider().name,
-    type: event.type,
-    payload: event.data as never,
-  });
-  if (dedupeError) return { processed: false }; // duplicate delivery
-
-  // Connect: a creator's account finished onboarding (or a capability
-  // changed) → refresh whether they can receive transfers.
-  if (event.type === "account.updated") {
-    const accountId = event.data.id as string | undefined;
-    if (accountId?.startsWith("acct_")) await syncPayoutStatusByAccount(accountId);
-    return { processed: true };
-  }
-
-  // Reconcile: if the provider says an intent changed state but our record
-  // is stale (e.g. process died mid-call), advance it. Mock events use
-  // authorization.*; Stripe sends payment_intent.*.
-  const intentId =
-    (event.data.intentId as string | undefined) ??
-    (event.data.id as string | undefined);
-  const cancelReason = event.data.cancellation_reason as string | undefined;
-  const lapsed =
-    event.type === "payment_intent.canceled" && (cancelReason === "automatic" || cancelReason === "expired");
-  if (intentId) {
-    if (lapsed) {
-      // The card network let the hold expire before anyone captured it.
-      await db
-        .from("authorization_records")
-        .update({ status: "expired", released_at: new Date().toISOString() })
-        .eq("provider_intent_id", intentId)
-        .eq("status", "authorized");
-    } else if (event.type === "authorization.succeeded" || event.type === "payment_intent.amount_capturable_updated") {
-      await db
-        .from("authorization_records")
-        .update({ status: "authorized", authorized_at: new Date().toISOString() })
-        .eq("provider_intent_id", intentId)
-        .eq("status", "pending");
-    } else if (event.type === "authorization.released" || event.type === "payment_intent.canceled") {
-      await db
-        .from("authorization_records")
-        .update({ status: "released", released_at: new Date().toISOString() })
-        .eq("provider_intent_id", intentId)
-        .eq("status", "authorized");
-    } else if (event.type === "authorization.captured" || event.type === "payment_intent.succeeded") {
-      await db
-        .from("authorization_records")
-        .update({ status: "captured", captured_at: new Date().toISOString() })
-        .eq("provider_intent_id", intentId)
-        .eq("status", "authorized");
-    }
-  }
-  return { processed: true };
 }

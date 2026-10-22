@@ -65,6 +65,10 @@ jobs:
 
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
+      - name: Seed demo data
+        run: npm run seed
+      - name: Run integration tests (payment crash / concurrency / webhooks)
+        run: npm run test:integration
       - name: Run e2e suite
         run: npm run test:e2e
 

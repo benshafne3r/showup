@@ -412,6 +412,8 @@ export type Database = {
           grace_deadline_at: string | null
           id: string
           idempotency_key: string | null
+          last_error: string | null
+          lease_until: string | null
           payment_method_id: string | null
           provider: string
           provider_intent_id: string | null
@@ -437,6 +439,8 @@ export type Database = {
           grace_deadline_at?: string | null
           id?: string
           idempotency_key?: string | null
+          last_error?: string | null
+          lease_until?: string | null
           payment_method_id?: string | null
           provider: string
           provider_intent_id?: string | null
@@ -462,6 +466,8 @@ export type Database = {
           grace_deadline_at?: string | null
           id?: string
           idempotency_key?: string | null
+          last_error?: string | null
+          lease_until?: string | null
           payment_method_id?: string | null
           provider?: string
           provider_intent_id?: string | null
@@ -915,6 +921,7 @@ export type Database = {
       creator_payment_records: {
         Row: {
           amount_cents: number
+          attempt_count: number
           booking_id: string
           canceled_at: string | null
           company_id: string
@@ -924,6 +931,8 @@ export type Database = {
           failure_reason: string | null
           id: string
           idempotency_key: string | null
+          last_error: string | null
+          lease_until: string | null
           paid_at: string | null
           paused_at: string | null
           paused_by: string | null
@@ -935,6 +944,7 @@ export type Database = {
         }
         Insert: {
           amount_cents: number
+          attempt_count?: number
           booking_id: string
           canceled_at?: string | null
           company_id: string
@@ -944,6 +954,8 @@ export type Database = {
           failure_reason?: string | null
           id?: string
           idempotency_key?: string | null
+          last_error?: string | null
+          lease_until?: string | null
           paid_at?: string | null
           paused_at?: string | null
           paused_by?: string | null
@@ -955,6 +967,7 @@ export type Database = {
         }
         Update: {
           amount_cents?: number
+          attempt_count?: number
           booking_id?: string
           canceled_at?: string | null
           company_id?: string
@@ -964,6 +977,8 @@ export type Database = {
           failure_reason?: string | null
           id?: string
           idempotency_key?: string | null
+          last_error?: string | null
+          lease_until?: string | null
           paid_at?: string | null
           paused_at?: string | null
           paused_by?: string | null
@@ -1545,6 +1560,82 @@ export type Database = {
           },
         ]
       }
+      payment_operations: {
+        Row: {
+          actor_id: string | null
+          actor_role: string
+          attempts: number
+          authorization_record_id: string | null
+          created_at: string
+          finished_at: string | null
+          id: string
+          idempotency_key: string
+          kind: string
+          last_error: string | null
+          lease_until: string
+          payment_record_id: string | null
+          provider_ref: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_role?: string
+          attempts?: number
+          authorization_record_id?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          idempotency_key: string
+          kind: string
+          last_error?: string | null
+          lease_until: string
+          payment_record_id?: string | null
+          provider_ref?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_role?: string
+          attempts?: number
+          authorization_record_id?: string | null
+          created_at?: string
+          finished_at?: string | null
+          id?: string
+          idempotency_key?: string
+          kind?: string
+          last_error?: string | null
+          lease_until?: string
+          payment_record_id?: string | null
+          provider_ref?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payment_operations_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_operations_authorization_record_id_fkey"
+            columns: ["authorization_record_id"]
+            isOneToOne: false
+            referencedRelation: "authorization_records"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_operations_payment_record_id_fkey"
+            columns: ["payment_record_id"]
+            isOneToOne: false
+            referencedRelation: "creator_payment_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       platform_settings: {
         Row: {
           key: string
@@ -2035,24 +2126,39 @@ export type Database = {
       }
       webhook_events: {
         Row: {
+          attempts: number
           id: string
+          last_error: string | null
+          lease_until: string | null
           payload: Json
-          processed_at: string
+          processed_at: string | null
           provider: string
+          received_at: string
+          status: string
           type: string
         }
         Insert: {
+          attempts?: number
           id: string
+          last_error?: string | null
+          lease_until?: string | null
           payload?: Json
-          processed_at?: string
+          processed_at?: string | null
           provider: string
+          received_at?: string
+          status?: string
           type: string
         }
         Update: {
+          attempts?: number
           id?: string
+          last_error?: string | null
+          lease_until?: string | null
           payload?: Json
-          processed_at?: string
+          processed_at?: string | null
           provider?: string
+          received_at?: string
+          status?: string
           type?: string
         }
         Relationships: []
@@ -2068,6 +2174,99 @@ export type Database = {
           name: string
           version: string
         }[]
+      }
+      claim_authorization: {
+        Args: {
+          p_id: string
+          p_lease_seconds?: number
+          p_payment_method_id: string
+        }
+        Returns: {
+          amount_cents: number
+          attempt_count: number
+          authorized_at: string | null
+          booking_id: string
+          canceled_at: string | null
+          capture_amount_cents: number | null
+          captured_at: string | null
+          company_id: string
+          created_at: string
+          creator_id: string
+          expires_at: string | null
+          failed_at: string | null
+          failure_reason: string | null
+          grace_deadline_at: string | null
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          lease_until: string | null
+          payment_method_id: string | null
+          provider: string
+          provider_intent_id: string | null
+          released_at: string | null
+          scheduled_for: string | null
+          status: Database["public"]["Enums"]["authorization_status"]
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "authorization_records"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_payout: {
+        Args: { p_booking_id: string; p_lease_seconds?: number }
+        Returns: {
+          amount_cents: number
+          attempt_count: number
+          booking_id: string
+          canceled_at: string | null
+          company_id: string
+          created_at: string
+          creator_id: string
+          failed_at: string | null
+          failure_reason: string | null
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          lease_until: string | null
+          paid_at: string | null
+          paused_at: string | null
+          paused_by: string | null
+          payee_agency_id: string | null
+          provider: string
+          provider_transfer_id: string | null
+          status: Database["public"]["Enums"]["creator_payment_status"]
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "creator_payment_records"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_webhook_event: {
+        Args: { p_id: string; p_lease_seconds?: number }
+        Returns: {
+          attempts: number
+          id: string
+          last_error: string | null
+          lease_until: string | null
+          payload: Json
+          processed_at: string | null
+          provider: string
+          received_at: string
+          status: string
+          type: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "webhook_events"
+          isOneToOne: false
+          isSetofReturn: true
+        }
       }
       is_admin: { Args: never; Returns: boolean }
       is_agency_member: { Args: { aid: string }; Returns: boolean }
@@ -2106,6 +2305,8 @@ export type Database = {
         | "captured"
         | "canceled"
         | "expired"
+        | "releasing"
+        | "capturing"
       booking_status:
         | "awaiting_acceptance"
         | "awaiting_payment_method"
@@ -2136,6 +2337,7 @@ export type Database = {
         | "failed"
         | "disputed"
         | "canceled"
+        | "paying"
       deliverable_platform:
         | "instagram_story"
         | "instagram_reel"
@@ -2354,6 +2556,8 @@ export const Constants = {
         "captured",
         "canceled",
         "expired",
+        "releasing",
+        "capturing",
       ],
       booking_status: [
         "awaiting_acceptance",
@@ -2387,6 +2591,7 @@ export const Constants = {
         "failed",
         "disputed",
         "canceled",
+        "paying",
       ],
       deliverable_platform: [
         "instagram_story",

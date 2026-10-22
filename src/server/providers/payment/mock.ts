@@ -8,6 +8,8 @@ import type {
   AuthorizationResult,
   CaptureResult,
   CardInput,
+  IntentLookup,
+  TransferLookup,
   PaymentMethodInfo,
   PaymentProvider,
   PayoutResult,
@@ -35,11 +37,14 @@ const DECLINE_AT_VERIFY = "4000000000000002";
 const DECLINE_AT_AUTHORIZE = "4000000000009995";
 
 type IntentState = {
-  status: "authorized" | "released" | "captured" | "failed";
+  /** expired = the card network let the hold lapse (tests set this). */
+  status: "authorized" | "released" | "captured" | "failed" | "expired";
   amountCents: number;
   capturedCents?: number;
   methodId: string;
   idempotencyKey: string;
+  authRecordId?: string;
+  attemptKey?: string;
 };
 
 async function saveState(id: string, kind: "payment_method" | "intent" | "transfer", state: Record<string, unknown>) {
@@ -179,6 +184,8 @@ export class MockPaymentProvider implements PaymentProvider {
         amountCents: input.amountCents,
         methodId: input.providerMethodId,
         idempotencyKey: input.idempotencyKey,
+        authRecordId: input.metadata.authRecordId,
+        attemptKey: input.metadata.attemptKey,
       } satisfies IntentState);
       await emitWebhook("authorization.failed", { intentId: id, ...input.metadata });
       return { ok: false, failureReason: "Card was declined" };
@@ -189,6 +196,8 @@ export class MockPaymentProvider implements PaymentProvider {
       amountCents: input.amountCents,
       methodId: input.providerMethodId,
       idempotencyKey: input.idempotencyKey,
+      authRecordId: input.metadata.authRecordId,
+      attemptKey: input.metadata.attemptKey,
     } satisfies IntentState);
     await emitWebhook("authorization.succeeded", { intentId: id, amountCents: input.amountCents, ...input.metadata });
     return { ok: true, providerIntentId: id, expiresAt: fallbackHoldExpiry(new Date()).toISOString() };
@@ -197,7 +206,7 @@ export class MockPaymentProvider implements PaymentProvider {
   async release(input: { providerIntentId: string; idempotencyKey: string }): Promise<ReleaseResult> {
     const intent = await loadState<IntentState>(input.providerIntentId);
     if (!intent) return { ok: false, failureReason: "Unknown intent" };
-    if (intent.status === "released") return { ok: true }; // idempotent
+    if (intent.status === "released" || intent.status === "expired") return { ok: true }; // idempotent
     if (intent.status !== "authorized") {
       return { ok: false, failureReason: `Cannot release intent in status ${intent.status}` };
     }
@@ -240,6 +249,7 @@ export class MockPaymentProvider implements PaymentProvider {
     idempotencyKey: string;
     metadata: Record<string, string>;
     destinationAccountId?: string;
+    transferGroup?: string;
   }): Promise<PayoutResult> {
     const existing = await findByIdempotencyKey<{ status: string }>("transfer", input.idempotencyKey);
     if (existing) return { ok: true, providerTransferId: existing.id }; // idempotent
@@ -253,6 +263,48 @@ export class MockPaymentProvider implements PaymentProvider {
     });
     await emitWebhook("payout.paid", { transferId: id, amountCents: input.amountCents, ...input.metadata });
     return { ok: true, providerTransferId: id };
+  }
+
+  async lookupIntent(input: {
+    providerIntentId?: string | null;
+    authRecordId: string;
+    attemptKey?: string | null;
+  }): Promise<IntentLookup> {
+    let id = input.providerIntentId ?? null;
+    let intent = id ? await loadState<IntentState>(id) : null;
+    if (!intent) {
+      let query = serviceDb()
+        .from("mock_payment_state")
+        .select("id, state")
+        .eq("kind", "intent")
+        .eq("state->>authRecordId", input.authRecordId);
+      if (input.attemptKey) query = query.eq("state->>attemptKey", input.attemptKey);
+      const { data } = await query.limit(1).maybeSingle();
+      if (!data) return { found: false };
+      id = data.id;
+      intent = data.state as IntentState;
+    }
+    const state =
+      intent.status === "authorized"
+        ? "requires_capture"
+        : intent.status === "captured"
+          ? "succeeded"
+          : intent.status === "failed"
+            ? "failed"
+            : "canceled";
+    return {
+      found: true,
+      intentId: id!,
+      state,
+      cancellationReason: intent.status === "expired" ? "automatic" : intent.status === "released" ? "requested_by_customer" : null,
+      capturedCents: intent.capturedCents ?? 0,
+      expiresAt: null,
+    };
+  }
+
+  async lookupTransfer(input: { paymentRecordId: string; attemptKey: string }): Promise<TransferLookup> {
+    const existing = await findByIdempotencyKey<{ status: string }>("transfer", input.attemptKey);
+    return existing ? { found: true, transferId: existing.id } : { found: false };
   }
 
   async verifyWebhook(rawBody: string, signature: string | null): Promise<WebhookEvent | null> {

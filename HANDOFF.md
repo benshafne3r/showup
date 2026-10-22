@@ -57,7 +57,28 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Security: read-only user database access (2026-10-22, from Codex audit)
+## Recoverable payments + retryable webhooks (2026-10-22, Codex #2/#3)
+Migrations **0021** (in-flight enum values: `releasing`, `capturing`, payout `paying`) + **0022**
+(`payment_operations` ledger, leases, `claim_authorization` / `claim_payout` / `claim_webhook_event`,
+webhook status columns).
+- Every provider call is a ledger row with its idempotency key stored BEFORE the call. Records go to
+  an in-flight state with a 2-min lease and only become released/captured/paid after the provider
+  confirms. `services/payment-recovery.ts` (cron step 0) settles anything whose lease expired: asks
+  the provider (`lookupIntent` / `lookupTransfer`), else replays the same key (≤23 h). Canceled-while-
+  placing holds are voided. Capture refuses before the show is over or after the hold expires.
+- Per-attempt keys (`auth:<booking>:attemptN`, `release:<id>:N`, `capture:<id>:N`,
+  `payout:<record>:attemptN`) so a retry after a confirmed failure doesn't replay a cached failure.
+- Webhooks (`services/webhooks.ts`): stored → claimed → processed/failed; only 23505 = duplicate;
+  failed/abandoned events retried (redelivery or cron step 0b); forward-only; never touch a record
+  whose own operation still holds its lease; recover a lost intent id from metadata.
+- Stripe client: 20 s timeout, 2 network retries. Mock provider got lookups too.
+- Tests: `npm run test:integration` (`tests/integration/*`, real services vs local DB, crash
+  checkpoints from `src/server/checkpoints.ts`): 18 tests, also in CI.
+- Live Stripe webhook (checked 2026-10-22): www + app both reach the handler; events =
+  amount_capturable_updated, canceled, payment_failed, transfer.created/updated. Optional adds:
+  `payment_intent.succeeded`, Connect account events (v2 thin) for payout-status backstop.
+
+
 Migration **0020**: the anon/authenticated roles (public API key + user JWT) can no longer INSERT/UPDATE/
 DELETE any public table (the app writes only via the service role). Closed: creators editing their own
 payout fields / verified flag / follower counts, and direct message inserts (skipped rate limits, spoofed

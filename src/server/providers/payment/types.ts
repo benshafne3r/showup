@@ -51,6 +51,21 @@ export type PayoutResult =
   | { ok: true; providerTransferId: string }
   | { ok: false; failureReason: string };
 
+/** What the provider says actually happened to a hold (for crash recovery). */
+export type IntentLookup =
+  | { found: false }
+  | {
+      found: true;
+      intentId: string;
+      /** requires_capture = hold active; canceled = released or expired; succeeded = captured. */
+      state: "requires_capture" | "canceled" | "succeeded" | "failed" | "processing";
+      cancellationReason: string | null;
+      capturedCents: number;
+      expiresAt: string | null;
+    };
+
+export type TransferLookup = { found: false } | { found: true; transferId: string };
+
 export type WebhookEvent = {
   id: string;
   type: string;
@@ -80,6 +95,19 @@ export interface PaymentProvider {
 
   release(input: { providerIntentId: string; idempotencyKey: string }): Promise<ReleaseResult>;
 
+  /**
+   * Find a hold by its id, or (when we never got the id back) by the
+   * authorization record + attempt key we put in its metadata.
+   */
+  lookupIntent(input: {
+    providerIntentId?: string | null;
+    authRecordId: string;
+    attemptKey?: string | null;
+  }): Promise<IntentLookup>;
+
+  /** Find a payout transfer for a payment record attempt (transfer group + metadata). */
+  lookupTransfer(input: { paymentRecordId: string; attemptKey: string }): Promise<TransferLookup>;
+
   capture(input: {
     providerIntentId: string;
     amountCents: number;
@@ -97,6 +125,8 @@ export interface PaymentProvider {
      * mode (the mock simulates a payout without a real destination).
      */
     destinationAccountId?: string;
+    /** Groups every attempt for one payment record, so recovery can find them. */
+    transferGroup?: string;
   }): Promise<PayoutResult>;
 
   /** Verify a webhook signature; returns the event or null if invalid. */

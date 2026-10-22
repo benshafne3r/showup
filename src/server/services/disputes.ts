@@ -3,7 +3,7 @@ import "server-only";
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
 import { notify, notifyCompany } from "./notifications";
-import { releaseAuthorization, captureAuthorization, payoutCreatorPayment } from "./payments";
+import { cancelAuthorizationForBooking, captureAuthorization, payoutCreatorPayment } from "./payments";
 import { uploadFile } from "./uploads";
 import type { Database } from "@/lib/database.types";
 
@@ -126,21 +126,8 @@ export async function resolveDispute(input: {
     .single();
 
   if (input.resolution === "release_hold" && booking) {
-    const { data: auth } = await db
-      .from("authorization_records")
-      .select("id, status")
-      .eq("booking_id", booking.id)
-      .in("status", ["authorized", "scheduled", "pending", "failed"])
-      .maybeSingle();
-    if (auth?.status === "authorized") {
-      const released = await releaseAuthorization(auth.id, input.admin);
-      if (!released.ok) return released;
-    } else if (auth) {
-      await db
-        .from("authorization_records")
-        .update({ status: "canceled", canceled_at: new Date().toISOString() })
-        .eq("id", auth.id);
-    }
+    const settled = await cancelAuthorizationForBooking(booking.id, input.admin);
+    if (!settled.ok) return settled;
     await db
       .from("bookings")
       .update({ attendance_state: "approved", status: "attended" })

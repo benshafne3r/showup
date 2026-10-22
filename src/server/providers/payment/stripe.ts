@@ -6,6 +6,8 @@ import type {
   AuthorizationResult,
   CaptureResult,
   CardInput,
+  IntentLookup,
+  TransferLookup,
   PaymentMethodInfo,
   PaymentProvider,
   PayoutResult,
@@ -54,7 +56,10 @@ export class StripePaymentProvider implements PaymentProvider {
       );
     }
     this.testMode = isTest;
-    this.stripe = new Stripe(key);
+    // Bounded calls: a hung request must finish well inside the 2-minute
+    // operation lease. Retries are safe because every mutation carries an
+    // idempotency key.
+    this.stripe = new Stripe(key, { timeout: 20_000, maxNetworkRetries: 2 });
   }
 
   async attachPaymentMethod(userId: string, card: CardInput): Promise<PaymentMethodInfo> {
@@ -212,6 +217,7 @@ export class StripePaymentProvider implements PaymentProvider {
     idempotencyKey: string;
     metadata: Record<string, string>;
     destinationAccountId?: string;
+    transferGroup?: string;
   }): Promise<PayoutResult> {
     // Connect "separate charges and transfers": move funds from the platform
     // balance to the creator's connected account after content is approved.
@@ -230,6 +236,7 @@ export class StripePaymentProvider implements PaymentProvider {
           currency: "usd",
           destination: input.destinationAccountId,
           metadata: input.metadata,
+          ...(input.transferGroup ? { transfer_group: input.transferGroup } : {}),
         },
         { idempotencyKey: input.idempotencyKey },
       );
@@ -237,6 +244,53 @@ export class StripePaymentProvider implements PaymentProvider {
     } catch (err) {
       return { ok: false, failureReason: err instanceof Error ? err.message : "Payout failed" };
     }
+  }
+
+  async lookupIntent(input: {
+    providerIntentId?: string | null;
+    authRecordId: string;
+    attemptKey?: string | null;
+  }): Promise<IntentLookup> {
+    let intent: Stripe.PaymentIntent | null = null;
+    if (input.providerIntentId) {
+      intent = await this.stripe.paymentIntents.retrieve(input.providerIntentId, { expand: ["latest_charge"] });
+    } else {
+      // We never got the id back (crash mid-call): find it by our metadata.
+      const found = await this.stripe.paymentIntents.search({
+        query: `metadata['authRecordId']:'${input.authRecordId}'`,
+        limit: 20,
+        expand: ["data.latest_charge"],
+      });
+      intent =
+        found.data.find((pi) => !input.attemptKey || pi.metadata?.attemptKey === input.attemptKey) ?? null;
+    }
+    if (!intent) return { found: false };
+    const charge = typeof intent.latest_charge === "object" ? intent.latest_charge : null;
+    const captureBefore = charge?.payment_method_details?.card?.capture_before;
+    const state =
+      intent.status === "requires_capture"
+        ? "requires_capture"
+        : intent.status === "canceled"
+          ? "canceled"
+          : intent.status === "succeeded"
+            ? "succeeded"
+            : intent.status === "processing"
+              ? "processing"
+              : "failed";
+    return {
+      found: true,
+      intentId: intent.id,
+      state,
+      cancellationReason: intent.cancellation_reason ?? null,
+      capturedCents: intent.amount_received ?? 0,
+      expiresAt: captureBefore ? new Date(captureBefore * 1000).toISOString() : null,
+    };
+  }
+
+  async lookupTransfer(input: { paymentRecordId: string; attemptKey: string }): Promise<TransferLookup> {
+    const transfers = await this.stripe.transfers.list({ transfer_group: input.paymentRecordId, limit: 20 });
+    const match = transfers.data.find((t) => t.metadata?.attemptKey === input.attemptKey && !t.reversed);
+    return match ? { found: true, transferId: match.id } : { found: false };
   }
 
   async verifyWebhook(rawBody: string, signature: string | null): Promise<WebhookEvent | null> {

@@ -75,12 +75,18 @@ describe("content state machine", () => {
 });
 
 describe("authorization state machine (double-spend protection)", () => {
-  it("follows schedule → pending → authorized → released", () => {
+  it("follows schedule → pending → authorized → releasing → released", () => {
     expect(canTransition(AUTHORIZATION_TRANSITIONS, "not_scheduled", "scheduled")).toBe(true);
     expect(canTransition(AUTHORIZATION_TRANSITIONS, "scheduled", "pending")).toBe(true);
     expect(canTransition(AUTHORIZATION_TRANSITIONS, "pending", "authorized")).toBe(true);
-    expect(canTransition(AUTHORIZATION_TRANSITIONS, "authorized", "released")).toBe(true);
-    expect(canTransition(AUTHORIZATION_TRANSITIONS, "authorized", "captured")).toBe(true);
+    expect(canTransition(AUTHORIZATION_TRANSITIONS, "authorized", "releasing")).toBe(true);
+    expect(canTransition(AUTHORIZATION_TRANSITIONS, "releasing", "released")).toBe(true);
+    expect(canTransition(AUTHORIZATION_TRANSITIONS, "authorized", "capturing")).toBe(true);
+    expect(canTransition(AUTHORIZATION_TRANSITIONS, "capturing", "captured")).toBe(true);
+  });
+  it("only finalizes through an in-flight state (never straight from authorized)", () => {
+    expect(canTransition(AUTHORIZATION_TRANSITIONS, "authorized", "released")).toBe(false);
+    expect(canTransition(AUTHORIZATION_TRANSITIONS, "authorized", "captured")).toBe(false);
   });
   it("released holds cannot be captured (and vice versa)", () => {
     expect(canTransition(AUTHORIZATION_TRANSITIONS, "released", "captured")).toBe(false);
@@ -95,13 +101,15 @@ describe("authorization state machine (double-spend protection)", () => {
 });
 
 describe("creator payment state machine (double-payout protection)", () => {
-  it("ready payments can be paid once", () => {
-    expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "ready", "paid")).toBe(true);
+  it("ready payments can be paid once, through paying", () => {
+    expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "ready", "paying")).toBe(true);
+    expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "paying", "paid")).toBe(true);
+    expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "ready", "paid")).toBe(false);
     expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "paid", "paid")).toBe(false);
     expect(CREATOR_PAYMENT_TRANSITIONS.paid).toHaveLength(0);
   });
   it("failed payouts can retry", () => {
-    expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "failed", "paid")).toBe(true);
+    expect(canTransition(CREATOR_PAYMENT_TRANSITIONS, "failed", "paying")).toBe(true);
   });
   it("canceled payments stay canceled", () => {
     expect(CREATOR_PAYMENT_TRANSITIONS.canceled).toHaveLength(0);

@@ -3,7 +3,7 @@ import "server-only";
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
 import { notify, notifyCompany } from "./notifications";
-import { releaseAuthorization, captureAuthorization } from "./payments";
+import { cancelAuthorizationForBooking, captureAuthorization } from "./payments";
 import { uploadFile } from "./uploads";
 import { formatShowDate, isShowDay, showIsOver } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
@@ -364,26 +364,10 @@ export async function approveAttendance(input: {
     .eq("booking_id", booking.id)
     .in("status", ["reserved", "issued"]);
 
-  // Release the hold — attendance is exactly what releases the creator.
-  const { data: activeAuth } = await db
-    .from("authorization_records")
-    .select("id, status")
-    .eq("booking_id", booking.id)
-    .in("status", ["authorized", "scheduled", "pending", "failed"])
-    .maybeSingle();
-  if (activeAuth) {
-    if (activeAuth.status === "authorized") {
-      const released = await releaseAuthorization(activeAuth.id, input.reviewer);
-      if (!released.ok) return { ok: false, error: `Attendance approved but hold release failed: ${released.error}` };
-    } else {
-      // Hold was never placed (early attendance approval) — cancel the schedule.
-      await db
-        .from("authorization_records")
-        .update({ status: "canceled", canceled_at: new Date().toISOString() })
-        .eq("id", activeAuth.id)
-        .in("status", ["scheduled", "pending", "failed"]);
-    }
-  }
+  // Release the hold (or cancel one not placed yet): attendance is exactly
+  // what releases the creator.
+  const settled = await cancelAuthorizationForBooking(booking.id, input.reviewer);
+  if (!settled.ok) return { ok: false, error: `Attendance approved but hold release failed: ${settled.error}` };
 
   const contentDone = !booking.content_required || booking.content_state === "approved";
   await db
@@ -534,16 +518,8 @@ export async function resolveNoShow(input: {
       .eq("booking_id", booking.id)
       .in("status", ["reserved", "issued"]);
   } else {
-    if (activeAuth?.status === "authorized") {
-      const released = await releaseAuthorization(activeAuth.id, input.reviewer);
-      if (!released.ok) return released;
-    } else if (activeAuth) {
-      await db
-        .from("authorization_records")
-        .update({ status: "canceled", canceled_at: new Date().toISOString() })
-        .eq("id", activeAuth.id)
-        .in("status", ["scheduled", "pending", "failed"]);
-    }
+    const settled = await cancelAuthorizationForBooking(booking.id, input.reviewer);
+    if (!settled.ok) return settled;
     await db
       .from("bookings")
       .update({ status: "canceled", canceled_at: new Date().toISOString(), cancel_reason: "no_show_excused" })

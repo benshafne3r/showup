@@ -54,7 +54,7 @@ async function wipe() {
   console.log("Wiping existing data…");
   // Order matters: children before parents (bookings FKs are RESTRICT).
   const tables = [
-    "disputes", "content_submissions", "attendance_submissions", "messages",
+    "payment_operations", "disputes", "content_submissions", "attendance_submissions", "messages",
     "message_threads", "creator_payment_records", "authorization_records",
     "booking_tickets", "bookings", "request_tickets", "show_requests",
     "deliverable_requirements", "show_opportunities", "shows", "tours",

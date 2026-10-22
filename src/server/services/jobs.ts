@@ -3,6 +3,8 @@ import "server-only";
 import { serviceDb } from "@/server/db/service";
 import { expireBooking, cancelBooking } from "./bookings";
 import { expireLapsedHolds, placeAuthorization } from "./payments";
+import { recoverPaymentOperations } from "./payment-recovery";
+import { retryUnfinishedWebhooks } from "./webhooks";
 import { notify } from "./notifications";
 import { verifyContentSubmissions } from "./content-verification";
 import { sendNewShowAlerts } from "./show-alerts";
@@ -25,6 +27,8 @@ export type JobResults = Record<string, number> & { errors: number };
  */
 export async function runScheduledJobs(): Promise<JobResults> {
   const results: JobResults = {
+    paymentsRecovered: 0,
+    webhooksRetried: 0,
     expiredAcceptances: 0,
     authorizationsPlaced: 0,
     authorizationsFailed: 0,
@@ -59,6 +63,19 @@ export async function runScheduledJobs(): Promise<JobResults> {
       log.error("Scheduled job step failed", { step: name, ...errorFields(err) });
     }
   }
+
+  // 0. Money first: finish payment operations a crash left half-done, and
+  //    reprocess webhook events that failed or were abandoned.
+  await step("recoverPayments", async () => {
+    const counts = await recoverPaymentOperations();
+    results.paymentsRecovered += counts.recovered;
+    results.errors += counts.failed;
+  });
+  await step("retryWebhooks", async () => {
+    const counts = await retryUnfinishedWebhooks();
+    results.webhooksRetried += counts.retried;
+    results.errors += counts.failed;
+  });
 
   // 1. Expire bookings whose acceptance window lapsed.
   await step("expireAcceptances", async () => {

@@ -59,7 +59,11 @@ export const AUTHORIZATION_TRANSITIONS: Record<AuthorizationStatus, Authorizatio
   not_scheduled: ["scheduled", "canceled"],
   scheduled: ["pending", "canceled"],
   pending: ["authorized", "failed", "canceled"],
-  authorized: ["released", "captured", "canceled", "expired"],
+  // Release/capture go through an in-flight state that only finalizes once the
+  // provider confirms (or falls back to authorized if it refuses).
+  authorized: ["releasing", "capturing", "expired"],
+  releasing: ["released", "authorized", "captured", "expired"],
+  capturing: ["captured", "authorized", "released", "expired"],
   failed: ["scheduled", "pending", "canceled"], // retry after payment method update
   released: [],
   captured: [],
@@ -72,9 +76,11 @@ export const CREATOR_PAYMENT_TRANSITIONS: Record<CreatorPaymentStatus, CreatorPa
   awaiting_funding: ["funded", "canceled"],
   funded: ["pending_fulfillment", "canceled"],
   pending_fulfillment: ["ready", "disputed", "canceled"],
-  ready: ["paid", "failed", "disputed", "canceled"],
-  failed: ["ready", "paid", "canceled"],
-  disputed: ["ready", "paid", "canceled"],
+  ready: ["paying", "disputed", "canceled"],
+  // Paying = transfer in flight; final only once the provider confirms.
+  paying: ["paid", "failed"],
+  failed: ["ready", "paying", "canceled"],
+  disputed: ["ready", "paying", "canceled"],
   paid: [],
   canceled: [],
 };
@@ -147,6 +153,8 @@ export const AUTHORIZATION_STATUS_META: Record<AuthorizationStatus, { label: str
   scheduled: { label: "Hold scheduled", tone: "info" },
   pending: { label: "Placing hold…", tone: "info" },
   authorized: { label: "Hold active", tone: "warning" },
+  releasing: { label: "Releasing hold…", tone: "info" },
+  capturing: { label: "Charging hold…", tone: "warning" },
   failed: { label: "Hold failed", tone: "danger" },
   released: { label: "Hold released", tone: "success" },
   captured: { label: "Hold charged", tone: "danger" },
@@ -160,6 +168,7 @@ export const CREATOR_PAYMENT_STATUS_META: Record<CreatorPaymentStatus, { label: 
   funded: { label: "Funded", tone: "info" },
   pending_fulfillment: { label: "Pending deliverables", tone: "info" },
   ready: { label: "Ready to pay", tone: "warning" },
+  paying: { label: "Sending payment…", tone: "info" },
   paid: { label: "Paid", tone: "success" },
   failed: { label: "Payment failed", tone: "danger" },
   disputed: { label: "Payment disputed", tone: "danger" },

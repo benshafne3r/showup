@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { paymentProvider } from "@/server/providers/payment";
-import { handleWebhookEvent } from "@/server/services/payments";
+import { receiveWebhookEvent } from "@/server/services/webhooks";
 import { log, errorFields } from "@/server/log";
 
 export const dynamic = "force-dynamic";
@@ -20,11 +20,11 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const result = await handleWebhookEvent(event);
-    return NextResponse.json({ received: true, processed: result.processed });
+    const result = await receiveWebhookEvent(event);
+    return NextResponse.json({ received: true, processed: result.processed, duplicate: result.duplicate });
   } catch (err) {
-    // Return 500 so the provider retries; the event is deduped by id, so a
-    // later successful retry is safe.
+    // Return 500 so the provider retries; the stored event is marked failed
+    // and is reprocessed on redelivery (or by the recovery job).
     log.error("Webhook processing failed", { eventId: event.id, ...errorFields(err) });
     return NextResponse.json({ error: "Processing failed" }, { status: 500 });
   }

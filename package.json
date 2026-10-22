@@ -13,6 +13,7 @@
     "db:status": "tsx scripts/db-status.ts",
     "cron": "node scripts/run-cron.mjs",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "typecheck": "tsc --noEmit"
