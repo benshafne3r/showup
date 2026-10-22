@@ -42,11 +42,16 @@ export async function signOut(page: Page) {
   await page.waitForURL("**/");
 }
 
-/** A tiny valid PNG for upload fields. */
-export function pngFixture(name = "proof.png") {
+/**
+ * A valid PNG for upload fields. `sizeBytes` pads it (after the image data)
+ * to a realistic phone-photo size; image readers ignore the trailing bytes.
+ */
+export function pngFixture(name = "proof.png", sizeBytes = 0) {
   const base64 =
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==";
-  return { name, mimeType: "image/png", buffer: Buffer.from(base64, "base64") };
+  const png = Buffer.from(base64, "base64");
+  const buffer = sizeBytes > png.length ? Buffer.concat([png, Buffer.alloc(sizeBytes - png.length)]) : png;
+  return { name, mimeType: "image/png", buffer };
 }
 
 /** Today's date (UTC), matching the app's own notion of "today". */

@@ -134,7 +134,8 @@ test("creator checks in with attendance proof", async ({ page }) => {
   // Location check-in is the default; the photo route is the fallback.
   await expect(page.getByRole("button", { name: "I'm here" })).toBeVisible();
   await page.getByText("Can't use location? Check in with a photo instead").click();
-  await page.getByLabel(/Photo proof/).setInputFiles(pngFixture());
+  // A real phone photo is a few MB: larger than Next's 1 MB default for actions.
+  await page.getByLabel(/Photo proof/).setInputFiles(pngFixture("proof.png", 3 * 1024 * 1024));
   await page.getByRole("button", { name: "Check in now" }).click();
   // On success the page revalidates into the "submitted" state.
   await expect(page.getByText(/Proof submitted/).first()).toBeVisible();
