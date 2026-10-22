@@ -57,7 +57,18 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Agency-run rosters + label picks (2026-10-22)
+## Security: read-only user database access (2026-10-22, from Codex audit)
+Migration **0020**: the anon/authenticated roles (public API key + user JWT) can no longer INSERT/UPDATE/
+DELETE any public table (the app writes only via the service role). Closed: creators editing their own
+payout fields / verified flag / follower counts, and direct message inserts (skipped rate limits, spoofed
+agency). Venues: users' API access reads only `id, city, state, country`; names/addresses/pins come from
+`venueDetailsForCreator()` (`services/venues.ts`, hides secret locations until approved). Tests:
+`e2e/data-access.spec.ts` (direct API attacks + real Label A / Label B fixtures).
+⚠️ Deploy order: code first, then 0020 (older code read venue names with the user's access).
+Rest of the Codex list (payments crash-safety, webhooks, transactional bookings, durable jobs,
+pagination, SetupIntents, uploads, view-as writes, cleanup, load test): see "Next steps".
+
+
 Ben's rules: agencies (managers) act for their creators; **labels never deal with an agency's creators
 directly**; the agency's card covers the deposit holds; creator rates are NOT imported.
 - **Managed profiles** (`users.managed_profile`, migration **0019**): creators with no login, run by the

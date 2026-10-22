@@ -60,14 +60,7 @@ test("a label member cannot reach the admin app", async ({ page }) => {
   await expect(page).toHaveURL(/\/label/);
 });
 
-test("a label member cannot open a booking from another company", async ({ page }) => {
-  const db = serviceClient();
-  // Create a second company + booking-less show isn't needed: assert a random
-  // (nonexistent) booking id 404s and RLS returns nothing for foreign rows.
-  await signIn(page, ACCOUNTS.labelOwner);
-  await page.goto("/label/bookings/00000000-0000-4000-8000-000000000000");
-  await expect(page.getByText("This page doesn't exist")).toBeVisible();
-});
+// Cross-company access with real Label A / Label B records: e2e/data-access.spec.ts.
 
 test("the cron endpoint rejects calls without the secret", async ({ request }) => {
   const response = await request.post("/api/cron/run", {

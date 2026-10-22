@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
+import { venueDetailsForCreator } from "@/server/services/venues";
 import { requireCreator } from "@/server/auth/guards";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -32,12 +33,13 @@ export default async function BookingsPage() {
     .select(
       `id, status, ticket_count, acceptance_deadline_at, creator_payment_cents,
        authorization_amount_cents, created_at,
-       shows!inner(date, artists(name), venues(name, city))`,
+       shows!inner(id, date, artists(name), venues(city))`,
     )
     .eq("creator_id", user.id)
     .order("created_at", { ascending: false })
     .limit(100);
 
+  const venueOf = await venueDetailsForCreator(user.id, (bookings ?? []).map((b) => b.shows.id));
   const upcoming = (bookings ?? []).filter((b) => ACTIVE.includes(b.status));
   const past = (bookings ?? []).filter((b) => !ACTIVE.includes(b.status));
 
@@ -55,7 +57,7 @@ export default async function BookingsPage() {
                 <p className="font-medium">
                   {booking.shows.artists?.name}{" "}
                   <span className="text-muted-foreground">
-                    · {booking.shows.venues?.name}, {booking.shows.venues?.city}
+                    · {venueOf.get(booking.shows.id)?.name ?? "Secret location"}, {booking.shows.venues?.city}
                   </span>
                 </p>
                 <p className="text-sm text-muted-foreground">

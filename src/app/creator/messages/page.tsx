@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
+import { venueDetailsForCreator } from "@/server/services/venues";
 import { requireCreator } from "@/server/auth/guards";
 import { listThreadsFor } from "@/server/services/messaging-queries";
 import { agencyForCreator } from "@/server/services/agencies";
@@ -33,7 +34,7 @@ export default async function CreatorMessagesPage({
       .from("show_requests")
       .select(
         `id, status, ticket_count, includes_plus_one, message, created_at,
-         shows!inner(id, date, hide_venue_until_approved, artists(name), venues(name, city)),
+         shows!inner(id, date, hide_venue_until_approved, artists(name), venues(city)),
          bookings(id, status)`,
       )
       .eq("creator_id", user.id)
@@ -42,6 +43,7 @@ export default async function CreatorMessagesPage({
     listThreadsFor({ id: user.id, side: "creator" }),
     agencyForCreator(user.id),
   ]);
+  const venueOf = await venueDetailsForCreator(user.id, (requests ?? []).map((r) => r.shows.id));
 
   return (
     <div className="space-y-6">
@@ -74,8 +76,8 @@ export default async function CreatorMessagesPage({
               {requests.map((request) => {
                 const booking = request.bookings;
                 const meta = REQUEST_STATUS_META[request.status as RequestStatus];
-                const hideLoc =
-                  request.shows.hide_venue_until_approved && request.status !== "approved";
+                const venue = venueOf.get(request.shows.id) ?? null;
+                const hideLoc = !venue;
                 return (
                   <li
                     key={request.id}
@@ -87,7 +89,7 @@ export default async function CreatorMessagesPage({
                         <span className="text-muted-foreground">
                           {hideLoc
                             ? `· ${request.shows.venues?.city} · Secret location`
-                            : `· ${request.shows.venues?.name}, ${request.shows.venues?.city}`}
+                            : `· ${venue?.name}, ${request.shows.venues?.city}`}
                         </span>
                       </p>
                       <p className="text-sm text-muted-foreground">

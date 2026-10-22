@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { userDb } from "@/server/db/server-client";
+import { venueDetailsForCreator } from "@/server/services/venues";
 import { requireCreator } from "@/server/auth/guards";
 import { getCreatorProfile } from "@/server/services/profiles";
 import { ShowCard, type ShowCardData } from "@/components/show-card";
@@ -48,7 +49,7 @@ export default async function DiscoverPage({
     .select(
       `id, date, image_url, status, hide_venue_until_approved,
        artists!inner(name, genre, image_url),
-       venues!inner(name, city),
+       venues!inner(city),
        show_opportunities!inner(
          id, creator_payment_cents, tickets_total, tickets_claimed,
          plus_one_allowed, application_deadline, published_at,
@@ -62,6 +63,11 @@ export default async function DiscoverPage({
     .order("date", { ascending: true })
     .limit(60);
 
+  // Venue names come from the server (secret locations stay hidden).
+  const venueOf = await venueDetailsForCreator(user.id, (rows ?? []).map((r) => r.id));
+  const venueName = (r: { id: string; hide_venue_until_approved: boolean }) =>
+    r.hide_venue_until_approved ? null : (venueOf.get(r.id)?.name ?? null);
+
   // Curated major markets, plus any city that currently has a published show.
   const allCities = Array.from(
     new Set([...MAJOR_CITIES, ...(rows ?? []).map((r) => r.venues.city)]),
@@ -72,7 +78,7 @@ export default async function DiscoverPage({
       if (cityFilter && cityFilter !== "all" && r.venues.city !== cityFilter) return false;
       if (q) {
         // Don't let a secret venue be confirmed via search — omit its name.
-        const venueTerm = r.hide_venue_until_approved ? "" : r.venues.name;
+        const venueTerm = venueName(r) ?? "";
         const haystack = `${r.artists.name} ${venueTerm} ${r.venues.city}`.toLowerCase();
         if (!haystack.includes(q.toLowerCase())) return false;
       }
@@ -86,7 +92,7 @@ export default async function DiscoverPage({
         artistName: r.artists.name,
         artistGenre: r.artists.genre,
         imageUrl: r.image_url ?? r.artists.image_url,
-        venueName: r.hide_venue_until_approved ? "Secret location" : r.venues.name,
+        venueName: venueName(r) ?? "Secret location",
         city: r.venues.city,
         date: r.date,
         creatorPaymentCents: opp.creator_payment_cents,

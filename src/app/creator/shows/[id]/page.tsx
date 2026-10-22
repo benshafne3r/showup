@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
+import { venueDetailsForCreator } from "@/server/services/venues";
 import { requireCreator } from "@/server/auth/guards";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
 import { formatShowDateLong, formatShowTime, formatDateTime } from "@/lib/dates";
@@ -41,7 +42,7 @@ export default async function ShowDetailPage({
       `id, date, doors_time, start_time, status, image_url, ticket_delivery_method,
        hide_venue_until_approved,
        artists!inner(name, genre, bio, image_url, instagram_handle),
-       venues!inner(name, city, state, address),
+       venues!inner(city),
        companies!inner(name),
        show_opportunities!inner(
          id, stated_ticket_value_cents, deposit_percentage, creator_payment_cents,
@@ -70,16 +71,16 @@ export default async function ShowDetailPage({
   const holdOne = authorizationAmountCents(opp.stated_ticket_value_cents, 1, opp.deposit_percentage);
   const holdTwo = authorizationAmountCents(opp.stated_ticket_value_cents, 2, opp.deposit_percentage);
 
-  // Secret location: withhold the venue/address until this creator is approved.
-  const locationHidden =
-    show.hide_venue_until_approved && existingRequest?.status !== "approved";
-  if (locationHidden) {
-    // Strip the secret venue from the data entirely so it never reaches the
-    // client payload — the city stays visible.
-    show.venues.name = "";
-    show.venues.state = null;
-    show.venues.address = null;
-  }
+  // Secret location: the server withholds the venue/address until this
+  // creator is approved, so it never reaches the page; the city stays visible.
+  const details = (await venueDetailsForCreator(user.id, [show.id])).get(show.id) ?? null;
+  const locationHidden = !details;
+  const venue = {
+    city: show.venues.city,
+    name: details?.name ?? "",
+    state: details?.state ?? null,
+    address: details?.address ?? null,
+  };
 
   return (
     <div className="space-y-6">
@@ -129,7 +130,7 @@ export default async function ShowDetailPage({
                 <MapPin className="size-4 text-primary" aria-hidden />
                 {locationHidden ? (
                   <span>
-                    {show.venues.city}
+                    {venue.city}
                     <span className="text-muted-foreground">
                       {" "}
                       · Secret location, revealed once you're approved
@@ -137,9 +138,9 @@ export default async function ShowDetailPage({
                   </span>
                 ) : (
                   <>
-                    {show.venues.name}, {show.venues.city}
-                    {show.venues.state ? `, ${show.venues.state}` : ""}
-                    {show.venues.address ? `, ${show.venues.address}` : ""}
+                    {venue.name}, {venue.city}
+                    {venue.state ? `, ${venue.state}` : ""}
+                    {venue.address ? `, ${venue.address}` : ""}
                   </>
                 )}
               </p>

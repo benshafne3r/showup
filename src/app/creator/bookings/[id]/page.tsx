@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
+import { venueDetailsForCreator } from "@/server/services/venues";
 import { requireCreator } from "@/server/auth/guards";
 import { expireIfOverdue } from "@/server/services/bookings";
 import { defaultPaymentMethod } from "@/server/services/payments";
@@ -49,7 +50,7 @@ export default async function CreatorBookingPage({
          attendance_state, acceptance_deadline_at, accepted_at, terms_accepted_at,
          ticket_instructions, ticket_instructions_sent_at, canceled_at, cancel_reason,
          completed_at, created_at,
-         shows!inner(id, date, doors_time, start_time, status, artists(name), venues(name, city, state, address)),
+         shows!inner(id, date, doors_time, start_time, status, artists(name), venues(city)),
          companies!inner(name),
          authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, failure_reason, grace_deadline_at, created_at),
          creator_payment_records(status, amount_cents, paid_at, failure_reason),
@@ -71,6 +72,7 @@ export default async function CreatorBookingPage({
   }
 
   const show = booking.shows;
+  const venue = (await venueDetailsForCreator(user.id, [show.id])).get(show.id) ?? null;
   const artistName = show.artists?.name ?? "Show";
   const activeAuth = [...(booking.authorization_records ?? [])].sort(
     (a, b) => (a.created_at < b.created_at ? 1 : -1),
@@ -163,8 +165,8 @@ export default async function CreatorBookingPage({
               </p>
               <p className="flex items-center gap-2 sm:col-span-2">
                 <MapPin className="size-4 text-primary" aria-hidden />
-                {show.venues?.name}, {show.venues?.city}
-                {show.venues?.state ? `, ${show.venues.state}` : ""}
+                {venue?.name ?? "Secret location"}, {show.venues?.city}
+                {venue?.state ? `, ${venue.state}` : ""}
               </p>
             </CardContent>
           </Card>
