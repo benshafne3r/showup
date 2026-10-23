@@ -112,7 +112,7 @@ describe("scheduler", () => {
     }
     expect(await remindJobs(ids)).toBe(250);
     expect(await reminded(ids)).toBe(250);
-  });
+  }, 180_000); // 250 records × 3 runs: ~16 s locally, over 30 s on CI runners
 
   it("doesn't duplicate work when scheduler runs overlap", async () => {
     const ids = await bookingsForTomorrow(40);
