@@ -57,8 +57,8 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Database-side lists + totals (2026-10-23, Codex #6) — ⚠️ COMMITTED, NOT PUSHED
-Migration **0025** (local only; **apply to prod BEFORE pushing**, the new pages call its functions):
+## Database-side lists + totals (2026-10-23, Codex #6) — LIVE
+Migration **0025** (applied to prod 2026-10-23, before the code push; the pages call its functions):
 generated `city_key` / `state_key` (venues) and `city_key` / `region_key` (creator_profiles) with
 indexes, mirroring `cityKey` / `showStateKey` / `stateKey` (parity test keeps them in step); RPCs
 `discover_shows`, `open_show_cities`, `creators_near`, `creator_counts_near`, `thread_summaries`,
@@ -601,15 +601,14 @@ The add-card form no longer has to send a raw PAN to the server:
 
 **Codex audit follow-ups.** Done: #1 DB permissions (0020), #9 upload limit, #2 payments crash-safety
 + #3 webhooks (0021/0022), #4 transactional bookings (0023), #5 durable jobs + worker (0024),
-#6 pagination/aggregates (0025, ⚠️ awaiting prod apply + push). Remaining, in order:
-1. **Ship 0025**: apply to prod (Supabase MCP `apply_migration`), then push, then check `/api/health`.
-2. **Staging load test** (#12) before claiming capacity: 10k creators, 500 labels, 100k bookings,
+#6 pagination/aggregates (0025, live). Remaining, in order:
+1. **Staging load test** (#12) before claiming capacity: 10k creators, 500 labels, 100k bookings,
    1M messages, 100–500 concurrent sessions, p95 < 500 ms reads. Needs a staging DB + app (costs
    money: ask Ben first). Watch `unread_message_count` (scans a label's messages on every page).
-3. **SetupIntents for saving cards** (#8) + persisted Stripe customer IDs.
-4. **View as = no writes** (#10): `expireIfOverdue()` runs on page render; payment pages persist
+2. **SetupIntents for saving cards** (#8) + persisted Stripe customer IDs.
+3. **View as = no writes** (#10): `expireIfOverdue()` runs on page render; payment pages persist
    Stripe status on GET. Atomic rate limiter. Remote image fetch limits (#9 rest).
-5. Then, separately: unused-code cleanup (#11), measured perf (#7).
+4. Then, separately: unused-code cleanup (#11), measured perf (#7).
 ⬜ **Ben to decide**: how labels fund content payouts (prepay / invoice / credit) before broad rollout.
 
 **Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
