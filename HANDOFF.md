@@ -66,8 +66,11 @@ enqueue per-recipient emails in one txn), `job_queue_stats`, `heartbeats`, faire
   `retry_webhooks` jobs + city-alert fan-out + heartbeat. `runScheduledJobs()` (/api/cron/run) =
   two scheduler passes + drain, 45 s budget; 500 only if scheduling itself fails.
 - Worker: `npm run worker` (`scripts/worker.ts`, tsx `--conditions=react-server`): schedules every
-  minute, drains in 10 s slices, SIGTERM-safe. ⬜ Not deployed as a service yet (Railway service =
-  small cost; until then the 10-min cron tick drains for 45 s).
+  minute, drains in 10 s slices, SIGTERM-safe. **Live 2026-10-23** as Railway service `worker`
+  (id 3f1bb737…, same repo, auto-deploys with web; start `npm run worker`, build command is a no-op
+  echo, restart ALWAYS, 30 s drain, env copied from `showup` + `NODE_ENV=production`). If you add
+  an env var to the web service, add it to `worker` too. The GitHub 10-min cron stays as a backup
+  tick + health check.
 - Per-item handlers (`src/server/jobs/handlers.ts`): place_auth, expire_hold, grace_cancel,
   expire_booking, auto_release, remind_*, no_show_decision, verify_content, geocode, setup_reminder,
   city_alert_email. Paced in-worker (email 550 ms, Nominatim 1.1 s, TikWM 250 ms). Job key = the
