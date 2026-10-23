@@ -57,11 +57,11 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Labels pay for creator content (2026-10-23) — ⚠️ COMMITTED, NOT PUSHED
+## Labels pay for creator content (2026-10-23) — LIVE
 Ben's rules: the label's card is charged a creator's content fee **plus card processing** when the
 label approves the content; the creator is paid the full fee from that charge. Charge =
 `labelChargeCents(fee)` in `lib/money.ts` (grossed up for 2.9% + 30¢: $50 → $51.81), stored as
-`funding_amount_cents`. Migration **0026** (local only; **apply to prod BEFORE pushing**):
+`funding_amount_cents`. Migration **0026** (applied to prod 2026-10-23, before the code push):
 `payment_methods.company_id` (label cards), funding columns on `creator_payment_records`
 (`funding_status` unfunded → charging → charged / failed; charged + canceled → refunding → refunded;
 `waived` = paid by ShowUp, set for everything approved before this), `claim_funding`, `claim_refund`,
@@ -636,7 +636,7 @@ The add-card form no longer has to send a raw PAN to the server:
    Stripe status on GET. Atomic rate limiter. Remote image fetch limits (#9 rest).
 4. Then, separately: unused-code cleanup (#11), measured perf (#7).
 ✅ **Decided 2026-10-23 (Ben): labels fund content payouts through Stripe, charged when the content is
-approved.** Built (see "Labels pay for creator content"); awaiting 0026 on prod + push.
+approved**, label also pays card processing. Live (see "Labels pay for creator content").
 
 **Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
 and walk a real agency through onboarding + Stripe payout setup (KYC can't be automated);
