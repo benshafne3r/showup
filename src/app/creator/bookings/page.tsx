@@ -10,12 +10,14 @@ import { BOOKING_STATUS_META, type BookingStatus } from "@/lib/statuses";
 import { formatShowDate, timeUntil } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { Ticket } from "lucide-react";
 
 export const metadata: Metadata = { title: "Bookings" };
 export const dynamic = "force-dynamic";
 
-const ACTIVE = [
+const ACTIVE: BookingStatus[] = [
   "awaiting_acceptance",
   "awaiting_payment_method",
   "confirmed",
@@ -25,23 +27,37 @@ const ACTIVE = [
   "disputed",
 ];
 
-export default async function BookingsPage() {
-  const user = await requireCreator();
-  const db = await userDb();
-  const { data: bookings } = await db
-    .from("bookings")
-    .select(
-      `id, status, ticket_count, acceptance_deadline_at, creator_payment_cents,
-       authorization_amount_cents, created_at,
-       shows!inner(id, date, artists(name), venues(city))`,
-    )
-    .eq("creator_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(100);
+const LIST_PAGE = 25;
 
-  const venueOf = await venueDetailsForCreator(user.id, (bookings ?? []).map((b) => b.shows.id));
-  const upcoming = (bookings ?? []).filter((b) => ACTIVE.includes(b.status));
-  const past = (bookings ?? []).filter((b) => !ACTIVE.includes(b.status));
+export default async function BookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ ap?: string; hp?: string }>;
+}) {
+  const user = await requireCreator();
+  const params = await searchParams;
+  const activePage = pageOf(params.ap, LIST_PAGE);
+  const historyPage = pageOf(params.hp, LIST_PAGE);
+  const db = await userDb();
+  const bookingList = () =>
+    db
+      .from("bookings")
+      .select(
+        `id, status, ticket_count, acceptance_deadline_at, creator_payment_cents,
+         authorization_amount_cents, created_at,
+         shows!inner(id, date, artists(name), venues(city))`,
+        { count: "exact" },
+      )
+      .eq("creator_id", user.id)
+      .order("created_at", { ascending: false });
+  const [{ data: active, count: activeTotal }, { data: history, count: historyTotal }] = await Promise.all([
+    bookingList().in("status", ACTIVE).range(activePage.from, activePage.to),
+    bookingList().not("status", "in", `(${ACTIVE.join(",")})`).range(historyPage.from, historyPage.to),
+  ]);
+
+  const upcoming = active ?? [];
+  const past = history ?? [];
+  const venueOf = await venueDetailsForCreator(user.id, [...upcoming, ...past].map((b) => b.shows.id));
 
   const renderList = (items: typeof upcoming) => (
     <ul className="space-y-3">
@@ -86,7 +102,7 @@ export default async function BookingsPage() {
   return (
     <div className="space-y-8">
       <PageHeader title="Bookings" description="Upcoming shows and your full history." />
-      {!bookings?.length ? (
+      {!activeTotal && !historyTotal ? (
         <EmptyState
           icon={Ticket}
           title="No bookings yet"
@@ -106,13 +122,15 @@ export default async function BookingsPage() {
             {upcoming.length ? renderList(upcoming) : (
               <p className="text-sm text-muted-foreground">Nothing active right now.</p>
             )}
+            <Pager page={activePage.page} size={LIST_PAGE} total={activeTotal ?? 0} basePath="/creator/bookings" params={params} pageKey="ap" />
           </section>
-          {past.length > 0 ? (
+          {historyTotal ? (
             <section className="space-y-3" aria-label="Past bookings">
               <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
                 History
               </h2>
               {renderList(past)}
+              <Pager page={historyPage.page} size={LIST_PAGE} total={historyTotal} basePath="/creator/bookings" params={params} pageKey="hp" />
             </section>
           ) : null}
         </>

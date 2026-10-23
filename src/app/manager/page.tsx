@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireManagerPage } from "./require-manager";
-import { listOpenInvites, listRoster } from "@/server/services/agencies";
+import { listOpenInvites, rosterPage } from "@/server/services/agencies";
 import { pendingOffersForAgency } from "@/server/services/offers";
 import { agencyDefaultPaymentMethod } from "@/server/services/payments";
 import { revokeInviteAction } from "./actions";
@@ -14,26 +14,30 @@ import { CreatorAvatar, CreatorPhoto, tiktokUrl } from "@/components/creator-ava
 import { CreatorFollowers } from "@/components/creator-followers";
 import { Button } from "@/components/ui/button";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { ExternalLink, MapPin, Users } from "lucide-react";
 
 export const metadata: Metadata = { title: "Roster" };
 export const dynamic = "force-dynamic";
 
+const ROSTER_PAGE = 60;
+
 export default async function RosterPage({
   searchParams,
 }: {
-  searchParams: Promise<{ welcome?: string }>;
+  searchParams: Promise<{ welcome?: string; page?: string }>;
 }) {
   const ctx = await requireManagerPage();
   const params = await searchParams;
-  const [roster, invites, offers, card] = await Promise.all([
-    listRoster(ctx.agencyId),
+  const page = pageOf(params.page, ROSTER_PAGE);
+  const [{ entries: roster, total: rosterTotal }, invites, offers, card] = await Promise.all([
+    rosterPage(ctx.agencyId, { limit: ROSTER_PAGE, offset: page.from }),
     listOpenInvites(ctx.agencyId),
     pendingOffersForAgency(ctx.agencyId),
     agencyDefaultPaymentMethod(ctx.agencyId),
   ]);
   const cardLabel = card ? `${card.brand} •••• ${card.last4}` : null;
-  roster.sort((a, b) => b.audienceSize - a.audienceSize);
 
   return (
     <div className="space-y-6">
@@ -79,7 +83,7 @@ export default async function RosterPage({
         </section>
       ) : null}
 
-      {roster.length === 0 ? (
+      {rosterTotal === 0 ? (
         <EmptyState
           icon={Users}
           title="No creators yet"
@@ -132,6 +136,7 @@ export default async function RosterPage({
           ))}
         </ul>
       )}
+      <Pager page={page.page} size={ROSTER_PAGE} total={rosterTotal} basePath="/manager" params={{}} />
 
       {invites.length > 0 ? (
         <section className="space-y-3">

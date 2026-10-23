@@ -11,14 +11,17 @@ export const dynamic = "force-dynamic";
 
 export default async function CreatorThreadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ threadId: string }>;
+  searchParams: Promise<{ before?: string }>;
 }) {
   const user = await requireCreator();
   const { threadId } = await params;
+  const { before } = await searchParams;
   // Represented creators' label threads belong to their management company.
   if (await agencyForCreator(user.id)) redirect("/creator/messages?tab=messages");
-  const thread = await getThreadForViewer(threadId, { id: user.id, side: "creator" });
+  const thread = await getThreadForViewer(threadId, { id: user.id, side: "creator" }, { before });
   if (!thread) notFound();
   // Viewing as this user (owner tool) must not mark their messages read.
   if (!user.viewedBy) await markThreadRead(user.id, threadId);
@@ -36,6 +39,8 @@ export default async function CreatorThreadPage({
         subject={thread.subject}
         counterpartName={thread.counterpartName}
         messages={thread.messages}
+        olderHref={thread.olderCursor ? `/creator/messages/${threadId}?before=${encodeURIComponent(thread.olderCursor)}` : null}
+        latestHref={before ? `/creator/messages/${threadId}` : null}
       />
     </div>
   );

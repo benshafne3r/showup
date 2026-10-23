@@ -29,7 +29,7 @@ export function stateKey(value: string | null | undefined): string {
 }
 
 /** States of the major markets, for venues saved without one. */
-const CITY_STATE: Record<string, string> = {
+export const CITY_STATE: Record<string, string> = {
   atlanta: "GA", austin: "TX", boston: "MA", charlotte: "NC", chicago: "IL",
   dallas: "TX", denver: "CO", detroit: "MI", houston: "TX", "las vegas": "NV",
   "los angeles": "CA", miami: "FL", minneapolis: "MN", nashville: "TN",

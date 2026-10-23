@@ -6,17 +6,27 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/dates";
 import { setUserStatusAction, verifyUserAction } from "../actions";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Users" };
 export const dynamic = "force-dynamic";
 
-export default async function AdminUsersPage() {
+const PAGE_SIZE = 50;
+
+export default async function AdminUsersPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireAdmin();
-  const { data: users } = await serviceDb()
+  const params = await searchParams;
+  const page = pageOf(params.page, PAGE_SIZE);
+  const { data: users, count: total } = await serviceDb()
     .from("users")
-    .select("id, email, full_name, role, status, verified_at, created_at")
+    .select("id, email, full_name, role, status, verified_at, created_at", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(200);
+    .range(page.from, page.to);
 
   return (
     <div className="space-y-6">
@@ -144,6 +154,7 @@ export default async function AdminUsersPage() {
           </li>
         ))}
       </ul>
+      <Pager page={page.page} size={PAGE_SIZE} total={total ?? 0} basePath="/admin/users" params={params} />
     </div>
   );
 }

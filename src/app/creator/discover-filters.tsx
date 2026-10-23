@@ -30,6 +30,7 @@ export function DiscoverFilters({
     (patch: { q?: string; city?: string }) => {
       const params = new URLSearchParams(window.location.search);
       params.delete("welcome");
+      params.delete("page"); // a new filter starts at page 1
       for (const [key, value] of Object.entries(patch)) {
         if (value) params.set(key, value);
         else params.delete(key);

@@ -10,16 +10,19 @@ export const dynamic = "force-dynamic";
 
 export default async function LabelThreadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ threadId: string }>;
+  searchParams: Promise<{ before?: string }>;
 }) {
   const context = await requireLabelPage();
   const { threadId } = await params;
+  const { before } = await searchParams;
   const thread = await getThreadForViewer(threadId, {
     id: context.user.id,
     side: "company",
     companyId: context.companyId,
-  });
+  }, { before });
   if (!thread) notFound();
   // Viewing as this user (owner tool) must not mark their messages read.
   if (!context.user.viewedBy) await markThreadRead(context.user.id, threadId);
@@ -37,6 +40,8 @@ export default async function LabelThreadPage({
         subject={thread.subject}
         counterpartName={thread.counterpartName}
         messages={thread.messages}
+        olderHref={thread.olderCursor ? `/label/messages/${threadId}?before=${encodeURIComponent(thread.olderCursor)}` : null}
+        latestHref={before ? `/label/messages/${threadId}` : null}
       />
     </div>
   );

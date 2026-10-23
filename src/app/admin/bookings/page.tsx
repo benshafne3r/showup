@@ -7,23 +7,31 @@ import { BOOKING_STATUS_META } from "@/lib/statuses";
 import { formatShowDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { AdminCancelBooking } from "./cancel-booking";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Bookings" };
 export const dynamic = "force-dynamic";
 
-export default async function AdminBookingsPage() {
+const PAGE_SIZE = 50;
+
+export default async function AdminBookingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireAdmin();
-  const { data: bookings } = await serviceDb()
+  const params = await searchParams;
+  const page = pageOf(params.page, PAGE_SIZE);
+  const { data: bookings, count: total } = await serviceDb()
     .from("bookings")
-    .select(
-      `id, status, ticket_count, authorization_amount_cents, creator_payment_cents,
+    .select(`id, status, ticket_count, authorization_amount_cents, creator_payment_cents,
        attendance_state, content_state, created_at,
        users:users!creator_id(full_name, email),
        companies(name),
-       shows(date, artists(name), venues(city))`,
-    )
+       shows(date, artists(name), venues(city))`, { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(200);
+    .range(page.from, page.to);
 
   return (
     <div className="space-y-6">
@@ -126,6 +134,7 @@ export default async function AdminBookingsPage() {
           </li>
         ))}
       </ul>
+      <Pager page={page.page} size={PAGE_SIZE} total={total ?? 0} basePath="/admin/bookings" params={params} />
     </div>
   );
 }

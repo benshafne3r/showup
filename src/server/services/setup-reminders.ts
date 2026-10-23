@@ -62,16 +62,11 @@ function reminderCopy(step: SetupStep, alreadySent: number, city: string, nearby
   };
 }
 
-/** Open opportunities (still taking requests) in a city. */
+/** Open opportunities (still taking requests) in a city, counted in SQL. */
 async function openShowsIn(city: string, db: ServiceClient): Promise<number> {
-  const { data } = await db
-    .from("show_opportunities")
-    .select("id, shows!inner(date, status, venues!inner(city))")
-    .not("published_at", "is", null)
-    .gt("application_deadline", new Date().toISOString())
-    .eq("shows.status", "published")
-    .gte("shows.date", new Date().toISOString().slice(0, 10))
-    .limit(1000);
   const key = cityKey(city);
-  return (data ?? []).filter((o) => o.shows.venues && cityKey(o.shows.venues.city) === key).length;
+  if (!key) return 0; // an empty key would mean "every city"
+  const { data, error } = await db.rpc("discover_shows", { p_city_key: key, p_query: "", p_limit: 1, p_offset: 0 });
+  if (error) throw new Error(`open shows: ${error.message}`);
+  return Number(data?.[0]?.total ?? 0);
 }

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
 import { isPlatformOwner } from "@/server/auth/owner";
 import { getSessionUser } from "@/server/auth/guards";
-import { getAgencyMembership, rosterCreatorIds } from "@/server/services/agencies";
+import { getAgencyMembership } from "@/server/services/agencies";
 import { unreadNotificationCount } from "@/server/services/notifications";
 import { unreadMessageCount } from "@/server/services/messaging";
 import { serviceDb } from "@/server/db/service";
@@ -23,29 +23,17 @@ export default async function ManagerLayout({ children }: { children: React.Reac
   }
   if (membership.agencies.suspended_at) redirect("/sign-in");
 
-  const roster = await rosterCreatorIds(membership.agency_id);
-  const [unreadNotifs, unreadMessages, pendingRequests, waitingOnYou] = await Promise.all([
+  const [unreadNotifs, unreadMessages, badges] = await Promise.all([
     unreadNotificationCount(user.id),
     unreadMessageCount(user.id),
-    roster.length
-      ? serviceDb()
-          .from("show_requests")
-          .select("id", { count: "exact", head: true })
-          .in("creator_id", roster)
-          .eq("status", "pending")
-          .then((r) => r.count ?? 0)
-      : Promise.resolve(0),
-    // Label invites + approvals the agency still has to accept or pass.
-    roster.length
-      ? serviceDb()
-          .from("bookings")
-          .select("id", { count: "exact", head: true })
-          .in("creator_id", roster)
-          .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
-          .gt("acceptance_deadline_at", new Date().toISOString())
-          .then((r) => r.count ?? 0)
-      : Promise.resolve(0),
+    // Pending roster requests, and label invites/approvals the agency still
+    // has to accept or pass, counted in SQL against the roster.
+    serviceDb()
+      .rpc("agency_badges", { p_agency_id: membership.agency_id })
+      .then((r) => r.data?.[0]),
   ]);
+  const pendingRequests = Number(badges?.pending_requests ?? 0);
+  const waitingOnYou = Number(badges?.waiting_on_you ?? 0);
 
   return (
     <AppShell

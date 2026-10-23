@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireManagerPage } from "../require-manager";
-import { rosterCreatorIds } from "@/server/services/agencies";
 import {
   getAgencyPayoutStatus,
   payoutsConfigured,
@@ -25,15 +24,19 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { CREATOR_PAYMENT_STATUS_META } from "@/lib/statuses";
 import { formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { Banknote, CheckCircle2, CreditCard } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments" };
 export const dynamic = "force-dynamic";
 
+const PAYMENT_PAGE = 50;
+
 export default async function ManagerPaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ onboarding?: string }>;
+  searchParams: Promise<{ onboarding?: string; page?: string }>;
 }) {
   const ctx = await requireManagerPage();
   const params = await searchParams;
@@ -46,25 +49,29 @@ export default async function ManagerPaymentsPage({
       : await getAgencyPayoutStatus(ctx.agencyId)
     : null;
 
-  // Payments already sent to the agency, plus anything pending for the roster.
-  const roster = await rosterCreatorIds(ctx.agencyId);
-  const filters = [`payee_agency_id.eq.${ctx.agencyId}`];
-  if (roster.length) filters.push(`creator_id.in.(${roster.join(",")})`);
-  const { data: payments } = await serviceDb()
-    .from("creator_payment_records")
-    .select(
-      `id, status, amount_cents, paid_at, created_at, booking_id, payee_agency_id,
-       users:users!creator_id(full_name),
-       bookings!inner(shows!inner(date, artists(name)))`,
-    )
-    .or(filters.join(","))
-    .not("status", "in", "(not_required,canceled)")
-    .order("created_at", { ascending: false })
-    .limit(100);
-
-  const received = (payments ?? [])
-    .filter((p) => p.status === "paid" && p.payee_agency_id === ctx.agencyId)
-    .reduce((sum, p) => sum + p.amount_cents, 0);
+  // Payments already sent to the agency, plus anything pending for the roster:
+  // one page of rows, with the total received summed in SQL.
+  const page = pageOf(params.page, PAYMENT_PAGE);
+  const db = serviceDb();
+  const [{ data: ids, error }, { data: receivedCents }] = await Promise.all([
+    db.rpc("agency_payment_page", { p_agency_id: ctx.agencyId, p_limit: PAYMENT_PAGE, p_offset: page.from }),
+    db.rpc("agency_paid_cents", { p_agency_id: ctx.agencyId }),
+  ]);
+  if (error) throw new Error(`roster payments: ${error.message}`);
+  const total = Number(ids?.[0]?.total ?? 0);
+  const { data: rows } = ids?.length
+    ? await db
+        .from("creator_payment_records")
+        .select(
+          `id, status, amount_cents, paid_at, created_at, booking_id, payee_agency_id,
+           users:users!creator_id(full_name),
+           bookings!inner(shows!inner(date, artists(name)))`,
+        )
+        .in("id", ids.map((r) => r.record_id))
+    : { data: [] };
+  const byId = new Map((rows ?? []).map((r) => [r.id, r]));
+  const payments = (ids ?? []).map((r) => byId.get(r.record_id)).filter((r) => r !== undefined);
+  const received = Number(receivedCents ?? 0);
 
   return (
     <div className="space-y-6">
@@ -159,7 +166,7 @@ export default async function ManagerPaymentsPage({
         <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
           Roster payments
         </h2>
-        {!payments?.length ? (
+        {!payments.length ? (
           <EmptyState
             title="No payments yet"
             description="Payments show up once your creators book paid shows."
@@ -188,6 +195,7 @@ export default async function ManagerPaymentsPage({
             ))}
           </ul>
         )}
+        <Pager page={page.page} size={PAYMENT_PAGE} total={total} basePath="/manager/payments" params={{ page: params.page }} />
       </section>
     </div>
   );

@@ -22,18 +22,25 @@ import {
 } from "@/server/services/connect";
 import { agencyForCreator } from "@/server/services/agencies";
 import { addPaymentMethod, addPaymentMethodToken, startPayoutOnboardingAction } from "../actions";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
+import { serviceDb } from "@/server/db/service";
 import { CreditCard, Landmark, Banknote, CheckCircle2 } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments" };
 export const dynamic = "force-dynamic";
 
+const LIST_PAGE = 25;
+
 export default async function CreatorPaymentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ onboarding?: string }>;
+  searchParams: Promise<{ onboarding?: string; hp?: string; pp?: string }>;
 }) {
   const user = await requireCreator();
   const params = await searchParams;
+  const holdPage = pageOf(params.hp, LIST_PAGE);
+  const paymentPage = pageOf(params.pp, LIST_PAGE);
   const db = await userDb();
 
   // A represented creator is paid through their management company.
@@ -47,7 +54,12 @@ export default async function CreatorPaymentsPage({
       : await getStoredPayoutStatus(user.id)
     : null;
 
-  const [{ data: methods }, { data: authorizations }, { data: payments }] = await Promise.all([
+  const [
+    { data: methods },
+    { data: authorizations, count: holdTotal },
+    { data: payments, count: paymentTotal },
+    { data: earnedCents },
+  ] = await Promise.all([
     db
       .from("payment_methods")
       .select("id, brand, last4, exp_month, exp_year, is_default, verified_at")
@@ -55,21 +67,23 @@ export default async function CreatorPaymentsPage({
       .order("created_at", { ascending: false }),
     db
       .from("authorization_records")
-      .select("id, status, amount_cents, created_at, authorized_at, released_at, captured_at, shows:booking_id(id)")
+      .select("id, status, amount_cents, created_at, authorized_at, released_at, captured_at, shows:booking_id(id)", {
+        count: "exact",
+      })
       .eq("creator_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .range(holdPage.from, holdPage.to),
     db
       .from("creator_payment_records")
-      .select("id, status, amount_cents, paid_at, created_at, booking_id")
+      .select("id, status, amount_cents, paid_at, created_at, booking_id", { count: "exact" })
       .eq("creator_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(50),
+      .range(paymentPage.from, paymentPage.to),
+    // Lifetime total, summed in SQL rather than over the page shown.
+    serviceDb().rpc("creator_paid_cents", { p_creator_id: user.id }),
   ]);
 
-  const totalEarned = (payments ?? [])
-    .filter((p) => p.status === "paid")
-    .reduce((sum, p) => sum + p.amount_cents, 0);
+  const totalEarned = Number(earnedCents ?? 0);
 
   return (
     <div className="space-y-6">
@@ -205,6 +219,7 @@ export default async function CreatorPaymentsPage({
             ))}
           </ul>
         )}
+        <Pager page={holdPage.page} size={LIST_PAGE} total={holdTotal ?? 0} basePath="/creator/payments" params={{ ...params, onboarding: undefined }} pageKey="hp" />
       </section>
 
       <section className="space-y-3" aria-label="Creator payments">
@@ -236,6 +251,7 @@ export default async function CreatorPaymentsPage({
             ))}
           </ul>
         )}
+        <Pager page={paymentPage.page} size={LIST_PAGE} total={paymentTotal ?? 0} basePath="/creator/payments" params={{ ...params, onboarding: undefined }} pageKey="pp" />
       </section>
     </div>
   );

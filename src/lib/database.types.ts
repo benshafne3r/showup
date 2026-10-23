@@ -1033,6 +1033,7 @@ export type Database = {
           bio: string
           categories: string[]
           city: string
+          city_key: string | null
           country: string
           created_at: string
           example_work: Json
@@ -1040,6 +1041,7 @@ export type Database = {
           new_show_alerts: boolean
           onboarded_at: string | null
           region: string
+          region_key: string | null
           stripe_account_id: string | null
           stripe_onboarded_at: string | null
           stripe_payouts_enabled: boolean
@@ -1053,6 +1055,7 @@ export type Database = {
           bio?: string
           categories?: string[]
           city?: string
+          city_key?: string | null
           country?: string
           created_at?: string
           example_work?: Json
@@ -1060,6 +1063,7 @@ export type Database = {
           new_show_alerts?: boolean
           onboarded_at?: string | null
           region?: string
+          region_key?: string | null
           stripe_account_id?: string | null
           stripe_onboarded_at?: string | null
           stripe_payouts_enabled?: boolean
@@ -1073,6 +1077,7 @@ export type Database = {
           bio?: string
           categories?: string[]
           city?: string
+          city_key?: string | null
           country?: string
           created_at?: string
           example_work?: Json
@@ -1080,6 +1085,7 @@ export type Database = {
           new_show_alerts?: boolean
           onboarded_at?: string | null
           region?: string
+          region_key?: string | null
           stripe_account_id?: string | null
           stripe_onboarded_at?: string | null
           stripe_payouts_enabled?: boolean
@@ -2148,6 +2154,7 @@ export type Database = {
           address: string | null
           capacity: number | null
           city: string
+          city_key: string | null
           country: string
           created_at: string
           created_by_company: string | null
@@ -2158,12 +2165,14 @@ export type Database = {
           longitude: number | null
           name: string
           state: string | null
+          state_key: string | null
           updated_at: string
         }
         Insert: {
           address?: string | null
           capacity?: number | null
           city: string
+          city_key?: string | null
           country?: string
           created_at?: string
           created_by_company?: string | null
@@ -2174,12 +2183,14 @@ export type Database = {
           longitude?: number | null
           name: string
           state?: string | null
+          state_key?: string | null
           updated_at?: string
         }
         Update: {
           address?: string | null
           capacity?: number | null
           city?: string
+          city_key?: string | null
           country?: string
           created_at?: string
           created_by_company?: string | null
@@ -2190,6 +2201,7 @@ export type Database = {
           longitude?: number | null
           name?: string
           state?: string | null
+          state_key?: string | null
           updated_at?: string
         }
         Relationships: [
@@ -2259,6 +2271,40 @@ export type Database = {
         }
         Returns: string
       }
+      agency_badges: {
+        Args: { p_agency_id: string }
+        Returns: {
+          pending_requests: number
+          waiting_on_you: number
+        }[]
+      }
+      agency_paid_cents: { Args: { p_agency_id: string }; Returns: number }
+      agency_payment_page: {
+        Args: { p_agency_id: string; p_limit: number; p_offset: number }
+        Returns: {
+          record_id: string
+          total: number
+        }[]
+      }
+      agency_request_page: {
+        Args: {
+          p_agency_id: string
+          p_limit: number
+          p_offset: number
+          p_open: boolean
+        }
+        Returns: {
+          request_id: string
+          total: number
+        }[]
+      }
+      agency_waiting_bookings: {
+        Args: { p_agency_id: string; p_limit: number; p_offset: number }
+        Returns: {
+          booking_id: string
+          total: number
+        }[]
+      }
       applied_migrations: {
         Args: never
         Returns: {
@@ -2306,6 +2352,8 @@ export type Database = {
           show_id: string
         }[]
       }
+      city_key: { Args: { p: string }; Returns: string }
+      city_state_key: { Args: { p_city_key: string }; Returns: string }
       claim_authorization: {
         Args: {
           p_id: string
@@ -2462,6 +2510,17 @@ export type Database = {
         Args: { p_jobs: Json; p_opportunity_ids: string[] }
         Returns: number
       }
+      company_payment_totals: {
+        Args: { p_company_id: string }
+        Returns: {
+          attended: number
+          committed_cents: number
+          completed: number
+          confirmed: number
+          no_shows: number
+          paid_cents: number
+        }[]
+      }
       complete_job: {
         Args: { p_id: number; p_worker: string }
         Returns: undefined
@@ -2477,6 +2536,40 @@ export type Database = {
           p_ticket_count: number
         }
         Returns: string
+      }
+      creator_counts_near: {
+        Args: { p_city_keys: string[]; p_state_keys: string[] }
+        Returns: {
+          idx: number
+          in_city: number
+          nearby: number
+        }[]
+      }
+      creator_paid_cents: { Args: { p_creator_id: string }; Returns: number }
+      creators_near: {
+        Args: {
+          p_bucket: string
+          p_city_key: string
+          p_limit: number
+          p_offset: number
+          p_state_key: string
+        }
+        Returns: {
+          total: number
+          user_id: string
+        }[]
+      }
+      discover_shows: {
+        Args: {
+          p_city_key: string
+          p_limit: number
+          p_offset: number
+          p_query: string
+        }
+        Returns: {
+          show_id: string
+          total: number
+        }[]
       }
       enqueue_jobs: { Args: { p_jobs: Json }; Returns: number[] }
       fail_job: {
@@ -2497,6 +2590,7 @@ export type Database = {
           running: number
         }[]
       }
+      like_pattern: { Args: { p: string }; Returns: string }
       manages_creator: { Args: { cid: string }; Returns: boolean }
       mark_thread_read: {
         Args: { p_thread_id: string; p_user_id: string }
@@ -2521,6 +2615,13 @@ export type Database = {
           tickets: number
         }[]
       }
+      open_show_cities: {
+        Args: never
+        Returns: {
+          city: string
+        }[]
+      }
+      owner_stats: { Args: never; Returns: Json }
       release_tickets: {
         Args: { p_count: number; p_opportunity_id: string }
         Returns: boolean
@@ -2528,6 +2629,13 @@ export type Database = {
       reserve_tickets: {
         Args: { p_count: number; p_opportunity_id: string }
         Returns: boolean
+      }
+      roster_page: {
+        Args: { p_agency_id: string; p_limit: number; p_offset: number }
+        Returns: {
+          creator_id: string
+          total: number
+        }[]
       }
       schedule_due_jobs: {
         Args: { p_limit?: number }
@@ -2537,6 +2645,29 @@ export type Database = {
         }[]
       }
       shares_company_with: { Args: { other: string }; Returns: boolean }
+      state_key: { Args: { p: string }; Returns: string }
+      thread_summaries: {
+        Args: {
+          p_agency_id: string
+          p_company_id: string
+          p_creator_id: string
+          p_limit: number
+          p_offset: number
+          p_viewer: string
+        }
+        Returns: {
+          company_id: string
+          creator_id: string
+          id: string
+          last_body: string
+          last_kind: string
+          last_message_at: string
+          subject: string
+          total: number
+          unread: boolean
+        }[]
+      }
+      unread_message_count: { Args: { p_user: string }; Returns: number }
     }
     Enums: {
       account_status: "active" | "suspended"

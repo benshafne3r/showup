@@ -20,7 +20,8 @@ import { CancelShowDialog } from "./cancel-show-dialog";
 import { DeleteShowButton } from "../delete-show-button";
 import { ShareButton } from "../../tours/share-button";
 import { PickCreators } from "./pick-creators";
-import { suggestCreatorsForShow } from "@/server/services/offers";
+import { SUGGESTION_PAGE, suggestCreatorsForShow } from "@/server/services/offers";
+import { growingLimit } from "@/lib/pagination";
 import { Pencil } from "lucide-react";
 
 export const dynamic = "force-dynamic";
@@ -30,7 +31,7 @@ export default async function ShowDashboardPage({
   searchParams,
 }: {
   params: Promise<{ id: string }>;
-  searchParams: Promise<{ saved?: string }>;
+  searchParams: Promise<{ saved?: string; limit?: string }>;
 }) {
   const context = await requireLabelPage();
   const { id } = await params;
@@ -68,7 +69,12 @@ export default async function ShowDashboardPage({
 
   const canInvite =
     !!opp?.published_at && show.status === "published" && show.date >= new Date().toISOString().slice(0, 10);
-  const suggestions = canInvite ? await suggestCreatorsForShow({ companyId: context.companyId, showId: show.id }) : null;
+  const limit = growingLimit(query.limit, SUGGESTION_PAGE, 600);
+  const suggestions = canInvite ? await suggestCreatorsForShow({ companyId: context.companyId, showId: show.id, limit }) : null;
+  const moreHref =
+    suggestions && (suggestions.inCityTotal > limit || suggestions.nearbyTotal > limit)
+      ? `/label/shows/${show.id}?limit=${limit + SUGGESTION_PAGE}`
+      : null;
 
   const showDay = isShowDay(show.date);
   const markable = (bookings ?? []).filter(
@@ -190,6 +196,9 @@ export default async function ShowDashboardPage({
               city={suggestions.city}
               inCity={suggestions.inCity}
               nearby={suggestions.nearby}
+              inCityTotal={suggestions.inCityTotal}
+              nearbyTotal={suggestions.nearbyTotal}
+              moreHref={moreHref}
               ticketsLeft={Math.max(0, opp.tickets_total - opp.tickets_claimed)}
             />
           </CardContent>

@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { formatDateTime } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { MessageComposer } from "./message-composer";
@@ -18,11 +19,17 @@ export function ThreadView({
   subject,
   counterpartName,
   messages,
+  olderHref,
+  latestHref,
 }: {
   threadId: string;
   subject: string;
   counterpartName: string;
   messages: ThreadMessage[];
+  /** Link to the screen of earlier messages, when there are any. */
+  olderHref?: string | null;
+  /** Link back to the latest messages, when looking at earlier ones. */
+  latestHref?: string | null;
 }) {
   return (
     <div className="flex h-full min-h-[60vh] flex-col rounded-xl border bg-card">
@@ -31,6 +38,13 @@ export function ThreadView({
         <p className="text-xs text-muted-foreground">{subject}</p>
       </div>
       <div className="flex-1 space-y-3 overflow-y-auto p-4" aria-label="Messages" role="log">
+        {olderHref ? (
+          <p className="text-center">
+            <Link href={olderHref} scroll={false} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              Show earlier messages
+            </Link>
+          </p>
+        ) : null}
         {messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
             No messages yet. Say hi and talk logistics.
@@ -86,6 +100,13 @@ export function ThreadView({
             ),
           )
         )}
+        {latestHref ? (
+          <p className="text-center">
+            <Link href={latestHref} className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground">
+              Back to the latest messages
+            </Link>
+          </p>
+        ) : null}
       </div>
       <MessageComposer threadId={threadId} />
     </div>

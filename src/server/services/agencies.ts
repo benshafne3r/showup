@@ -168,34 +168,87 @@ export type RosterEntry = {
   joinedAt: string;
 };
 
+/** Ids per `.in()` filter, so big rosters don't overflow the request URL. */
+const IN_CHUNK = 200;
+
+async function inChunks<T>(ids: string[], load: (chunk: string[]) => PromiseLike<{ data: T[] | null }>): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const { data } = await load(ids.slice(i, i + IN_CHUNK));
+    out.push(...(data ?? []));
+  }
+  return out;
+}
+
+const ROSTER_SELECT = "creator_id, created_at, users!agency_creators_creator_id_fkey(full_name, email, avatar_url, managed_profile)";
+
+/** The whole roster, in the order creators joined. */
 export async function listRoster(agencyId: string): Promise<RosterEntry[]> {
-  const db = serviceDb();
-  const { data: rows } = await db
+  const { data: rows } = await serviceDb()
     .from("agency_creators")
-    .select("creator_id, created_at, users!agency_creators_creator_id_fkey(full_name, email, avatar_url, managed_profile)")
+    .select(ROSTER_SELECT)
     .eq("agency_id", agencyId)
     .order("created_at", { ascending: true });
-  if (!rows?.length) return [];
+  return rosterEntries(rows ?? []);
+}
+
+/** One page of the roster, biggest audience first, with the true total. */
+export async function rosterPage(
+  agencyId: string,
+  page: { limit: number; offset: number },
+): Promise<{ entries: RosterEntry[]; total: number }> {
+  const db = serviceDb();
+  const { data: ids, error } = await db.rpc("roster_page", {
+    p_agency_id: agencyId,
+    p_limit: page.limit,
+    p_offset: page.offset,
+  });
+  if (error) throw new Error(`roster page: ${error.message}`);
+  const total = Number(ids?.[0]?.total ?? 0);
+  if (!ids?.length) return { entries: [], total };
+  const order = ids.map((r) => r.creator_id);
+  const { data: rows } = await db.from("agency_creators").select(ROSTER_SELECT).in("creator_id", order);
+  const byId = new Map((rows ?? []).map((r) => [r.creator_id, r]));
+  return { entries: await rosterEntries(order.map((id) => byId.get(id)).filter((r) => r !== undefined)), total };
+}
+
+type RosterRow = {
+  creator_id: string;
+  created_at: string;
+  users: { full_name: string; email: string; avatar_url: string | null; managed_profile: boolean } | null;
+};
+
+async function rosterEntries(rows: RosterRow[]): Promise<RosterEntry[]> {
+  if (!rows.length) return [];
+  const db = serviceDb();
   const ids = rows.map((r) => r.creator_id);
 
-  const [{ data: profiles }, { data: cards }, { data: requests }, { data: bookings }] =
-    await Promise.all([
+  const [profiles, cards, requests, bookings] = await Promise.all([
+    inChunks(ids, (chunk) =>
       db
         .from("creator_profiles")
         .select("user_id, city, region, country, categories, audience_size, creator_social_accounts(platform, handle, followers)")
-        .in("user_id", ids),
-      db.from("payment_methods").select("user_id").in("user_id", ids),
-      db.from("show_requests").select("creator_id").in("creator_id", ids).eq("status", "pending"),
+        .in("user_id", chunk),
+    ),
+    inChunks(ids, (chunk) => db.from("payment_methods").select("user_id").in("user_id", chunk)),
+    inChunks(ids, (chunk) => db.from("show_requests").select("creator_id").in("creator_id", chunk).eq("status", "pending")),
+    inChunks(ids, (chunk) =>
       db
         .from("bookings")
         .select("creator_id")
-        .in("creator_id", ids)
+        .in("creator_id", chunk)
         .in("status", ["awaiting_acceptance", "awaiting_payment_method", "confirmed", "authorization_failed", "attended", "no_show_review", "disputed"]),
-    ]);
-  const profileBy = new Map((profiles ?? []).map((p) => [p.user_id, p]));
-  const withCard = new Set((cards ?? []).map((c) => c.user_id));
-  const count = (list: { creator_id: string }[] | null, id: string) =>
-    (list ?? []).filter((r) => r.creator_id === id).length;
+    ),
+  ]);
+  const profileBy = new Map(profiles.map((p) => [p.user_id, p]));
+  const withCard = new Set(cards.map((c) => c.user_id));
+  const tally = (list: { creator_id: string }[]) => {
+    const n = new Map<string, number>();
+    for (const r of list) n.set(r.creator_id, (n.get(r.creator_id) ?? 0) + 1);
+    return n;
+  };
+  const pendingBy = tally(requests);
+  const activeBy = tally(bookings);
 
   return rows.map((r) => {
     const profile = profileBy.get(r.creator_id);
@@ -220,8 +273,8 @@ export async function listRoster(agencyId: string): Promise<RosterEntry[]> {
       tags: profile?.categories ?? [],
       managedProfile: !!r.users?.managed_profile,
       hasCard: withCard.has(r.creator_id),
-      pendingRequests: count(requests, r.creator_id),
-      activeBookings: count(bookings, r.creator_id),
+      pendingRequests: pendingBy.get(r.creator_id) ?? 0,
+      activeBookings: activeBy.get(r.creator_id) ?? 0,
       joinedAt: r.created_at,
     };
   });

@@ -60,15 +60,19 @@ export default async function ManagerShowPage({
 
   const opp = show.show_opportunities;
   const [roster, card] = await Promise.all([listRoster(ctx.agencyId), agencyDefaultPaymentMethod(ctx.agencyId)]);
-  const { data: rosterRequests } = roster.length
+  // This show's active requests, narrowed to the roster here (a show has far
+  // fewer requests than a big roster has ids to put in a filter).
+  const onRoster = new Set(roster.map((c) => c.creatorId));
+  const { data: showRequests } = roster.length
     ? await db
         .from("show_requests")
         .select("id, creator_id, status")
         .eq("opportunity_id", opp.id)
-        .in("creator_id", roster.map((c) => c.creatorId))
         .in("status", ["pending", "approved", "waitlisted"])
     : { data: [] as { id: string; creator_id: string; status: "pending" | "approved" | "waitlisted" }[] };
-  const requestedBy = new Map((rosterRequests ?? []).map((r) => [r.creator_id, r.status]));
+  const requestedBy = new Map(
+    (showRequests ?? []).filter((r) => onRoster.has(r.creator_id)).map((r) => [r.creator_id, r.status]),
+  );
   const available = roster.filter((c) => !requestedBy.has(c.creatorId));
 
   // Secret location stays hidden unless one of the roster is approved.

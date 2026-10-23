@@ -5,9 +5,13 @@ import { PageHeader } from "@/components/page-header";
 import { formatShowDate } from "@/lib/dates";
 import { StatusBadge } from "@/components/status-badge";
 import { AdminCancelShow } from "./cancel-show";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Shows" };
 export const dynamic = "force-dynamic";
+
+const PAGE_SIZE = 50;
 
 const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"> = {
   draft: "neutral",
@@ -17,16 +21,20 @@ const TONE: Record<string, "neutral" | "info" | "success" | "warning" | "danger"
   completed: "info",
 };
 
-export default async function AdminShowsPage() {
+export default async function AdminShowsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireAdmin();
-  const { data: shows } = await serviceDb()
+  const params = await searchParams;
+  const page = pageOf(params.page, PAGE_SIZE);
+  const { data: shows, count: total } = await serviceDb()
     .from("shows")
-    .select(
-      `id, date, status, artists(name), venues(name, city), companies(name),
-       show_opportunities(tickets_total, tickets_claimed), bookings(id)`,
-    )
+    .select(`id, date, status, artists(name), venues(name, city), companies(name),
+       show_opportunities(tickets_total, tickets_claimed), bookings(count)`, { count: "exact" })
     .order("date", { ascending: false })
-    .limit(200);
+    .range(page.from, page.to);
 
   return (
     <div className="space-y-6">
@@ -59,7 +67,7 @@ export default async function AdminShowsPage() {
                   <td className="px-4 py-3">
                     {opp ? `${opp.tickets_claimed}/${opp.tickets_total}` : "-"}
                   </td>
-                  <td className="px-4 py-3">{show.bookings?.length ?? 0}</td>
+                  <td className="px-4 py-3">{show.bookings?.[0]?.count ?? 0}</td>
                   <td className="px-4 py-3">
                     <StatusBadge label={show.status} tone={TONE[show.status] ?? "neutral"} />
                   </td>
@@ -97,7 +105,7 @@ export default async function AdminShowsPage() {
                 </div>
                 <div className="flex justify-between gap-3">
                   <dt className="text-muted-foreground">Bookings</dt>
-                  <dd>{show.bookings?.length ?? 0}</dd>
+                  <dd>{show.bookings?.[0]?.count ?? 0}</dd>
                 </div>
               </dl>
               {["draft", "published", "postponed"].includes(show.status) ? (
@@ -109,6 +117,7 @@ export default async function AdminShowsPage() {
           );
         })}
       </ul>
+      <Pager page={page.page} size={PAGE_SIZE} total={total ?? 0} basePath="/admin/shows" params={params} />
     </div>
   );
 }

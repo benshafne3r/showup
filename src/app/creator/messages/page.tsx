@@ -3,7 +3,7 @@ import Link from "next/link";
 import { userDb } from "@/server/db/server-client";
 import { venueDetailsForCreator } from "@/server/services/venues";
 import { requireCreator } from "@/server/auth/guards";
-import { listThreadsFor } from "@/server/services/messaging-queries";
+import { listThreadsFor, THREAD_PAGE } from "@/server/services/messaging-queries";
 import { agencyForCreator } from "@/server/services/agencies";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -13,34 +13,41 @@ import { REQUEST_STATUS_META, type RequestStatus } from "@/lib/statuses";
 import { formatShowDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { withdrawRequestAction } from "../actions";
 import { Inbox } from "lucide-react";
 
 export const metadata: Metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
 
+const REQUEST_PAGE = 25;
+
 export default async function CreatorMessagesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; submitted?: string }>;
+  searchParams: Promise<{ tab?: string; submitted?: string; rp?: string; tp?: string }>;
 }) {
   const user = await requireCreator();
   const params = await searchParams;
   const defaultTab = params.tab === "messages" ? "messages" : "requests";
+  const requestPage = pageOf(params.rp, REQUEST_PAGE);
+  const threadPage = pageOf(params.tp, THREAD_PAGE);
 
   const db = await userDb();
-  const [{ data: requests }, threads, agency] = await Promise.all([
+  const [{ data: requests, count: requestTotal }, inbox, agency] = await Promise.all([
     db
       .from("show_requests")
       .select(
         `id, status, ticket_count, includes_plus_one, message, created_at,
          shows!inner(id, date, hide_venue_until_approved, artists(name), venues(city)),
          bookings(id, status)`,
+        { count: "exact" },
       )
       .eq("creator_id", user.id)
       .order("created_at", { ascending: false })
-      .limit(100),
-    listThreadsFor({ id: user.id, side: "creator" }),
+      .range(requestPage.from, requestPage.to),
+    listThreadsFor({ id: user.id, side: "creator" }, { offset: threadPage.from }),
     agencyForCreator(user.id),
   ]);
   const venueOf = await venueDetailsForCreator(user.id, (requests ?? []).map((r) => r.shows.id));
@@ -50,8 +57,8 @@ export default async function CreatorMessagesPage({
       <PageHeader title="Messages" description="Your requests and conversations." />
       <Tabs defaultValue={defaultTab}>
         <TabsList>
-          <TabsTrigger value="requests">Requests ({requests?.length ?? 0})</TabsTrigger>
-          <TabsTrigger value="messages">{agency ? "Chats" : `Chats (${threads.length})`}</TabsTrigger>
+          <TabsTrigger value="requests">Requests ({requestTotal ?? 0})</TabsTrigger>
+          <TabsTrigger value="messages">{agency ? "Chats" : `Chats (${inbox.total})`}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests" className="mt-4 space-y-4">
@@ -121,6 +128,14 @@ export default async function CreatorMessagesPage({
               })}
             </ul>
           )}
+          <Pager
+            page={requestPage.page}
+            size={REQUEST_PAGE}
+            total={requestTotal ?? 0}
+            basePath="/creator/messages"
+            params={{ ...params, tab: "requests", submitted: undefined }}
+            pageKey="rp"
+          />
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">
@@ -131,7 +146,18 @@ export default async function CreatorMessagesPage({
               description="Artist teams message your management directly about your requests and bookings. You'll still get updates here about approvals, tickets and holds."
             />
           ) : (
-            <ThreadList threads={threads} basePath="/creator/messages" />
+            <>
+              <ThreadList threads={inbox.threads} basePath="/creator/messages" />
+              <Pager
+                page={threadPage.page}
+                size={THREAD_PAGE}
+                total={inbox.total}
+                basePath="/creator/messages"
+                params={{ ...params, tab: "messages", submitted: undefined }}
+                pageKey="tp"
+                className="mt-4"
+              />
+            </>
           )}
         </TabsContent>
       </Tabs>

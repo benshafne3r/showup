@@ -11,43 +11,53 @@ import {
 } from "@/lib/statuses";
 import { formatCents } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Payments & campaign spend" };
 export const dynamic = "force-dynamic";
 
-export default async function LabelPaymentsPage() {
+const LIST_PAGE = 50;
+
+export default async function LabelPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ pp?: string; hp?: string }>;
+}) {
   const context = await requireLabelPage();
+  const params = await searchParams;
+  const paymentPage = pageOf(params.pp, LIST_PAGE);
+  const holdPage = pageOf(params.hp, LIST_PAGE);
   const db = serviceDb();
 
-  const [{ data: payments }, { data: holds }, { data: bookings }] = await Promise.all([
+  // Totals are aggregates over everything; the lists are one page each.
+  const [{ data: payments, count: paymentTotal }, { data: holds, count: holdTotal }, { data: totals }] = await Promise.all([
     db
       .from("creator_payment_records")
-      .select("id, status, amount_cents, paid_at, created_at, booking_id, users:users!creator_id(full_name)")
+      .select("id, status, amount_cents, paid_at, created_at, booking_id, users:users!creator_id(full_name)", {
+        count: "exact",
+      })
       .eq("company_id", context.companyId)
       .order("created_at", { ascending: false })
-      .limit(100),
+      .range(paymentPage.from, paymentPage.to),
     db
       .from("authorization_records")
-      .select("id, status, amount_cents, capture_amount_cents, created_at, booking_id, users:users!creator_id(full_name)")
+      .select("id, status, amount_cents, capture_amount_cents, created_at, booking_id, users:users!creator_id(full_name)", {
+        count: "exact",
+      })
       .eq("company_id", context.companyId)
       .order("created_at", { ascending: false })
-      .limit(100),
-    db
-      .from("bookings")
-      .select("status")
-      .eq("company_id", context.companyId),
+      .range(holdPage.from, holdPage.to),
+    db.rpc("company_payment_totals", { p_company_id: context.companyId }),
   ]);
 
-  const paid = (payments ?? []).filter((p) => p.status === "paid").reduce((s, p) => s + p.amount_cents, 0);
-  const committed = (payments ?? [])
-    .filter((p) => ["pending_fulfillment", "ready"].includes(p.status))
-    .reduce((s, p) => s + p.amount_cents, 0);
-  const attended = (bookings ?? []).filter((b) => ["attended", "completed"].includes(b.status)).length;
-  const completed = (bookings ?? []).filter((b) => b.status === "completed").length;
-  const noShows = (bookings ?? []).filter((b) => b.status === "no_show_review").length;
-  const totalConfirmed = (bookings ?? []).filter((b) =>
-    ["confirmed", "attended", "completed", "no_show_review", "disputed"].includes(b.status),
-  ).length;
+  const t = totals?.[0];
+  const paid = Number(t?.paid_cents ?? 0);
+  const committed = Number(t?.committed_cents ?? 0);
+  const attended = Number(t?.attended ?? 0);
+  const completed = Number(t?.completed ?? 0);
+  const noShows = Number(t?.no_shows ?? 0);
+  const totalConfirmed = Number(t?.confirmed ?? 0);
 
   return (
     <div className="space-y-6">
@@ -103,6 +113,15 @@ export default async function LabelPaymentsPage() {
             ) : (
               <p className="text-sm text-muted-foreground">No creator payments yet.</p>
             )}
+            <Pager
+              page={paymentPage.page}
+              size={LIST_PAGE}
+              total={paymentTotal ?? 0}
+              basePath="/label/payments"
+              params={params}
+              pageKey="pp"
+              className="mt-3"
+            />
           </CardContent>
         </Card>
 
@@ -126,6 +145,15 @@ export default async function LabelPaymentsPage() {
             ) : (
               <p className="text-sm text-muted-foreground">No holds yet.</p>
             )}
+            <Pager
+              page={holdPage.page}
+              size={LIST_PAGE}
+              total={holdTotal ?? 0}
+              basePath="/label/payments"
+              params={params}
+              pageKey="hp"
+              className="mt-3"
+            />
           </CardContent>
         </Card>
       </div>

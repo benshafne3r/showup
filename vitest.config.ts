@@ -4,6 +4,8 @@ import path from "node:path";
 export default defineConfig({
   test: {
     include: ["tests/**/*.test.ts"],
+    // Integration tests need the local Supabase stack: `npm run test:integration`.
+    exclude: ["tests/integration/**", "node_modules/**"],
     environment: "node",
   },
   resolve: {

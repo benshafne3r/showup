@@ -8,7 +8,7 @@ import { deliverJob, keysOf } from "@/server/jobs/outbox";
 import { randomUUID } from "node:crypto";
 import { audit } from "./audit";
 import { cityKey } from "@/lib/cities";
-import { showStateKey, stateKey } from "@/lib/us-states";
+import { showStateKey } from "@/lib/us-states";
 import { locationLabel } from "@/lib/roster";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
@@ -37,51 +37,45 @@ export type SuggestedCreator = {
 const MAX_OFFERS_PER_SEND = 25;
 const ACTIVE_REQUEST = ["pending", "approved", "waitlisted"] as const;
 
-/** Every creator who can be invited (finished profile, active). */
-async function loadCreatorPool() {
-  const { data } = await serviceDb()
-    .from("creator_profiles")
-    .select(
-      `id, user_id, city, region, country, categories, audience_size,
-       users!inner(full_name, avatar_url, status, role),
-       creator_social_accounts(platform, handle, followers)`,
-    )
-    .not("onboarded_at", "is", null)
-    .eq("users.status", "active")
-    .eq("users.role", "creator")
-    .limit(5000);
-  return data ?? [];
-}
-type PoolProfile = Awaited<ReturnType<typeof loadCreatorPool>>[number];
+/** Default number of creators shown per group; "load more" raises it. */
+export const SUGGESTION_PAGE = 60;
 
-/** Creators in a venue's city, then elsewhere in its state; biggest audiences first. */
-function nearVenue(pool: PoolProfile[], venue: { city: string; state?: string | null }) {
-  const showCity = cityKey(venue.city);
-  const showState = showStateKey(venue);
-  const inCity: PoolProfile[] = [];
-  const nearby: PoolProfile[] = [];
-  for (const p of pool) {
-    if (p.city && cityKey(p.city) === showCity) inCity.push(p);
-    else if (showState && stateKey(p.region) === showState) nearby.push(p);
-  }
-  const byAudience = (a: PoolProfile, b: PoolProfile) => b.audience_size - a.audience_size;
-  return { inCity: inCity.sort(byAudience), nearby: nearby.sort(byAudience) };
-}
-
-/** How many creators are in / near each venue (for the Creators tab's city list). */
+/**
+ * How many creators are in / near each venue (for the Creators tab's city
+ * list), counted in SQL against the indexed city / state keys.
+ */
 export async function creatorCountsNear(venues: { city: string; state?: string | null }[]) {
-  const pool = await loadCreatorPool();
-  return venues.map((v) => {
-    const { inCity, nearby } = nearVenue(pool, v);
-    return { inCity: inCity.length, nearby: nearby.length };
+  if (!venues.length) return [];
+  const { data, error } = await serviceDb().rpc("creator_counts_near", {
+    p_city_keys: venues.map((v) => cityKey(v.city)),
+    p_state_keys: venues.map((v) => showStateKey(v)),
   });
+  if (error) throw new Error(`count creators: ${error.message}`);
+  const byIdx = new Map((data ?? []).map((r) => [r.idx, r]));
+  return venues.map((_, i) => ({
+    inCity: Number(byIdx.get(i + 1)?.in_city ?? 0),
+    nearby: Number(byIdx.get(i + 1)?.nearby ?? 0),
+  }));
 }
 
+/**
+ * Creators for a show: in its city, then elsewhere in its state, biggest
+ * audiences first. Queried page by page in SQL (creators_near) with the true
+ * totals, so large rosters aren't loaded or capped in memory.
+ */
 export async function suggestCreatorsForShow(input: {
   companyId: string;
   showId: string;
-}): Promise<{ inCity: SuggestedCreator[]; nearby: SuggestedCreator[]; city: string } | null> {
+  limit?: number;
+}): Promise<{
+  inCity: SuggestedCreator[];
+  nearby: SuggestedCreator[];
+  inCityTotal: number;
+  nearbyTotal: number;
+  city: string;
+} | null> {
   const db = serviceDb();
+  const limit = Math.min(Math.max(input.limit ?? SUGGESTION_PAGE, 1), 600);
   const { data: show } = await db
     .from("shows")
     .select("id, venues(city, state), show_opportunities(id)")
@@ -90,12 +84,29 @@ export async function suggestCreatorsForShow(input: {
     .maybeSingle();
   if (!show?.venues || !show.show_opportunities) return null;
 
-  const near = nearVenue(await loadCreatorPool(), show.venues);
-  const matches = [...near.inCity, ...near.nearby];
-  if (!matches.length) return { inCity: [], nearby: [], city: show.venues.city };
+  const ck = cityKey(show.venues.city);
+  const sk = showStateKey(show.venues);
+  const [cityRes, nearRes] = await Promise.all([
+    db.rpc("creators_near", { p_city_key: ck, p_state_key: sk, p_bucket: "city", p_limit: limit, p_offset: 0 }),
+    db.rpc("creators_near", { p_city_key: ck, p_state_key: sk, p_bucket: "nearby", p_limit: limit, p_offset: 0 }),
+  ]);
+  if (cityRes.error || nearRes.error) throw new Error(`creators near: ${(cityRes.error ?? nearRes.error)!.message}`);
+  const cityIds = (cityRes.data ?? []).map((r) => r.user_id);
+  const nearIds = (nearRes.data ?? []).map((r) => r.user_id);
+  const inCityTotal = Number(cityRes.data?.[0]?.total ?? 0);
+  const nearbyTotal = Number(nearRes.data?.[0]?.total ?? 0);
+  const ids = [...cityIds, ...nearIds];
+  if (!ids.length) return { inCity: [], nearby: [], inCityTotal, nearbyTotal, city: show.venues.city };
 
-  const ids = matches.map((p) => p.user_id);
-  const [{ data: requests }, { data: rosters }] = await Promise.all([
+  const [{ data: profiles }, { data: requests }, { data: rosters }] = await Promise.all([
+    db
+      .from("creator_profiles")
+      .select(
+        `user_id, city, region, country, categories, audience_size,
+         users!inner(full_name, avatar_url),
+         creator_social_accounts(platform, handle, followers)`,
+      )
+      .in("user_id", ids),
     db
       .from("show_requests")
       .select("creator_id")
@@ -104,10 +115,13 @@ export async function suggestCreatorsForShow(input: {
       .in("status", [...ACTIVE_REQUEST]),
     db.from("agency_creators").select("creator_id, agencies(name)").in("creator_id", ids),
   ]);
+  const profileBy = new Map((profiles ?? []).map((p) => [p.user_id, p]));
   const taken = new Set((requests ?? []).map((r) => r.creator_id));
   const agencyBy = new Map((rosters ?? []).map((r) => [r.creator_id, r.agencies?.name ?? null]));
 
-  const toCard = (p: PoolProfile): SuggestedCreator => {
+  const toCard = (id: string): SuggestedCreator | null => {
+    const p = profileBy.get(id);
+    if (!p) return null;
     const followers = { tiktok: 0, instagram: 0, youtube: 0 };
     let handle: string | null = null;
     for (const s of p.creator_social_accounts ?? []) {
@@ -117,18 +131,19 @@ export async function suggestCreatorsForShow(input: {
       if (s.platform === "tiktok" && s.handle) handle = s.handle;
     }
     return {
-      id: p.user_id,
+      id,
       name: p.users.full_name || "Creator",
       avatarUrl: p.users.avatar_url,
       handle,
       followers,
       tags: p.categories ?? [],
       location: locationLabel(p),
-      agencyName: agencyBy.get(p.user_id) ?? null,
-      taken: taken.has(p.user_id),
+      agencyName: agencyBy.get(id) ?? null,
+      taken: taken.has(id),
     };
   };
-  return { inCity: near.inCity.map(toCard), nearby: near.nearby.map(toCard), city: show.venues.city };
+  const cards = (list: string[]) => list.map(toCard).filter((c): c is SuggestedCreator => c !== null);
+  return { inCity: cards(cityIds), nearby: cards(nearIds), inCityTotal, nearbyTotal, city: show.venues.city };
 }
 
 export async function sendOffers(input: {
@@ -284,13 +299,22 @@ export async function sendOfferDigest(p: { agencyId: string; showId: string; com
   });
 }
 
-/** Bookings waiting on the agency: label invites and approved requests. */
-export async function pendingOffersForAgency(agencyId: string) {
+/**
+ * Bookings waiting on the agency (label invites and approved requests),
+ * soonest deadline first. The roster is joined in SQL, so this works for any
+ * roster size.
+ */
+export async function pendingOffersForAgency(agencyId: string, limit = 200) {
   const db = serviceDb();
-  const { data: roster } = await db.from("agency_creators").select("creator_id").eq("agency_id", agencyId);
-  const ids = (roster ?? []).map((r) => r.creator_id);
+  const { data: page, error } = await db.rpc("agency_waiting_bookings", {
+    p_agency_id: agencyId,
+    p_limit: limit,
+    p_offset: 0,
+  });
+  if (error) throw new Error(`waiting bookings: ${error.message}`);
+  const ids = (page ?? []).map((r) => r.booking_id);
   if (!ids.length) return [];
-  const { data } = await db
+  const { data: rows } = await db
     .from("bookings")
     .select(
       `id, authorization_amount_cents, acceptance_deadline_at, ticket_count,
@@ -299,11 +323,9 @@ export async function pendingOffersForAgency(agencyId: string) {
        companies(name),
        show_requests(offered_at)`,
     )
-    .in("creator_id", ids)
-    .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
-    .gt("acceptance_deadline_at", new Date().toISOString())
-    .order("acceptance_deadline_at", { ascending: true })
-    .limit(100);
+    .in("id", ids);
+  const byId = new Map((rows ?? []).map((b) => [b.id, b]));
+  const data = ids.map((id) => byId.get(id)).filter((b) => b !== undefined);
   return (data ?? []).map((b) => ({
     bookingId: b.id,
     creatorName: b.users?.full_name || "Creator",

@@ -3,27 +3,34 @@ import { requireAdmin } from "@/server/auth/guards";
 import { serviceDb } from "@/server/db/service";
 import { PageHeader } from "@/components/page-header";
 import { formatDateTime } from "@/lib/dates";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Audit logs" };
 export const dynamic = "force-dynamic";
 
+const PAGE_SIZE = 100;
+
 export default async function AuditLogsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ action?: string; entity?: string }>;
+  searchParams: Promise<{ action?: string; entity?: string; page?: string }>;
 }) {
   await requireAdmin();
   const params = await searchParams;
+  const page = pageOf(params.page, PAGE_SIZE);
   const db = serviceDb();
 
   let query = db
     .from("audit_logs")
-    .select("id, actor_role, action, entity_type, entity_id, metadata, created_at, users:actor_id(full_name)")
+    .select("id, actor_role, action, entity_type, entity_id, metadata, created_at, users:actor_id(full_name)", {
+      count: "exact",
+    })
     .order("created_at", { ascending: false })
-    .limit(200);
+    .range(page.from, page.to);
   if (params.action) query = query.ilike("action", `%${params.action}%`);
   if (params.entity) query = query.eq("entity_type", params.entity);
-  const { data: logs } = await query;
+  const { data: logs, count: total } = await query;
 
   return (
     <div className="space-y-6">
@@ -113,6 +120,7 @@ export default async function AuditLogsPage({
           </li>
         ))}
       </ul>
+      <Pager page={page.page} size={PAGE_SIZE} total={total ?? 0} basePath="/admin/audit-logs" params={params} />
     </div>
   );
 }

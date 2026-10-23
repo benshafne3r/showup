@@ -13,32 +13,45 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { HoldActions, PayoutActions } from "./money-actions";
 import { adminTogglePayoutPauseAction, adminCancelPayoutAction } from "../actions";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Payments & authorizations" };
 export const dynamic = "force-dynamic";
 
-export default async function AdminPaymentsPage() {
+const PAGE_SIZE = 50;
+
+export default async function AdminPaymentsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ hp?: string; pp?: string }>;
+}) {
   await requireAdmin();
+  const params = await searchParams;
+  const holdPage = pageOf(params.hp, PAGE_SIZE);
+  const payoutPage = pageOf(params.pp, PAGE_SIZE);
   const db = serviceDb();
 
-  const [{ data: holds }, { data: payouts }] = await Promise.all([
+  const [{ data: holds, count: holdTotal }, { data: payouts, count: payoutTotal }] = await Promise.all([
     db
       .from("authorization_records")
       .select(
         `id, status, amount_cents, capture_amount_cents, scheduled_for, failure_reason,
          grace_deadline_at, created_at, booking_id,
          users:users!creator_id(full_name), companies(name)`,
+        { count: "exact" },
       )
       .order("created_at", { ascending: false })
-      .limit(100),
+      .range(holdPage.from, holdPage.to),
     db
       .from("creator_payment_records")
       .select(
         `id, status, amount_cents, paid_at, failure_reason, paused_at, created_at, booking_id,
          users:users!creator_id(full_name), companies(name)`,
+        { count: "exact" },
       )
       .order("created_at", { ascending: false })
-      .limit(100),
+      .range(payoutPage.from, payoutPage.to),
   ]);
 
   return (
@@ -118,6 +131,7 @@ export default async function AdminPaymentsPage() {
               </li>
             ))}
           </ul>
+          <Pager page={holdPage.page} size={PAGE_SIZE} total={holdTotal ?? 0} basePath="/admin/payments" params={params} pageKey="hp" className="mt-3" />
         </CardContent>
       </Card>
 
@@ -223,6 +237,7 @@ export default async function AdminPaymentsPage() {
               </li>
             ))}
           </ul>
+          <Pager page={payoutPage.page} size={PAGE_SIZE} total={payoutTotal ?? 0} basePath="/admin/payments" params={params} pageKey="pp" className="mt-3" />
         </CardContent>
       </Card>
     </div>

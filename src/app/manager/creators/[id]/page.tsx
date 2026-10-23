@@ -14,19 +14,31 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { BOOKING_STATUS_META, REQUEST_STATUS_META } from "@/lib/statuses";
 import { formatShowDate } from "@/lib/dates";
 import { ArrowLeft, CalendarPlus } from "lucide-react";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Creator" };
 export const dynamic = "force-dynamic";
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 });
 
-export default async function ManagedCreatorPage({ params }: { params: Promise<{ id: string }> }) {
+const BOOKING_PAGE = 30;
+
+export default async function ManagedCreatorPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
+}) {
   const ctx = await requireManagerPage();
   const { id } = await params;
+  const query = await searchParams;
+  const bookingPage = pageOf(query.page, BOOKING_PAGE);
   if (!(await isOnRoster(ctx.agencyId, id))) notFound();
 
   const db = serviceDb();
-  const [{ data: user }, publicProfile, { data: card }, { data: requests }, { data: bookings }] =
+  const [{ data: user }, publicProfile, { data: card }, { data: requests }, { data: bookings, count: bookingTotal }] =
     await Promise.all([
       db.from("users").select("full_name, email").eq("id", id).single(),
       getCreatorPublicProfile(id),
@@ -39,10 +51,10 @@ export default async function ManagedCreatorPage({ params }: { params: Promise<{
         .order("created_at", { ascending: false }),
       db
         .from("bookings")
-        .select("id, status, shows!inner(date, artists(name), venues(city))")
+        .select("id, status, shows!inner(date, artists(name), venues(city))", { count: "exact" })
         .eq("creator_id", id)
         .order("created_at", { ascending: false })
-        .limit(30),
+        .range(bookingPage.from, bookingPage.to),
     ]);
   const profile = publicProfile?.profile;
   const socials = profile?.creator_social_accounts ?? [];
@@ -112,6 +124,14 @@ export default async function ManagedCreatorPage({ params }: { params: Promise<{
                   ))}
                 </ul>
               )}
+              <Pager
+                page={bookingPage.page}
+                size={BOOKING_PAGE}
+                total={bookingTotal ?? 0}
+                basePath={`/manager/creators/${id}`}
+                params={query}
+                className="mt-3"
+              />
             </CardContent>
           </Card>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { sendOffersAction, type ActionState } from "../../actions";
 import type { SuggestedCreator } from "@/server/services/offers";
 import { CreatorPhoto, tiktokUrl } from "@/components/creator-avatar";
@@ -22,12 +23,19 @@ export function PickCreators({
   city,
   inCity,
   nearby,
+  inCityTotal,
+  nearbyTotal,
+  moreHref,
   ticketsLeft,
 }: {
   showId: string;
   city: string;
   inCity: SuggestedCreator[];
   nearby: SuggestedCreator[];
+  inCityTotal: number;
+  nearbyTotal: number;
+  /** Link that loads a bigger page of creators, when there are more than shown. */
+  moreHref?: string | null;
   ticketsLeft: number;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(sendOffersAction, null);
@@ -54,8 +62,15 @@ export function PickCreators({
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="showId" value={showId} />
-      <Group title={`In ${city}`} creators={inCity} picked={picked} onToggle={toggle} />
-      <Group title="Nearby" creators={nearby} picked={picked} onToggle={toggle} />
+      <Group title={`In ${city}`} creators={inCity} total={inCityTotal} picked={picked} onToggle={toggle} />
+      <Group title="Nearby" creators={nearby} total={nearbyTotal} picked={picked} onToggle={toggle} />
+      {moreHref ? (
+        <Button asChild variant="outline" size="sm">
+          <Link href={moreHref} scroll={false}>
+            Load more creators
+          </Link>
+        </Button>
+      ) : null}
 
       <div className="flex flex-wrap items-center gap-3 border-t pt-4">
         <SubmitButton disabled={picked.size === 0 || picked.size > ticketsLeft} pendingLabel="Sending…">
@@ -84,11 +99,13 @@ export function PickCreators({
 function Group({
   title,
   creators,
+  total,
   picked,
   onToggle,
 }: {
   title: string;
   creators: SuggestedCreator[];
+  total: number;
   picked: Set<string>;
   onToggle: (id: string) => void;
 }) {
@@ -98,7 +115,7 @@ function Group({
   return (
     <fieldset className="space-y-2">
       <legend className="mb-2 text-sm font-semibold">
-        {title} <span className="font-normal text-muted-foreground">({creators.length})</span>
+        {title} <span className="font-normal text-muted-foreground tabular-nums">({total})</span>
       </legend>
       <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
         {shown.map((c) => {
@@ -156,7 +173,7 @@ function Group({
       </ul>
       {creators.length > FIRST_SHOWN ? (
         <Button type="button" variant="ghost" size="sm" onClick={() => setShowAll((v) => !v)}>
-          {showAll ? "Show fewer" : `Show all ${creators.length}`}
+          {showAll ? "Show fewer" : `Show all ${creators.length}${total > creators.length ? " loaded" : ""}`}
         </Button>
       ) : null}
     </fieldset>

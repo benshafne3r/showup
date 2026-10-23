@@ -175,36 +175,12 @@ export async function markThreadRead(userId: string, threadId: string): Promise<
 
 /** Unread message count across all threads the user participates in. */
 export async function unreadMessageCount(userId: string): Promise<number> {
-  const db = serviceDb();
-  const [{ data: memberships }, { data: agencyMembership }, managedBy] = await Promise.all([
-    db.from("company_members").select("company_id").eq("user_id", userId),
-    db.from("agency_members").select("agency_id").eq("user_id", userId).maybeSingle(),
-    agencyForCreator(userId),
-  ]);
-  const companyIds = (memberships ?? []).map((m) => m.company_id);
-  // A managed creator's threads belong to their agency; a manager's are the roster's.
-  const creatorIds = managedBy ? [] : [userId];
-  if (agencyMembership) {
-    const { data: roster } = await db
-      .from("agency_creators")
-      .select("creator_id")
-      .eq("agency_id", agencyMembership.agency_id);
-    creatorIds.push(...(roster ?? []).map((r) => r.creator_id));
+  // Counted in SQL across the user's own, company and agency-roster threads.
+  const { data, error } = await serviceDb().rpc("unread_message_count", { p_user: userId });
+  if (error) {
+    // A nav badge must never take the page down with it.
+    console.error("unread messages:", error.message);
+    return 0;
   }
-
-  const filters = [
-    creatorIds.length ? `creator_id.in.(${creatorIds.join(",")})` : null,
-    companyIds.length ? `company_id.in.(${companyIds.join(",")})` : null,
-  ].filter(Boolean);
-  if (!filters.length) return 0;
-  const { data: threads } = await db.from("message_threads").select("id").or(filters.join(","));
-  if (!threads?.length) return 0;
-
-  const { count } = await db
-    .from("messages")
-    .select("id", { count: "exact", head: true })
-    .in("thread_id", threads.map((t) => t.id))
-    .neq("sender_id", userId)
-    .not("read_by", "cs", `{${userId}}`);
-  return count ?? 0;
+  return Number(data ?? 0);
 }

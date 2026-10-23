@@ -11,35 +11,48 @@ import { formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { ResolveDisputeForm } from "./resolve-form";
 import { Scale } from "lucide-react";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Disputes" };
 export const dynamic = "force-dynamic";
 
-export default async function AdminDisputesPage() {
+const PAGE_SIZE = 25;
+
+export default async function AdminDisputesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ op?: string; rp?: string }>;
+}) {
   await requireAdmin();
+  const params = await searchParams;
+  const openPage = pageOf(params.op, PAGE_SIZE);
+  const resolvedPage = pageOf(params.rp, PAGE_SIZE);
   const db = serviceDb();
 
-  const { data: disputes } = await db
-    .from("disputes")
-    .select(
-      `id, kind, status, reason, evidence_paths, resolution, created_at, resolved_at,
-       opened_by, booking_id,
-       users:users!creator_id(full_name),
-       companies(name),
-       bookings!inner(
-         id, status, authorization_amount_cents, creator_payment_cents,
-         attendance_state, content_state,
-         shows(date, artists(name), venues(name, city))
-       )`,
-    )
-    .order("created_at", { ascending: false })
-    .limit(50);
-
-  const open = (disputes ?? []).filter((d) => ["open", "under_review"].includes(d.status));
-  const resolved = (disputes ?? []).filter((d) => !["open", "under_review"].includes(d.status));
+  const disputeList = () =>
+    db
+      .from("disputes")
+      .select(
+        `id, kind, status, reason, evidence_paths, resolution, created_at, resolved_at,
+         opened_by, booking_id,
+         users:users!creator_id(full_name),
+         companies(name),
+         bookings!inner(
+           id, status, authorization_amount_cents, creator_payment_cents,
+           attendance_state, content_state,
+           shows(date, artists(name), venues(name, city))
+         )`,
+        { count: "exact" },
+      )
+      .order("created_at", { ascending: false });
+  const [{ data: open, count: openTotal }, { data: resolved, count: resolvedTotal }] = await Promise.all([
+    disputeList().in("status", ["open", "under_review"]).range(openPage.from, openPage.to),
+    disputeList().not("status", "in", "(open,under_review)").range(resolvedPage.from, resolvedPage.to),
+  ]);
 
   const withEvidence = await Promise.all(
-    open.map(async (dispute) => ({
+    (open ?? []).map(async (dispute) => ({
       ...dispute,
       evidenceUrls: await signedFileUrls("proofs", dispute.evidence_paths),
     })),
@@ -113,8 +126,9 @@ export default async function AdminDisputesPage() {
           );
         })
       )}
+      <Pager page={openPage.page} size={PAGE_SIZE} total={openTotal ?? 0} basePath="/admin/disputes" params={params} pageKey="op" />
 
-      {resolved.length > 0 ? (
+      {resolved?.length ? (
         <section className="space-y-3">
           <h2 className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">
             Resolved
@@ -132,6 +146,14 @@ export default async function AdminDisputesPage() {
               </li>
             ))}
           </ul>
+          <Pager
+            page={resolvedPage.page}
+            size={PAGE_SIZE}
+            total={resolvedTotal ?? 0}
+            basePath="/admin/disputes"
+            params={params}
+            pageKey="rp"
+          />
         </section>
       ) : null}
     </div>

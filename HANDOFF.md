@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-10-06_
+_Last updated: 2026-10-23_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -56,6 +56,26 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Database-side lists + totals (2026-10-23, Codex #6) — ⚠️ COMMITTED, NOT PUSHED
+Migration **0025** (local only; **apply to prod BEFORE pushing**, the new pages call its functions):
+generated `city_key` / `state_key` (venues) and `city_key` / `region_key` (creator_profiles) with
+indexes, mirroring `cityKey` / `showStateKey` / `stateKey` (parity test keeps them in step); RPCs
+`discover_shows`, `open_show_cities`, `creators_near`, `creator_counts_near`, `thread_summaries`,
+`unread_message_count`, `company_payment_totals`, `agency_paid_cents`, `creator_paid_cents`,
+`owner_stats`, `roster_page`, `agency_request_page`, `agency_badges`, `agency_payment_page`,
+`agency_waiting_bookings` (all service-role only); sort indexes for the paged lists.
+- Every list is a page with its true total: `lib/pagination.ts` (`pageOf`, `withPage`,
+  `growingLimit`) + `components/pager.tsx`. Multi-list pages use their own page keys (`tp`, `pp`…).
+- Discover / manager Shows (24 per page), label picker + Creators tab (60, "Load more creators"),
+  inboxes (30 threads; requests 25), threads show the latest 100 messages + "Show earlier
+  messages" (`?before=`), payments, roster (60, by audience), owner sign-ups, all admin lists.
+- Totals (owner tiles, label spend, agency received, creator earned, unread badge) are SQL
+  aggregates, no longer sums over the latest 100/200 rows. Agency lists join the roster in SQL
+  instead of putting every roster id in the URL; `listRoster` chunks its id filters.
+- Tests: `tests/integration/search.test.ts` (key parity incl. tabs/NBSP, 200 creators in/near a
+  city, 31 shows in a city, 60 threads, 120 payments, 75-creator roster). Unit config now excludes
+  `tests/integration` (CI's unit job had been red since a612ade for that reason only).
 
 ## Durable jobs: scheduler + worker (2026-10-23, Codex #5)
 Migration **0024**: `schedule_due_jobs(limit)` (SQL selects genuinely due work, deterministic order,
@@ -579,22 +599,18 @@ The add-card form no longer has to send a raw PAN to the server:
 
 ## Next steps
 
-**Codex audit follow-ups (2026-10-22). Done: #1 DB permissions (0020), #9 upload body limit.** Remaining, in order:
-1. **Payments crash-safety** (#2): processing states / op ledger so a crash between DB write and Stripe
-   can't leave false "released/captured/paid"; serialize capture/release/cancel; fix
-   `scheduleAuthorizationForBooking()` returning `placed: true` without checking; enforce show-over +
-   hold expiry inside `captureAuthorization`.
-2. **Webhooks** (#3): store processing status/attempts; retry incomplete events instead of skipping;
-   tell duplicate-key apart from DB errors; recover intent identity from metadata.
-3. **SetupIntents for saving cards** (#8) + persisted Stripe customer IDs. ⬜ Ben to decide label funding
-   for content payouts (prepay / invoice / credit) before broad rollout.
-4. **View as = no writes** (#10): `expireIfOverdue()` runs on page render; payment pages persist Stripe
-   status on GET. Atomic rate limiter.
-5. **Transactional bookings** (#4): approval/accept/cancel/expire/pass as SQL functions; label offers
-   should create message threads + request tickets like normal requests.
-6. **Durable jobs** (#5) + **pagination/aggregates** (#6): needed before hundreds of users (Discover caps
-   at 60 shows, chat at 200 messages, creator pool loads all profiles, city alerts sleep 550 ms/email).
-7. Later: measured perf (#7), dead-code cleanup (#11), staging load test + CI gates (#12).
+**Codex audit follow-ups.** Done: #1 DB permissions (0020), #9 upload limit, #2 payments crash-safety
++ #3 webhooks (0021/0022), #4 transactional bookings (0023), #5 durable jobs + worker (0024),
+#6 pagination/aggregates (0025, ⚠️ awaiting prod apply + push). Remaining, in order:
+1. **Ship 0025**: apply to prod (Supabase MCP `apply_migration`), then push, then check `/api/health`.
+2. **Staging load test** (#12) before claiming capacity: 10k creators, 500 labels, 100k bookings,
+   1M messages, 100–500 concurrent sessions, p95 < 500 ms reads. Needs a staging DB + app (costs
+   money: ask Ben first). Watch `unread_message_count` (scans a label's messages on every page).
+3. **SetupIntents for saving cards** (#8) + persisted Stripe customer IDs.
+4. **View as = no writes** (#10): `expireIfOverdue()` runs on page render; payment pages persist
+   Stripe status on GET. Atomic rate limiter. Remote image fetch limits (#9 rest).
+5. Then, separately: unused-code cleanup (#11), measured perf (#7).
+⬜ **Ben to decide**: how labels fund content payouts (prepay / invoice / credit) before broad rollout.
 
 **Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
 and walk a real agency through onboarding + Stripe payout setup (KYC can't be automated);
@@ -642,7 +658,12 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 
 ## Gotchas / setup
 - Run `npm run dev` · seed `npm run seed` (targets `.env.local` dev DB) · cron `npm run cron`.
-- Tests: `npm test` · `npm run test:e2e` · `npm run typecheck` · `npm run lint`.
+- Tests: `npm test` · `npm run test:integration` (local Supabase + seed) · `npm run test:e2e` ·
+  `npm run typecheck` · `npm run lint`.
+- Types: `supabase gen types typescript --local --schema public`, then re-add the
+  `__InternalSupabase` header (the npx CLI prints a different, unformatted layout).
+- After `supabase db reset`, Kong can keep stale upstreams (502s / seed "createUser: {}"):
+  `docker restart supabase_kong_showup supabase_rest_showup`.
 - **Next 16 holds a per-project dev lock** — stop the preview server before
   `npm run test:e2e` (it starts its own dev server), or it fails with "Another next
   dev server is already running."

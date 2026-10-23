@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requireManagerPage } from "../require-manager";
-import { rosterCreatorIds } from "@/server/services/agencies";
-import { listThreadsFor } from "@/server/services/messaging-queries";
+import { listThreadsFor, THREAD_PAGE } from "@/server/services/messaging-queries";
 import { serviceDb } from "@/server/db/service";
 import { withdrawForCreatorAction } from "../actions";
 import { PageHeader } from "@/components/page-header";
@@ -11,6 +10,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { ThreadList } from "@/components/messaging/thread-list";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { REQUEST_STATUS_META } from "@/lib/statuses";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { Inbox } from "lucide-react";
@@ -18,35 +19,64 @@ import { Inbox } from "lucide-react";
 export const metadata: Metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
 
+const REQUEST_PAGE = 25;
+
+/** One page of the roster's requests (open or decided), newest first, with the true total. */
+async function rosterRequests(agencyId: string, open: boolean, offset: number) {
+  const db = serviceDb();
+  const { data: page, error } = await db.rpc("agency_request_page", {
+    p_agency_id: agencyId,
+    p_open: open,
+    p_limit: REQUEST_PAGE,
+    p_offset: offset,
+  });
+  if (error) throw new Error(`roster requests: ${error.message}`);
+  const ids = (page ?? []).map((r) => r.request_id);
+  const total = Number(page?.[0]?.total ?? 0);
+  if (!ids.length) return { rows: [], total };
+  const { data } = await db
+    .from("show_requests")
+    .select(
+      `id, status, ticket_count, includes_plus_one, created_at,
+       users:users!creator_id(full_name),
+       bookings(id),
+       shows!inner(date, artists(name), venues(city)),
+       companies(name)`,
+    )
+    .in("id", ids);
+  const byId = new Map((data ?? []).map((r) => [r.id, r]));
+  return { rows: ids.map((id) => byId.get(id)).filter((r) => r !== undefined), total };
+}
+
 export default async function ManagerMessagesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; submitted?: string }>;
+  searchParams: Promise<{ tab?: string; submitted?: string; op?: string; dp?: string; tp?: string }>;
 }) {
   const ctx = await requireManagerPage();
   const params = await searchParams;
   const defaultTab = params.tab === "requests" ? "requests" : "messages";
-  const roster = await rosterCreatorIds(ctx.agencyId);
+  const openPage = pageOf(params.op, REQUEST_PAGE);
+  const decidedPage = pageOf(params.dp, REQUEST_PAGE);
+  const threadPage = pageOf(params.tp, THREAD_PAGE);
 
-  const [{ data: requests }, threads] = await Promise.all([
-    roster.length
-      ? serviceDb()
-          .from("show_requests")
-          .select(
-            `id, status, ticket_count, includes_plus_one, created_at,
-             users:users!creator_id(full_name),
-             bookings(id),
-             shows!inner(date, artists(name), venues(city)),
-             companies(name)`,
-          )
-          .in("creator_id", roster)
-          .order("created_at", { ascending: false })
-          .limit(200)
-      : Promise.resolve({ data: [] as never[] }),
-    listThreadsFor({ id: ctx.user.id, side: "manager", agencyId: ctx.agencyId }),
+  const [openList, decidedList, inbox] = await Promise.all([
+    rosterRequests(ctx.agencyId, true, openPage.from),
+    rosterRequests(ctx.agencyId, false, decidedPage.from),
+    listThreadsFor({ id: ctx.user.id, side: "manager", agencyId: ctx.agencyId }, { offset: threadPage.from }),
   ]);
-  const open = (requests ?? []).filter((r) => ["pending", "waitlisted"].includes(r.status));
-  const decided = (requests ?? []).filter((r) => !["pending", "waitlisted"].includes(r.status));
+  const open = openList.rows;
+  const decided = decidedList.rows;
+  const requestPager = (page: number, total: number, key: string) => (
+    <Pager
+      page={page}
+      size={REQUEST_PAGE}
+      total={total}
+      basePath="/manager/messages"
+      params={{ ...params, tab: "requests", submitted: undefined }}
+      pageKey={key}
+    />
+  );
 
   const renderList = (items: typeof open, emptyLabel: string) =>
     items.length === 0 ? (
@@ -107,14 +137,23 @@ export default async function ManagerMessagesPage({
       ) : null}
       <Tabs defaultValue={defaultTab}>
         <TabsList>
-          <TabsTrigger value="messages">Chats ({threads.length})</TabsTrigger>
-          <TabsTrigger value="requests">Requests ({open.length})</TabsTrigger>
+          <TabsTrigger value="messages">Chats ({inbox.total})</TabsTrigger>
+          <TabsTrigger value="requests">Requests ({openList.total})</TabsTrigger>
         </TabsList>
         <TabsContent value="messages" className="mt-4">
-          <ThreadList threads={threads} basePath="/manager/messages" />
+          <ThreadList threads={inbox.threads} basePath="/manager/messages" />
+          <Pager
+            page={threadPage.page}
+            size={THREAD_PAGE}
+            total={inbox.total}
+            basePath="/manager/messages"
+            params={{ ...params, tab: "messages", submitted: undefined }}
+            pageKey="tp"
+            className="mt-4"
+          />
         </TabsContent>
         <TabsContent value="requests" className="mt-4">
-          {!requests?.length ? (
+          {!openList.total && !decidedList.total ? (
             <EmptyState
               icon={Inbox}
               title="No requests yet"
@@ -123,12 +162,14 @@ export default async function ManagerMessagesPage({
           ) : (
             <div className="space-y-6">
               <section className="space-y-2">
-                <h2 className="text-sm font-semibold">Open ({open.length})</h2>
+                <h2 className="text-sm font-semibold">Open ({openList.total})</h2>
                 {renderList(open, "Nothing waiting on artist teams.")}
+                {requestPager(openPage.page, openList.total, "op")}
               </section>
               <section className="space-y-2">
-                <h2 className="text-sm font-semibold">Decided ({decided.length})</h2>
+                <h2 className="text-sm font-semibold">Decided ({decidedList.total})</h2>
                 {renderList(decided, "No decided requests yet.")}
+                {requestPager(decidedPage.page, decidedList.total, "dp")}
               </section>
             </div>
           )}

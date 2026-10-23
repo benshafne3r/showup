@@ -10,16 +10,19 @@ export const dynamic = "force-dynamic";
 
 export default async function ManagerThreadPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ threadId: string }>;
+  searchParams: Promise<{ before?: string }>;
 }) {
   const ctx = await requireManagerPage();
   const { threadId } = await params;
+  const { before } = await searchParams;
   const thread = await getThreadForViewer(threadId, {
     id: ctx.user.id,
     side: "manager",
     agencyId: ctx.agencyId,
-  });
+  }, { before });
   if (!thread) notFound();
   // Viewing as this user (owner tool) must not mark their messages read.
   if (!ctx.user.viewedBy) await markThreadRead(ctx.user.id, threadId);
@@ -46,6 +49,8 @@ export default async function ManagerThreadPage({
         subject={thread.subject}
         counterpartName={thread.counterpartName}
         messages={thread.messages}
+        olderHref={thread.olderCursor ? `/manager/messages/${threadId}?before=${encodeURIComponent(thread.olderCursor)}` : null}
+        latestHref={before ? `/manager/messages/${threadId}` : null}
       />
     </div>
   );

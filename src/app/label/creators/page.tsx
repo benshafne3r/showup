@@ -2,13 +2,14 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireLabelPage } from "../require-label";
 import { serviceDb } from "@/server/db/service";
-import { creatorCountsNear, suggestCreatorsForShow } from "@/server/services/offers";
+import { creatorCountsNear, SUGGESTION_PAGE, suggestCreatorsForShow } from "@/server/services/offers";
 import { PickCreators } from "../shows/[id]/pick-creators";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { cityKey } from "@/lib/cities";
+import { growingLimit } from "@/lib/pagination";
 import { formatShowDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { Users } from "lucide-react";
@@ -24,7 +25,7 @@ export const dynamic = "force-dynamic";
 export default async function CreatorsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ city?: string; show?: string }>;
+  searchParams: Promise<{ city?: string; show?: string; limit?: string }>;
 }) {
   const context = await requireLabelPage();
   const params = await searchParams;
@@ -79,8 +80,13 @@ export default async function CreatorsPage({
 
   const [cityKeySelected, city] = cityList.find(([key]) => key === params.city) ?? cityList[0];
   const show = city.shows.find((s) => s.id === params.show) ?? city.shows[0];
-  const suggestions = await suggestCreatorsForShow({ companyId: context.companyId, showId: show.id });
+  const limit = growingLimit(params.limit, SUGGESTION_PAGE, 600);
+  const suggestions = await suggestCreatorsForShow({ companyId: context.companyId, showId: show.id, limit });
   const opp = show.show_opportunities;
+  const moreHref =
+    suggestions && (suggestions.inCityTotal > limit || suggestions.nearbyTotal > limit)
+      ? `/label/creators?city=${encodeURIComponent(cityKeySelected)}&show=${show.id}&limit=${limit + SUGGESTION_PAGE}`
+      : null;
 
   return (
     <div className="space-y-6">
@@ -149,6 +155,9 @@ export default async function CreatorsPage({
               city={suggestions.city}
               inCity={suggestions.inCity}
               nearby={suggestions.nearby}
+              inCityTotal={suggestions.inCityTotal}
+              nearbyTotal={suggestions.nearbyTotal}
+              moreHref={moreHref}
               ticketsLeft={Math.max(0, opp.tickets_total - opp.tickets_claimed)}
             />
           ) : null}
@@ -157,3 +166,4 @@ export default async function CreatorsPage({
     </div>
   );
 }
+

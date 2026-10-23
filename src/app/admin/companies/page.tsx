@@ -6,17 +6,27 @@ import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { formatDateTime } from "@/lib/dates";
 import { setCompanyStatusAction } from "../actions";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 
 export const metadata: Metadata = { title: "Companies" };
 export const dynamic = "force-dynamic";
 
-export default async function AdminCompaniesPage() {
+const PAGE_SIZE = 50;
+
+export default async function AdminCompaniesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireAdmin();
-  const { data: companies } = await serviceDb()
+  const params = await searchParams;
+  const page = pageOf(params.page, PAGE_SIZE);
+  const { data: companies, count: total } = await serviceDb()
     .from("companies")
-    .select("id, name, kind, website, verified_at, suspended_at, created_at, company_members(id), shows(id)")
+    .select("id, name, kind, website, verified_at, suspended_at, created_at, company_members(count), shows(count)", { count: "exact" })
     .order("created_at", { ascending: false })
-    .limit(200);
+    .range(page.from, page.to);
 
   return (
     <div className="space-y-6">
@@ -39,8 +49,8 @@ export default async function AdminCompaniesPage() {
               <tr key={company.id} className="border-b last:border-0">
                 <td className="px-4 py-3 font-medium">{company.name}</td>
                 <td className="px-4 py-3 capitalize">{company.kind}</td>
-                <td className="px-4 py-3">{company.company_members?.length ?? 0}</td>
-                <td className="px-4 py-3">{company.shows?.length ?? 0}</td>
+                <td className="px-4 py-3">{company.company_members?.[0]?.count ?? 0}</td>
+                <td className="px-4 py-3">{company.shows?.[0]?.count ?? 0}</td>
                 <td className="px-4 py-3">
                   <StatusBadge
                     label={company.suspended_at ? "suspended" : company.verified_at ? "verified" : "unverified"}
@@ -98,7 +108,7 @@ export default async function AdminCompaniesPage() {
               />
             </div>
             <p className="mt-2 text-xs text-muted-foreground">
-              {company.company_members?.length ?? 0} members · {company.shows?.length ?? 0} shows · created{" "}
+              {company.company_members?.[0]?.count ?? 0} members · {company.shows?.[0]?.count ?? 0} shows · created{" "}
               {formatDateTime(company.created_at)}
             </p>
             <div className="mt-3 flex flex-wrap gap-1 border-t pt-3">
@@ -129,6 +139,7 @@ export default async function AdminCompaniesPage() {
           </li>
         ))}
       </ul>
+      <Pager page={page.page} size={PAGE_SIZE} total={total ?? 0} basePath="/admin/companies" params={params} />
     </div>
   );
 }

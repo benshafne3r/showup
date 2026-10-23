@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { requireLabelPage } from "../require-label";
 import { serviceDb } from "@/server/db/service";
-import { listThreadsFor } from "@/server/services/messaging-queries";
+import { listThreadsFor, THREAD_PAGE } from "@/server/services/messaging-queries";
 import { agenciesForCreators } from "@/server/services/agencies";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
@@ -11,43 +11,70 @@ import { ThreadList } from "@/components/messaging/thread-list";
 import { REQUEST_STATUS_META } from "@/lib/statuses";
 import { formatShowDate, formatDateTime } from "@/lib/dates";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { Inbox } from "lucide-react";
 
 export const metadata: Metadata = { title: "Messages" };
 export const dynamic = "force-dynamic";
 
+const REQUEST_PAGE = 25;
+
 export default async function LabelMessagesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string }>;
+  searchParams: Promise<{ tab?: string; sub?: string; pp?: string; wp?: string; dp?: string; tp?: string }>;
 }) {
   const context = await requireLabelPage();
   const params = await searchParams;
   const defaultTab = params.tab === "messages" ? "messages" : "requests";
+  const defaultSub = params.sub === "waitlisted" || params.sub === "decided" ? params.sub : "pending";
+  const pages = {
+    pending: pageOf(params.pp, REQUEST_PAGE),
+    waitlisted: pageOf(params.wp, REQUEST_PAGE),
+    decided: pageOf(params.dp, REQUEST_PAGE),
+    threads: pageOf(params.tp, THREAD_PAGE),
+  };
 
-  const [{ data: requests }, threads] = await Promise.all([
+  // Each list is its own page of rows with its true total.
+  const requestList = () =>
     serviceDb()
       .from("show_requests")
       .select(
         `id, status, ticket_count, includes_plus_one, message, created_at, creator_id,
          users:users!creator_id(full_name),
          shows!inner(date, artists(name), venues(city))`,
+        { count: "exact" },
       )
       .eq("company_id", context.companyId)
-      .order("created_at", { ascending: false })
-      .limit(200),
-    listThreadsFor({ id: context.user.id, side: "company", companyId: context.companyId }),
+      .order("created_at", { ascending: false });
+  const [pendingRes, waitlistedRes, decidedRes, inbox] = await Promise.all([
+    requestList().eq("status", "pending").range(pages.pending.from, pages.pending.to),
+    requestList().eq("status", "waitlisted").range(pages.waitlisted.from, pages.waitlisted.to),
+    requestList().not("status", "in", "(pending,waitlisted)").range(pages.decided.from, pages.decided.to),
+    listThreadsFor({ id: context.user.id, side: "company", companyId: context.companyId }, { offset: pages.threads.from }),
   ]);
 
-  const agencies = await agenciesForCreators(
-    Array.from(new Set((requests ?? []).map((r) => r.creator_id))),
-  );
-
   const grouped = {
-    pending: (requests ?? []).filter((r) => r.status === "pending"),
-    waitlisted: (requests ?? []).filter((r) => r.status === "waitlisted"),
-    decided: (requests ?? []).filter((r) => !["pending", "waitlisted"].includes(r.status)),
+    pending: pendingRes.data ?? [],
+    waitlisted: waitlistedRes.data ?? [],
+    decided: decidedRes.data ?? [],
   };
+  const totals = { pending: pendingRes.count ?? 0, waitlisted: waitlistedRes.count ?? 0, decided: decidedRes.count ?? 0 };
+  const agencies = await agenciesForCreators(
+    Array.from(new Set([...grouped.pending, ...grouped.waitlisted, ...grouped.decided].map((r) => r.creator_id))),
+  );
+  const pager = (sub: keyof typeof totals, key: string) => (
+    <Pager
+      page={pages[sub].page}
+      size={REQUEST_PAGE}
+      total={totals[sub]}
+      basePath="/label/messages"
+      params={{ ...params, tab: "requests", sub }}
+      pageKey={key}
+      className="mt-4"
+    />
+  );
 
   const renderList = (items: typeof grouped.pending, emptyLabel: string) =>
     items.length === 0 ? (
@@ -93,39 +120,51 @@ export default async function LabelMessagesPage({
       <PageHeader title="Messages" description="Creator requests and conversations." />
       <Tabs defaultValue={defaultTab}>
         <TabsList>
-          <TabsTrigger value="requests">Requests ({grouped.pending.length})</TabsTrigger>
-          <TabsTrigger value="messages">Chats ({threads.length})</TabsTrigger>
+          <TabsTrigger value="requests">Requests ({totals.pending})</TabsTrigger>
+          <TabsTrigger value="messages">Chats ({inbox.total})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="requests" className="mt-4">
-          {!requests?.length ? (
+          {!totals.pending && !totals.waitlisted && !totals.decided ? (
             <EmptyState
               icon={Inbox}
               title="No requests yet"
               description="Publish a show opportunity and creator requests will land here."
             />
           ) : (
-            <Tabs defaultValue="pending">
+            <Tabs defaultValue={defaultSub}>
               <TabsList>
-                <TabsTrigger value="pending">Pending ({grouped.pending.length})</TabsTrigger>
-                <TabsTrigger value="waitlisted">Waitlist ({grouped.waitlisted.length})</TabsTrigger>
-                <TabsTrigger value="decided">Decided ({grouped.decided.length})</TabsTrigger>
+                <TabsTrigger value="pending">Pending ({totals.pending})</TabsTrigger>
+                <TabsTrigger value="waitlisted">Waitlist ({totals.waitlisted})</TabsTrigger>
+                <TabsTrigger value="decided">Decided ({totals.decided})</TabsTrigger>
               </TabsList>
               <TabsContent value="pending" className="mt-4">
                 {renderList(grouped.pending, "Nothing pending. Nice inbox zero.")}
+                {pager("pending", "pp")}
               </TabsContent>
               <TabsContent value="waitlisted" className="mt-4">
                 {renderList(grouped.waitlisted, "No one on the waitlist.")}
+                {pager("waitlisted", "wp")}
               </TabsContent>
               <TabsContent value="decided" className="mt-4">
                 {renderList(grouped.decided, "No decided requests yet.")}
+                {pager("decided", "dp")}
               </TabsContent>
             </Tabs>
           )}
         </TabsContent>
 
         <TabsContent value="messages" className="mt-4">
-          <ThreadList threads={threads} basePath="/label/messages" />
+          <ThreadList threads={inbox.threads} basePath="/label/messages" />
+          <Pager
+            page={pages.threads.page}
+            size={THREAD_PAGE}
+            total={inbox.total}
+            basePath="/label/messages"
+            params={{ ...params, tab: "messages" }}
+            pageKey="tp"
+            className="mt-4"
+          />
         </TabsContent>
       </Tabs>
     </div>

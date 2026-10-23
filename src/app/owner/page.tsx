@@ -17,13 +17,14 @@ import { isPlatformOwner } from "@/server/auth/owner-emails";
 import { revokePartnerLinkAction, viewAsAction } from "./actions";
 import { PartnerLinkForm } from "./partner-link-form";
 import { Button } from "@/components/ui/button";
+import { Pager } from "@/components/pager";
+import { pageOf } from "@/lib/pagination";
 import { Eye } from "lucide-react";
 
 export const metadata: Metadata = { title: "Owner dashboard", robots: { index: false, follow: false } };
 export const dynamic = "force-dynamic";
 
 const ago = (iso: string) => `${formatDistanceToNowStrict(new Date(iso))} ago`;
-const sum = (rows: { amount_cents: number }[] | null) => (rows ?? []).reduce((s, r) => s + r.amount_cents, 0);
 
 const ROLE_TONE = {
   creator: "neutral",
@@ -44,83 +45,90 @@ function Tile({ label, value, sub }: { label: string; value: string | number; su
   );
 }
 
-export default async function OwnerDashboardPage() {
+type OwnerStats = {
+  accounts: number;
+  new_this_week: number;
+  creators: number;
+  onboarded_creators: number;
+  alerts_on: number;
+  roster_profiles: number;
+  creators_with_card: number;
+  labels: number;
+  managers: number;
+  agencies: number;
+  open_shows: number;
+  pending_requests: number;
+  active_bookings: number;
+  holds_count: number;
+  holds_cents: number;
+  captured_count: number;
+  captured_cents: number;
+  paid_cents: number;
+  bookings_by_status: Record<string, number>;
+};
+
+const SIGNUP_PAGE = 25;
+
+export default async function OwnerDashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string }>;
+}) {
   await requireOwnerPage();
   const viewing = await readViewAs();
+  const params = await searchParams;
+  const signupPage = pageOf(params.page, SIGNUP_PAGE);
   const db = serviceDb();
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
-  const weekAgo = new Date(now.getTime() - 7 * 86_400_000).toISOString();
 
-  const [
-    { data: users },
-    { data: profiles },
-    { data: cards },
-    { data: companyMembers },
-    { data: agencyMembers },
-    { data: rosters },
-    { count: openShows },
-    { data: requestRows },
-    { data: bookingRows },
-    { data: holds },
-    { data: payouts },
-    { data: invites },
-  ] = await Promise.all([
-    db.from("users").select("id, full_name, email, role, status, created_at, managed_profile").order("created_at", { ascending: false }).limit(2000),
-    db.from("creator_profiles").select("user_id, city, onboarded_at, new_show_alerts"),
-    db.from("payment_methods").select("user_id"),
-    db.from("company_members").select("user_id, companies(name)"),
-    db.from("agency_members").select("user_id, agencies(name)"),
-    db.from("agency_creators").select("creator_id, agencies(name)"),
-    db
-      .from("shows")
-      .select("id, show_opportunities!inner(application_deadline, published_at)", { count: "exact", head: true })
-      .eq("status", "published")
-      .gte("date", today)
-      .not("show_opportunities.published_at", "is", null)
-      .gt("show_opportunities.application_deadline", now.toISOString()),
-    db
-      .from("show_requests")
-      .select("id, status, created_at, users:users!creator_id(full_name), shows!inner(date, artists(name), venues(city))")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    db.from("bookings").select("status"),
-    db
-      .from("authorization_records")
-      .select("id, status, amount_cents, created_at, authorized_at, released_at, captured_at, users:users!creator_id(full_name), bookings!inner(shows!inner(date, artists(name)))")
-      .order("created_at", { ascending: false })
-      .limit(200),
-    db.from("creator_payment_records").select("amount_cents, status"),
-    db
-      .from("partner_invites")
-      .select("id, kind, org_name, email, created_at, expires_at, used_at, revoked_at, users:used_by(full_name, email)")
-      .order("created_at", { ascending: false })
-      .limit(20),
-  ]);
+  // Tiles are SQL aggregates over everything; lists are the latest few.
+  const [{ data: statsJson, error: statsError }, { data: users }, { data: requests }, { data: holds }, { data: invites }] =
+    await Promise.all([
+      db.rpc("owner_stats"),
+      // Agency-run roster profiles have no login, so they aren't sign-ups.
+      db
+        .from("users")
+        .select("id, full_name, email, role, status, created_at, managed_profile")
+        .eq("managed_profile", false)
+        .order("created_at", { ascending: false })
+        .range(signupPage.from, signupPage.to),
+      db
+        .from("show_requests")
+        .select("id, status, created_at, users:users!creator_id(full_name), shows!inner(date, artists(name), venues(city))")
+        .order("created_at", { ascending: false })
+        .limit(15),
+      db
+        .from("authorization_records")
+        .select("id, status, amount_cents, created_at, authorized_at, released_at, captured_at, users:users!creator_id(full_name), bookings!inner(shows!inner(date, artists(name)))")
+        .order("created_at", { ascending: false })
+        .limit(15),
+      db
+        .from("partner_invites")
+        .select("id, kind, org_name, email, created_at, expires_at, used_at, revoked_at, users:used_by(full_name, email)")
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+  if (statsError) throw new Error(`owner stats: ${statsError.message}`);
+  const stats = statsJson as unknown as OwnerStats;
 
-  // Agency-run roster profiles have no login, so they aren't sign-ups.
-  const all = (users ?? []).filter((u) => !u.managed_profile);
-  const rosterProfiles = (users ?? []).length - all.length;
-  const byRole = (role: string) => all.filter((u) => u.role === role);
-  const creators = byRole("creator");
+  // Setup details for just the sign-ups on this page.
+  const all = users ?? [];
+  const ids = all.map((u) => u.id);
+  const [{ data: profiles }, { data: cards }, { data: companyMembers }, { data: agencyMembers }, { data: rosters }] = ids.length
+    ? await Promise.all([
+        db.from("creator_profiles").select("user_id, city, onboarded_at").in("user_id", ids),
+        db.from("payment_methods").select("user_id").in("user_id", ids),
+        db.from("company_members").select("user_id, companies(name)").in("user_id", ids),
+        db.from("agency_members").select("user_id, agencies(name)").in("user_id", ids),
+        db.from("agency_creators").select("creator_id, agencies(name)").in("creator_id", ids),
+      ])
+    : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
   const profileOf = new Map((profiles ?? []).map((p) => [p.user_id, p]));
   const withCard = new Set((cards ?? []).map((c) => c.user_id));
   const companyOf = new Map((companyMembers ?? []).map((m) => [m.user_id, m.companies?.name]));
   const agencyOf = new Map((agencyMembers ?? []).map((m) => [m.user_id, m.agencies?.name]));
   const managedBy = new Map((rosters ?? []).map((r) => [r.creator_id, r.agencies?.name]));
-
-  const newThisWeek = all.filter((u) => u.created_at >= weekAgo).length;
-  const onboardedCreators = creators.filter((u) => profileOf.get(u.id)?.onboarded_at).length;
-  const alertsOn = creators.filter((u) => profileOf.get(u.id)?.new_show_alerts).length;
-  const agencies = new Set((agencyMembers ?? []).map((m) => m.agencies?.name).filter(Boolean)).size;
-
-  const requests = requestRows ?? [];
-  const bookings = bookingRows ?? [];
-  const activeBookings = bookings.filter((b) =>
-    ["awaiting_acceptance", "awaiting_payment_method", "confirmed", "authorization_failed", "attended", "no_show_review", "disputed"].includes(b.status),
-  ).length;
-  const authorized = (holds ?? []).filter((h) => h.status === "authorized");
-  const captured = (holds ?? []).filter((h) => h.status === "captured");
+  const bookingsByStatus = Object.entries(stats.bookings_by_status ?? {});
 
   /** One line describing where a signup is in setup. */
   const setupOf = (u: { id: string; role: string }) => {
@@ -167,30 +175,27 @@ export default async function OwnerDashboardPage() {
       <section className="space-y-3" aria-labelledby="people-heading">
         <h2 id="people-heading" className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">People</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <Tile label="Total accounts" value={all.length} sub={`+${newThisWeek} in the last 7 days`} />
+          <Tile label="Total accounts" value={stats.accounts} sub={`+${stats.new_this_week} in the last 7 days`} />
           <Tile
             label="Creators"
-            value={creators.length}
-            sub={`${onboardedCreators} finished profile · ${alertsOn} want city alerts${rosterProfiles ? ` · plus ${rosterProfiles} agency roster profiles` : ""}`}
+            value={stats.creators}
+            sub={`${stats.onboarded_creators} finished profile · ${stats.alerts_on} want city alerts${stats.roster_profiles ? ` · plus ${stats.roster_profiles} agency roster profiles` : ""}`}
           />
-          <Tile label="Creators with a card" value={creators.filter((u) => withCard.has(u.id)).length} />
-          <Tile label="Label accounts" value={byRole("label").length} />
-          <Tile label="Management accounts" value={byRole("manager").length} sub={`${agencies} compan${agencies === 1 ? "y" : "ies"} set up`} />
+          <Tile label="Creators with a card" value={stats.creators_with_card} />
+          <Tile label="Label accounts" value={stats.labels} />
+          <Tile label="Management accounts" value={stats.managers} sub={`${stats.agencies} compan${stats.agencies === 1 ? "y" : "ies"} set up`} />
         </div>
       </section>
 
       <section className="space-y-3" aria-labelledby="market-heading">
         <h2 id="market-heading" className="text-sm font-semibold tracking-wide text-muted-foreground uppercase">Marketplace &amp; money</h2>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
-          <Tile label="Shows open now" value={openShows ?? 0} />
-          <Tile label="Pending requests" value={requests.filter((r) => r.status === "pending").length} />
-          <Tile label="Active bookings" value={activeBookings} />
-          <Tile label="Holds on cards" value={formatCents(sum(authorized))} sub={`${authorized.length} active`} />
-          <Tile label="Charged (no-shows)" value={formatCents(sum(captured))} sub={`${captured.length} total`} />
-          <Tile
-            label="Paid to creators"
-            value={formatCents(sum((payouts ?? []).filter((p) => p.status === "paid")))}
-          />
+          <Tile label="Shows open now" value={stats.open_shows} />
+          <Tile label="Pending requests" value={stats.pending_requests} />
+          <Tile label="Active bookings" value={stats.active_bookings} />
+          <Tile label="Holds on cards" value={formatCents(stats.holds_cents)} sub={`${stats.holds_count} active`} />
+          <Tile label="Charged (no-shows)" value={formatCents(stats.captured_cents)} sub={`${stats.captured_count} total`} />
+          <Tile label="Paid to creators" value={formatCents(stats.paid_cents)} />
         </div>
       </section>
 
@@ -203,7 +208,7 @@ export default async function OwnerDashboardPage() {
             <p className="text-sm text-muted-foreground">No accounts yet.</p>
           ) : (
             <ul className="divide-y">
-              {all.slice(0, 50).map((u) => (
+              {all.map((u) => (
                 <li key={u.id} className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 py-3 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium">
@@ -231,6 +236,7 @@ export default async function OwnerDashboardPage() {
               ))}
             </ul>
           )}
+          <Pager page={signupPage.page} size={SIGNUP_PAGE} total={stats.accounts} basePath="/owner" params={params} className="mt-3" />
         </CardContent>
       </Card>
 
@@ -244,7 +250,7 @@ export default async function OwnerDashboardPage() {
               <p className="text-sm text-muted-foreground">No holds yet.</p>
             ) : (
               <ul className="divide-y">
-                {holds.slice(0, 15).map((h) => (
+                {holds.map((h) => (
                   <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                     <div className="min-w-0">
                       <p className="font-medium tabular-nums">
@@ -269,11 +275,11 @@ export default async function OwnerDashboardPage() {
             <CardTitle className="text-base">Recent requests</CardTitle>
           </CardHeader>
           <CardContent>
-            {!requests.length ? (
+            {!requests?.length ? (
               <p className="text-sm text-muted-foreground">No requests yet.</p>
             ) : (
               <ul className="divide-y">
-                {requests.slice(0, 15).map((r) => (
+                {requests.map((r) => (
                   <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                     <div className="min-w-0">
                       <p className="font-medium">{r.users?.full_name ?? "Creator"}</p>
@@ -296,13 +302,11 @@ export default async function OwnerDashboardPage() {
             <CardTitle className="text-base">Bookings by status</CardTitle>
           </CardHeader>
           <CardContent>
-            {!bookings.length ? (
+            {!bookingsByStatus.length ? (
               <p className="text-sm text-muted-foreground">No bookings yet.</p>
             ) : (
               <ul className="space-y-2 text-sm">
-                {Object.entries(
-                  bookings.reduce<Record<string, number>>((acc, b) => ({ ...acc, [b.status]: (acc[b.status] ?? 0) + 1 }), {}),
-                ).map(([status, n]) => (
+                {bookingsByStatus.map(([status, n]) => (
                   <li key={status} className="flex items-center justify-between gap-2">
                     <StatusBadge {...BOOKING_STATUS_META[status as keyof typeof BOOKING_STATUS_META]} />
                     <span className="font-medium tabular-nums">{n}</span>
