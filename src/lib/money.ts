@@ -42,6 +42,27 @@ export function authorizationAmountCents(
   return Math.round((statedTicketValueCents * ticketCount * depositPercentage) / 100);
 }
 
+/**
+ * Card processing on a label's content charge (Stripe's standard US rate).
+ * The label pays it on top of the creator's fee (Ben, 2026-10-23).
+ */
+export const CARD_FEE_BASIS_POINTS = 290; // 2.9%
+export const CARD_FEE_FIXED_CENTS = 30;
+
+/**
+ * What a label's card is charged for a creator's content fee: the fee plus
+ * card processing, grossed up so that after Stripe takes 2.9% + 30¢ of the
+ * whole charge the full creator fee is left.
+ * Example: $50.00 → $51.81.
+ */
+export function labelChargeCents(contentFeeCents: number): number {
+  if (!Number.isInteger(contentFeeCents) || contentFeeCents < 0) {
+    throw new Error("contentFeeCents must be a non-negative integer");
+  }
+  if (contentFeeCents === 0) return 0;
+  return Math.ceil(((contentFeeCents + CARD_FEE_FIXED_CENTS) * 10_000) / (10_000 - CARD_FEE_BASIS_POINTS));
+}
+
 const usd = new Intl.NumberFormat("en-US", {
   style: "currency",
   currency: "USD",

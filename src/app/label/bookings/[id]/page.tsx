@@ -49,7 +49,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
        shows!inner(date, artists(name), venues(name, city)),
        users:users!creator_id(full_name),
        authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, capture_amount_cents, failure_reason, expires_at, created_at),
-       creator_payment_records(status, amount_cents, paid_at, failure_reason, funding_status, funding_failure, funded_at, refunded_at),
+       creator_payment_records(status, amount_cents, paid_at, failure_reason, funding_status, funding_amount_cents, funding_failure, funded_at, refunded_at),
        attendance_submissions(id, status, method, distance_m, checked_in_at, note, proof_paths, review_note, created_at),
        content_submissions(id, status, post_url, caption_note, proof_paths, review_note, submitted_at, platform, verification_status, view_count, like_count, last_checked_at)`,
     )
@@ -362,12 +362,14 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
               ) : null}
               {paymentRecord?.funded_at && paymentRecord.funding_status === "charged" ? (
                 <p className="text-xs text-muted-foreground">
-                  {formatCents(paymentRecord.amount_cents)} charged to your card {formatDateTime(paymentRecord.funded_at)}
+                  {formatCents(paymentRecord.funding_amount_cents ?? paymentRecord.amount_cents)} charged to your card{" "}
+                  {formatDateTime(paymentRecord.funded_at)}
                 </p>
               ) : null}
               {paymentRecord?.refunded_at ? (
                 <p className="text-xs text-muted-foreground">
-                  {formatCents(paymentRecord.amount_cents)} refunded to your card {formatDateTime(paymentRecord.refunded_at)}
+                  {formatCents(paymentRecord.funding_amount_cents ?? paymentRecord.amount_cents)} refunded to your card{" "}
+                  {formatDateTime(paymentRecord.refunded_at)}
                 </p>
               ) : null}
               {booking.cancel_reason ? (

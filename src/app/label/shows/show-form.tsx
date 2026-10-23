@@ -234,6 +234,7 @@ export function ShowForm({
                 placeholder="150"
                 defaultValue={initial.creatorPayment ?? ""}
               />
+              <p className="text-xs text-muted-foreground">Charged to your card with card processing (2.9% + 30¢) when you approve their content.</p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="application-deadline">Application deadline</Label>

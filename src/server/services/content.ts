@@ -96,7 +96,7 @@ export async function reviewContent(input: {
     // a declined card leaves the content waiting for review, not half-approved.
     const { data: reviewable } = await db
       .from("content_submissions")
-      .select("id, bookings!inner(creator_payment_cents)")
+      .select("id")
       .eq("id", input.submissionId)
       .eq("booking_id", input.bookingId)
       .eq("company_id", input.companyId)
@@ -105,7 +105,7 @@ export async function reviewContent(input: {
     if (!reviewable) return { ok: false, error: "No reviewable content submission found" };
     const funded = await fundCreatorPayment(input.bookingId, input.reviewer);
     if (!funded.ok) return funded;
-    if (funded.charged) chargedCents = reviewable.bookings.creator_payment_cents;
+    chargedCents = funded.chargedCents;
   }
 
   const { data: submission } = await db

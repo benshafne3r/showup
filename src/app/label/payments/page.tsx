@@ -79,8 +79,8 @@ export default async function LabelPaymentsPage({
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
           <p className="text-muted-foreground">
-            When you approve a creator&apos;s content, their content fee is charged to this card and paid to them.
-            Shows without a content fee never charge it.
+            When you approve a creator&apos;s content, their content fee plus card processing (2.9% + 30¢) is
+            charged to this card, and the fee is paid to them. Shows without a content fee never charge it.
           </p>
           {card ? (
             <p className="font-medium">

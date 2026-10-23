@@ -150,12 +150,12 @@ describe("label pays for content on approval", () => {
   it("charges the label once and pays the creator from that charge", async () => {
     const c = await contentToReview();
     const result = await c.approve();
-    expect(result).toMatchObject({ ok: true, paid: true, chargedCents: 5000 });
+    expect(result).toMatchObject({ ok: true, paid: true, chargedCents: 5181 }); // $50 + card processing
     const r = await record(c.recordId);
     expect(r).toMatchObject({ status: "paid", funding_status: "charged" });
     const made = await charges(c.recordId);
     expect(made).toHaveLength(1);
-    expect(made[0]).toMatchObject({ status: "captured", amountCents: 5000 });
+    expect(made[0]).toMatchObject({ status: "captured", amountCents: 5181 });
     expect((await transfers(c.recordId))[0].sourceChargeId).toBe(r.funding_charge_id);
   });
 

@@ -58,8 +58,10 @@ than trusting notes (0007 was marked "done" but wasn't).
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
 ## Labels pay for creator content (2026-10-23) — ⚠️ COMMITTED, NOT PUSHED
-Ben's rule: the label's card is charged a creator's content fee when the label approves the content;
-the creator is paid from that charge. Migration **0026** (local only; **apply to prod BEFORE pushing**):
+Ben's rules: the label's card is charged a creator's content fee **plus card processing** when the
+label approves the content; the creator is paid the full fee from that charge. Charge =
+`labelChargeCents(fee)` in `lib/money.ts` (grossed up for 2.9% + 30¢: $50 → $51.81), stored as
+`funding_amount_cents`. Migration **0026** (local only; **apply to prod BEFORE pushing**):
 `payment_methods.company_id` (label cards), funding columns on `creator_payment_records`
 (`funding_status` unfunded → charging → charged / failed; charged + canceled → refunding → refunded;
 `waived` = paid by ShowUp, set for everything approved before this), `claim_funding`, `claim_refund`,
@@ -78,8 +80,8 @@ and `claim_payout` now refuses unfunded records.
   no card, double-click, unfunded payout refused, crash after/before charge, refund once).
   Seed: demo label card visa 4444.
 - Known gaps: cards are saved without SetupIntents (Codex #8), so some banks may ask for
-  authentication on the off-session charge (shows as a decline). Stripe's fee on the label charge
-  (~2.9% + 30¢) currently comes out of ShowUp's side.
+  authentication on the off-session charge (shows as a decline). Refunds don't return Stripe's fee
+  (ShowUp absorbs it on the rare refund). Amex/international cards cost more than 2.9% + 30¢.
 
 ## Database-side lists + totals (2026-10-23, Codex #6) — LIVE
 Migration **0025** (applied to prod 2026-10-23, before the code push; the pages call its functions):
@@ -674,7 +676,8 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 - **Verified social metrics**, **realtime** messaging/notifications, label **ROI dashboard**.
 
 ## Key decisions
-- Content payouts: label's saved card is charged via Stripe when the content is approved (Ben, 2026-10-23).
+- Content payouts: label's saved card is charged via Stripe when the content is approved, and the
+  label also pays the card processing fee (Ben, 2026-10-23).
 - Branding centralized in `src/lib/brand.ts`.
 - Payments + email use provider abstractions; defaults are mock/console. Stripe
   adapter refuses non-`sk_test_` keys.

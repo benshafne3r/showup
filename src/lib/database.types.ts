@@ -930,6 +930,7 @@ export type Database = {
           failed_at: string | null
           failure_reason: string | null
           funded_at: string | null
+          funding_amount_cents: number | null
           funding_attempts: number
           funding_charge_id: string | null
           funding_failure: string | null
@@ -963,6 +964,7 @@ export type Database = {
           failed_at?: string | null
           failure_reason?: string | null
           funded_at?: string | null
+          funding_amount_cents?: number | null
           funding_attempts?: number
           funding_charge_id?: string | null
           funding_failure?: string | null
@@ -996,6 +998,7 @@ export type Database = {
           failed_at?: string | null
           failure_reason?: string | null
           funded_at?: string | null
+          funding_amount_cents?: number | null
           funding_attempts?: number
           funding_charge_id?: string | null
           funding_failure?: string | null
@@ -2443,6 +2446,7 @@ export type Database = {
       }
       claim_funding: {
         Args: {
+          p_amount_cents: number
           p_lease_seconds?: number
           p_method_id: string
           p_record_id: string
@@ -2458,6 +2462,7 @@ export type Database = {
           failed_at: string | null
           failure_reason: string | null
           funded_at: string | null
+          funding_amount_cents: number | null
           funding_attempts: number
           funding_charge_id: string | null
           funding_failure: string | null
@@ -2559,6 +2564,7 @@ export type Database = {
           failed_at: string | null
           failure_reason: string | null
           funded_at: string | null
+          funding_amount_cents: number | null
           funding_attempts: number
           funding_charge_id: string | null
           funding_failure: string | null
@@ -2601,6 +2607,7 @@ export type Database = {
           failed_at: string | null
           failure_reason: string | null
           funded_at: string | null
+          funding_amount_cents: number | null
           funding_attempts: number
           funding_charge_id: string | null
           funding_failure: string | null

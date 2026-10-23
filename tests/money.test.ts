@@ -3,6 +3,7 @@ import {
   authorizationAmountCents,
   formatCents,
   formatCentsCompact,
+  labelChargeCents,
   parseDollarsToCents,
 } from "@/lib/money";
 
@@ -72,5 +73,24 @@ describe("parseDollarsToCents", () => {
     expect(() => parseDollarsToCents("-5")).toThrow();
     expect(() => parseDollarsToCents("1.234")).toThrow();
     expect(() => parseDollarsToCents("")).toThrow();
+  });
+});
+
+describe("labelChargeCents (content fee + card processing)", () => {
+  it("adds 2.9% + 30¢ so the full creator fee survives Stripe's cut", () => {
+    expect(labelChargeCents(5000)).toBe(5181);
+    expect(labelChargeCents(15000)).toBe(15479);
+    for (const fee of [1, 99, 1000, 5000, 12345, 100000]) {
+      const charge = labelChargeCents(fee);
+      const stripeFee = Math.round((charge * 290) / 10_000) + 30;
+      expect(charge - stripeFee).toBeGreaterThanOrEqual(fee);
+      expect(charge - stripeFee - fee).toBeLessThanOrEqual(1); // never overcharges by more than a cent
+    }
+  });
+
+  it("charges nothing for attend-only shows and rejects bad input", () => {
+    expect(labelChargeCents(0)).toBe(0);
+    expect(() => labelChargeCents(-1)).toThrow();
+    expect(() => labelChargeCents(1.5)).toThrow();
   });
 });

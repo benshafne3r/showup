@@ -14,10 +14,13 @@ create index payment_methods_company_id_idx on public.payment_methods (company_i
 -- → charged, or failed (retryable). A charged record that is then canceled is
 -- refunded: charged → refunding → refunded. 'waived' = paid from ShowUp's own
 -- balance (everything approved before labels paid for content).
+-- funding_amount_cents = what the label's card is charged: the creator's fee
+-- plus card processing (labelChargeCents in src/lib/money.ts).
 alter table public.creator_payment_records
   add column funding_status text not null default 'unfunded'
     check (funding_status in ('unfunded', 'charging', 'charged', 'failed', 'refunding', 'refunded', 'waived')),
   add column funding_method_id uuid references public.payment_methods(id) on delete set null,
+  add column funding_amount_cents int check (funding_amount_cents is null or funding_amount_cents >= amount_cents),
   add column funding_attempts int not null default 0,
   add column funding_key text unique,
   add column funding_intent_id text,
@@ -45,6 +48,7 @@ alter table public.payment_operations add constraint payment_operations_kind_che
 create or replace function public.claim_funding(
   p_record_id uuid,
   p_method_id uuid,
+  p_amount_cents int,
   p_lease_seconds int default 120
 ) returns setof public.creator_payment_records
 language sql security definer set search_path = public as $$
@@ -53,6 +57,7 @@ language sql security definer set search_path = public as $$
          funding_attempts = funding_attempts + 1,
          funding_key = 'fund:' || id || ':attempt' || (funding_attempts + 1),
          funding_method_id = p_method_id,
+         funding_amount_cents = p_amount_cents,
          funding_intent_id = null,
          funding_lease_until = now() + make_interval(secs => p_lease_seconds),
          funding_failure = null
@@ -95,6 +100,6 @@ language sql security definer set search_path = public as $$
   returning *;
 $$;
 
-revoke all on function public.claim_funding(uuid, uuid, int) from public, anon, authenticated;
+revoke all on function public.claim_funding(uuid, uuid, int, int) from public, anon, authenticated;
 revoke all on function public.claim_refund(uuid, int) from public, anon, authenticated;
 revoke all on function public.claim_payout(uuid, int) from public, anon, authenticated;

@@ -82,6 +82,7 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
         <div className="space-y-1.5">
           <Label htmlFor="pop-pay">Creator payment (USD)</Label>
           <Input id="pop-pay" name="creatorPayment" inputMode="decimal" placeholder="0 = attend-only" />
+          <p className="text-xs text-muted-foreground">Charged to your card with card processing (2.9% + 30¢) when you approve their content.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pop-content">Content ask</Label>

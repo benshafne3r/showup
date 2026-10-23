@@ -4,7 +4,7 @@ import { serviceDb } from "@/server/db/service";
 import { paymentProvider } from "@/server/providers/payment";
 import type { ChargeResult, RefundResult } from "@/server/providers/payment/types";
 import { checkpoint } from "@/server/checkpoints";
-import { formatCents } from "@/lib/money";
+import { formatCents, labelChargeCents } from "@/lib/money";
 import { audit } from "./audit";
 import { notifyCompany } from "./notifications";
 import { check, finishOperation, latestOperation, leaseUntil, startOperation, type Actor } from "./payment-ledger";
@@ -12,8 +12,9 @@ import { companyDefaultPaymentMethod, payoutCreatorPayment } from "./payments";
 
 /**
  * Labels pay for creator content (Ben, 2026-10-23): the label's saved card is
- * charged the content fee when they approve the content, and the creator's
- * payout draws on that charge. Same safety rules as payments.ts:
+ * charged the content fee plus card processing (labelChargeCents) when they
+ * approve the content, and the creator's payout of the fee draws on that
+ * charge. Same safety rules as payments.ts:
  *  - claim_funding moves the record to 'charging' with a per-attempt key and
  *    a lease; the key is stored (payment_operations) before the provider call;
  *  - 'charged' only once the provider confirms; a crash leaves 'charging' and
@@ -31,16 +32,17 @@ type FundingRow = {
   booking_id: string;
   company_id: string;
   amount_cents: number;
+  funding_amount_cents: number | null;
   funding_key: string | null;
   funding_intent_id: string | null;
 };
 
-type FundingResult = { ok: true; charged: boolean } | { ok: false; error: string };
+/** chargedCents: what this call charged the label's card (0 when nothing was due). */
+type FundingResult = { ok: true; chargedCents: number } | { ok: false; error: string };
 
 /**
  * Make sure a booking's creator payment is paid for by the label: charge the
  * label's default card unless it's already charged (or needs no money).
- * `charged` is true when this call charged the card.
  */
 export async function fundCreatorPayment(bookingId: string, actor: Actor): Promise<FundingResult> {
   const db = serviceDb();
@@ -52,8 +54,8 @@ export async function fundCreatorPayment(bookingId: string, actor: Actor): Promi
       .maybeSingle(),
     "load creator payment",
   );
-  if (!record || record.amount_cents <= 0 || record.status === "not_required") return { ok: true, charged: false };
-  if (record.funding_status === "charged" || record.funding_status === "waived") return { ok: true, charged: false };
+  if (!record || record.amount_cents <= 0 || record.status === "not_required") return { ok: true, chargedCents: 0 };
+  if (record.funding_status === "charged" || record.funding_status === "waived") return { ok: true, chargedCents: 0 };
   if (record.funding_status === "charging") {
     return { ok: false, error: "The payment for this content is already going through. Try again in a minute." };
   }
@@ -62,16 +64,17 @@ export async function fundCreatorPayment(bookingId: string, actor: Actor): Promi
   }
   if (record.paused_at) return { ok: false, error: "This creator payment is paused" };
 
+  const chargeCents = labelChargeCents(record.amount_cents);
   const card = await companyDefaultPaymentMethod(record.company_id);
   if (!card) {
     return {
       ok: false,
-      error: `Add a card in Payments first. Approving this content charges ${formatCents(record.amount_cents)} for the creator's payment.`,
+      error: `Add a card in Payments first. Approving this content charges ${formatCents(chargeCents)} (the creator's ${formatCents(record.amount_cents)} plus card processing).`,
     };
   }
 
   const claimedRows = check(
-    await db.rpc("claim_funding", { p_record_id: record.id, p_method_id: card.id }),
+    await db.rpc("claim_funding", { p_record_id: record.id, p_method_id: card.id, p_amount_cents: chargeCents }),
     "claim funding",
   );
   const claimed = (claimedRows ?? [])[0] as FundingRow | undefined;
@@ -82,7 +85,7 @@ export async function fundCreatorPayment(bookingId: string, actor: Actor): Promi
   await checkpoint("funding.before_provider");
   const result = await paymentProvider().charge({
     providerMethodId: card.provider_method_id,
-    amountCents: claimed.amount_cents,
+    amountCents: claimed.funding_amount_cents!,
     idempotencyKey: key,
     metadata: { bookingId, paymentRecordId: claimed.id, attemptKey: key, kind: "content_funding" },
     transferGroup: claimed.id,
@@ -95,7 +98,7 @@ export async function fundCreatorPayment(bookingId: string, actor: Actor): Promi
       error: `Your card ending ${card.last4} was declined (${finished.error}). Update it in Payments, then approve again.`,
     };
   }
-  return { ok: true, charged: true };
+  return { ok: true, chargedCents: claimed.funding_amount_cents! };
 }
 
 export async function finishFunding(
@@ -151,7 +154,7 @@ export async function finishFunding(
       entityType: "creator_payment_record",
       entityId: claimed.id,
       companyId: claimed.company_id,
-      metadata: { amountCents: claimed.amount_cents, intentId: result.providerIntentId },
+      metadata: { amountCents: claimed.funding_amount_cents, creatorFeeCents: claimed.amount_cents, intentId: result.providerIntentId },
     });
   }
   return { ok: true };
@@ -180,7 +183,7 @@ export async function recoverFunding(id: string): Promise<boolean> {
       .eq("id", id)
       .eq("funding_status", "charging")
       .lt("funding_lease_until", new Date().toISOString())
-      .select("id, booking_id, company_id, amount_cents, funding_key, funding_intent_id, funding_method_id")
+      .select("id, booking_id, company_id, amount_cents, funding_amount_cents, funding_key, funding_intent_id, funding_method_id")
       .maybeSingle(),
     "re-lease label charge",
   );
@@ -222,7 +225,7 @@ export async function recoverFunding(id: string): Promise<boolean> {
   const result: ChargeResult = card
     ? await paymentProvider().charge({
         providerMethodId: card.provider_method_id,
-        amountCents: rec.amount_cents,
+        amountCents: rec.funding_amount_cents!,
         idempotencyKey: key,
         metadata: { bookingId: rec.booking_id, paymentRecordId: rec.id, attemptKey: key, kind: "content_funding" },
         transferGroup: rec.id,
@@ -280,7 +283,7 @@ async function finishRefund(claimed: FundingRow, operationId: string, result: Re
   if (!refunded) return;
   await notifyCompany(claimed.company_id, {
     type: "authorization_released",
-    title: `${formatCents(claimed.amount_cents)} refunded to your card`,
+    title: `${formatCents(claimed.funding_amount_cents ?? claimed.amount_cents)} refunded to your card`,
     body: "A creator payment you had paid for was canceled, so the charge was refunded.",
     link: `/label/bookings/${claimed.booking_id}`,
     dedupeKey: `refund:${claimed.id}`,
@@ -292,7 +295,7 @@ async function finishRefund(claimed: FundingRow, operationId: string, result: Re
     entityType: "creator_payment_record",
     entityId: claimed.id,
     companyId: claimed.company_id,
-    metadata: { amountCents: claimed.amount_cents },
+    metadata: { amountCents: claimed.funding_amount_cents },
   });
 }
 
@@ -306,7 +309,7 @@ export async function recoverRefund(id: string): Promise<boolean> {
       .eq("id", id)
       .eq("funding_status", "refunding")
       .lt("funding_lease_until", new Date().toISOString())
-      .select("id, booking_id, company_id, amount_cents, funding_key, funding_intent_id")
+      .select("id, booking_id, company_id, amount_cents, funding_amount_cents, funding_key, funding_intent_id")
       .maybeSingle(),
     "re-lease refund",
   );

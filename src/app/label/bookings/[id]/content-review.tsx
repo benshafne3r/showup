@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import Link from "next/link";
 import { reviewContentAction, type ActionState } from "../../actions";
-import { formatCents } from "@/lib/money";
+import { formatCents, labelChargeCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -40,16 +40,18 @@ export function ContentReview({
   }
 
   const charges = paymentCents > 0 && !alreadyPaid;
+  const total = charges ? labelChargeCents(paymentCents) : 0;
+  const breakdown = `the creator's ${formatCents(paymentCents)} plus ${formatCents(total - paymentCents)} card processing`;
   return (
     <div className="space-y-2 border-t pt-3">
       {charges ? (
         cardLast4 ? (
           <p className="text-xs text-muted-foreground">
-            {`Approving charges ${formatCents(paymentCents)} to your card ending ${cardLast4} and pays the creator.`}
+            {`Approving charges ${formatCents(total)} to your card ending ${cardLast4} (${breakdown}) and pays the creator.`}
           </p>
         ) : (
           <p className="text-xs text-amber-300">
-            {`Approving charges ${formatCents(paymentCents)} for the creator's payment. `}
+            {`Approving charges ${formatCents(total)} (${breakdown}). `}
             <Link href="/label/payments" className="underline underline-offset-2">
               Add a card in Payments
             </Link>{" "}
