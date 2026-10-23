@@ -43,7 +43,8 @@ test("a creator at the venue checks in by location and the hold is released", as
   // At the venue: verified instantly.
   await context.setGeolocation({ latitude: 34.1199, longitude: -118.296, accuracy: 20 });
   await page.getByRole("button", { name: "I'm here" }).click();
-  await expect(page.getByText("You're checked in. Your hold has been released.")).toBeVisible();
+  // Toast (and the inline message, until the refreshed page replaces the box).
+  await expect(page.getByText("You're checked in. Your hold has been released.").first()).toBeVisible();
   await expect(page.getByText(/Attendance verified/).first()).toBeVisible();
 
   const { data: submission } = await db

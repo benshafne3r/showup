@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import { checkInWithLocationAction } from "../../actions";
 import { Button } from "@/components/ui/button";
 import { Loader2, MapPin } from "lucide-react";
@@ -38,6 +39,9 @@ export function LocationCheckIn({ bookingId }: { bookingId: string }) {
           accuracy: position.coords.accuracy,
         });
         if (result.ok) {
+          // A toast, not just inline text: the refreshed page swaps this box
+          // for "Attendance verified", which would hide the inline message.
+          toast.success(result.message);
           setState({ kind: "done", message: result.message });
           router.refresh();
         } else {
