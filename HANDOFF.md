@@ -609,7 +609,9 @@ The add-card form no longer has to send a raw PAN to the server:
 3. **View as = no writes** (#10): `expireIfOverdue()` runs on page render; payment pages persist
    Stripe status on GET. Atomic rate limiter. Remote image fetch limits (#9 rest).
 4. Then, separately: unused-code cleanup (#11), measured perf (#7).
-⬜ **Ben to decide**: how labels fund content payouts (prepay / invoice / credit) before broad rollout.
+✅ **Decided 2026-10-23 (Ben): labels fund content payouts through Stripe, charged when the content is
+approved** (label saves a card like agencies do; charge it at approval, then pay the creator). Not
+built yet: today payouts come out of ShowUp's own Stripe balance and labels are never charged.
 
 **Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
 and walk a real agency through onboarding + Stripe payout setup (KYC can't be automated);
@@ -649,6 +651,7 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 - **Verified social metrics**, **realtime** messaging/notifications, label **ROI dashboard**.
 
 ## Key decisions
+- Content payouts: label's saved card is charged via Stripe when the content is approved (Ben, 2026-10-23).
 - Branding centralized in `src/lib/brand.ts`.
 - Payments + email use provider abstractions; defaults are mock/console. Stripe
   adapter refuses non-`sk_test_` keys.
@@ -659,6 +662,8 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 - Run `npm run dev` · seed `npm run seed` (targets `.env.local` dev DB) · cron `npm run cron`.
 - Tests: `npm test` · `npm run test:integration` (local Supabase + seed) · `npm run test:e2e` ·
   `npm run typecheck` · `npm run lint`.
+- Applying a migration with the Supabase MCP: name it with its number (`0025_search_and_aggregates`),
+  or `/api/health` reports it missing (fixed by renaming the row in `supabase_migrations.schema_migrations`).
 - Types: `supabase gen types typescript --local --schema public`, then re-add the
   `__InternalSupabase` header (the npx CLI prints a different, unformatted layout).
 - After `supabase db reset`, Kong can keep stale upstreams (502s / seed "createUser: {}"):
