@@ -11,6 +11,8 @@ import "server-only";
  * - authorize: place a temporary hold (manual-capture intent). NOT a charge.
  * - release: cancel the hold without charging.
  * - capture: charge some or all of an active hold (no-show penalty).
+ * - charge: charge a label's card outright for a creator's content fee.
+ * - refund: give a label charge back (the content was never paid out).
  * - payout: send the creator their agreed payment.
  * All mutations accept an idempotencyKey; repeating a call with the same key
  * must return the original outcome, never move money twice.
@@ -46,6 +48,26 @@ export type ReleaseResult =
 export type CaptureResult =
   | { ok: true; capturedCents: number }
   | { ok: false; failureReason: string };
+
+export type ChargeResult =
+  /** chargeId: the charge a payout can draw from (Stripe `source_transaction`). */
+  | { ok: true; providerIntentId: string; providerChargeId: string | null }
+  | { ok: false; failureReason: string; providerIntentId?: string | null };
+
+export type RefundResult =
+  | { ok: true; providerRefundId: string | null }
+  | { ok: false; failureReason: string };
+
+/** What the provider says happened to a label charge (for crash recovery). */
+export type ChargeLookup =
+  | { found: false }
+  | {
+      found: true;
+      intentId: string;
+      chargeId: string | null;
+      state: "succeeded" | "failed" | "processing";
+      failureReason: string | null;
+    };
 
 export type PayoutResult =
   | { ok: true; providerTransferId: string }
@@ -114,6 +136,25 @@ export interface PaymentProvider {
     idempotencyKey: string;
   }): Promise<CaptureResult>;
 
+  /**
+   * Charge a saved card now (no hold). Used for a label's content fee when it
+   * approves the content; the creator's payout then draws from this charge.
+   */
+  charge(input: {
+    providerMethodId: string;
+    amountCents: number;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+    /** Groups the charge with the payout transfer made from it. */
+    transferGroup?: string;
+  }): Promise<ChargeResult>;
+
+  /** Find a label charge by the payment record + attempt key in its metadata. */
+  lookupCharge(input: { paymentRecordId: string; attemptKey: string }): Promise<ChargeLookup>;
+
+  /** Refund a label charge in full. Refunding an already refunded charge succeeds. */
+  refund(input: { providerIntentId: string; idempotencyKey: string }): Promise<RefundResult>;
+
   payout(input: {
     creatorUserId: string;
     amountCents: number;
@@ -127,6 +168,11 @@ export interface PaymentProvider {
     destinationAccountId?: string;
     /** Groups every attempt for one payment record, so recovery can find them. */
     transferGroup?: string;
+    /**
+     * The label charge that funds this payout. Stripe moves the money when that
+     * charge settles, so a payout never depends on ShowUp's own balance.
+     */
+    sourceChargeId?: string;
   }): Promise<PayoutResult>;
 
   /** Verify a webhook signature; returns the event or null if invalid. */

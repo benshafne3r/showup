@@ -13,6 +13,7 @@ import {
   finishRelease,
   voidHold,
 } from "./payments";
+import { recoverFunding, recoverRefund, refundFunding } from "./funding";
 
 /**
  * Finish payment operations a crash left half-done. A record still in an
@@ -67,6 +68,34 @@ export async function recoverPaymentOperations(limit = 25): Promise<{ recovered:
     "load stalled payouts",
   );
   for (const p of payouts ?? []) await run("payout", p.id, () => recoverPayout(p.id));
+
+  // Label charges and refunds a crash left in flight.
+  const fundings = check(
+    await db
+      .from("creator_payment_records")
+      .select("id, funding_status")
+      .in("funding_status", ["charging", "refunding"])
+      .lt("funding_lease_until", now)
+      .order("funding_lease_until", { ascending: true })
+      .limit(limit),
+    "load stalled label charges",
+  );
+  for (const f of fundings ?? []) {
+    await run(f.funding_status, f.id, () => (f.funding_status === "charging" ? recoverFunding(f.id) : recoverRefund(f.id)));
+  }
+
+  // A label paid for content that won't be paid out (booking canceled, dispute
+  // denied, payout canceled): refund it, whichever path canceled it.
+  const refundsDue = check(
+    await db
+      .from("creator_payment_records")
+      .select("id")
+      .eq("funding_status", "charged")
+      .eq("status", "canceled")
+      .limit(limit),
+    "load refunds due",
+  );
+  for (const r of refundsDue ?? []) await run("refund", r.id, () => refundFunding(r.id));
 
   // Authorize calls that never finished on a hold that was then canceled: a
   // hold may exist on the card with nothing tracking it. Void it.
@@ -232,6 +261,7 @@ type StalledPayout = {
   company_id: string;
   amount_cents: number;
   idempotency_key: string | null;
+  funding_charge_id: string | null;
 };
 
 export async function recoverPayout(id: string): Promise<boolean> {
@@ -239,7 +269,7 @@ export async function recoverPayout(id: string): Promise<boolean> {
   const rec = await release<StalledPayout>(
     "creator_payment_records",
     id,
-    "id, status, booking_id, creator_id, company_id, amount_cents, idempotency_key",
+    "id, status, booking_id, creator_id, company_id, amount_cents, idempotency_key, funding_charge_id",
   );
   if (!rec || rec.status !== "paying") return false;
   const key = rec.idempotency_key!;
@@ -273,6 +303,7 @@ export async function recoverPayout(id: string): Promise<boolean> {
     destinationAccountId:
       serverEnv.paymentProvider === "stripe" ? (destination.accountId ?? undefined) : undefined,
     transferGroup: rec.id,
+    sourceChargeId: rec.funding_charge_id ?? undefined,
   });
   await finishPayout(rec, op.id, result, SYSTEM, destination.agency);
   return true;

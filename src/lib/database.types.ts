@@ -929,6 +929,15 @@ export type Database = {
           creator_id: string
           failed_at: string | null
           failure_reason: string | null
+          funded_at: string | null
+          funding_attempts: number
+          funding_charge_id: string | null
+          funding_failure: string | null
+          funding_intent_id: string | null
+          funding_key: string | null
+          funding_lease_until: string | null
+          funding_method_id: string | null
+          funding_status: string
           id: string
           idempotency_key: string | null
           last_error: string | null
@@ -939,6 +948,7 @@ export type Database = {
           payee_agency_id: string | null
           provider: string
           provider_transfer_id: string | null
+          refunded_at: string | null
           status: Database["public"]["Enums"]["creator_payment_status"]
           updated_at: string
         }
@@ -952,6 +962,15 @@ export type Database = {
           creator_id: string
           failed_at?: string | null
           failure_reason?: string | null
+          funded_at?: string | null
+          funding_attempts?: number
+          funding_charge_id?: string | null
+          funding_failure?: string | null
+          funding_intent_id?: string | null
+          funding_key?: string | null
+          funding_lease_until?: string | null
+          funding_method_id?: string | null
+          funding_status?: string
           id?: string
           idempotency_key?: string | null
           last_error?: string | null
@@ -962,6 +981,7 @@ export type Database = {
           payee_agency_id?: string | null
           provider: string
           provider_transfer_id?: string | null
+          refunded_at?: string | null
           status?: Database["public"]["Enums"]["creator_payment_status"]
           updated_at?: string
         }
@@ -975,6 +995,15 @@ export type Database = {
           creator_id?: string
           failed_at?: string | null
           failure_reason?: string | null
+          funded_at?: string | null
+          funding_attempts?: number
+          funding_charge_id?: string | null
+          funding_failure?: string | null
+          funding_intent_id?: string | null
+          funding_key?: string | null
+          funding_lease_until?: string | null
+          funding_method_id?: string | null
+          funding_status?: string
           id?: string
           idempotency_key?: string | null
           last_error?: string | null
@@ -985,6 +1014,7 @@ export type Database = {
           payee_agency_id?: string | null
           provider?: string
           provider_transfer_id?: string | null
+          refunded_at?: string | null
           status?: Database["public"]["Enums"]["creator_payment_status"]
           updated_at?: string
         }
@@ -1008,6 +1038,13 @@ export type Database = {
             columns: ["creator_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "creator_payment_records_funding_method_id_fkey"
+            columns: ["funding_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
             referencedColumns: ["id"]
           },
           {
@@ -1585,6 +1622,7 @@ export type Database = {
         Row: {
           agency_id: string | null
           brand: string
+          company_id: string | null
           created_at: string
           exp_month: number | null
           exp_year: number | null
@@ -1600,6 +1638,7 @@ export type Database = {
         Insert: {
           agency_id?: string | null
           brand?: string
+          company_id?: string | null
           created_at?: string
           exp_month?: number | null
           exp_year?: number | null
@@ -1615,6 +1654,7 @@ export type Database = {
         Update: {
           agency_id?: string | null
           brand?: string
+          company_id?: string | null
           created_at?: string
           exp_month?: number | null
           exp_year?: number | null
@@ -1633,6 +1673,13 @@ export type Database = {
             columns: ["agency_id"]
             isOneToOne: false
             referencedRelation: "agencies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_methods_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
           {
@@ -2394,6 +2441,52 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      claim_funding: {
+        Args: {
+          p_lease_seconds?: number
+          p_method_id: string
+          p_record_id: string
+        }
+        Returns: {
+          amount_cents: number
+          attempt_count: number
+          booking_id: string
+          canceled_at: string | null
+          company_id: string
+          created_at: string
+          creator_id: string
+          failed_at: string | null
+          failure_reason: string | null
+          funded_at: string | null
+          funding_attempts: number
+          funding_charge_id: string | null
+          funding_failure: string | null
+          funding_intent_id: string | null
+          funding_key: string | null
+          funding_lease_until: string | null
+          funding_method_id: string | null
+          funding_status: string
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          lease_until: string | null
+          paid_at: string | null
+          paused_at: string | null
+          paused_by: string | null
+          payee_agency_id: string | null
+          provider: string
+          provider_transfer_id: string | null
+          refunded_at: string | null
+          status: Database["public"]["Enums"]["creator_payment_status"]
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "creator_payment_records"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
       claim_jobs: {
         Args: {
           p_kinds?: string[]
@@ -2465,6 +2558,15 @@ export type Database = {
           creator_id: string
           failed_at: string | null
           failure_reason: string | null
+          funded_at: string | null
+          funding_attempts: number
+          funding_charge_id: string | null
+          funding_failure: string | null
+          funding_intent_id: string | null
+          funding_key: string | null
+          funding_lease_until: string | null
+          funding_method_id: string | null
+          funding_status: string
           id: string
           idempotency_key: string | null
           last_error: string | null
@@ -2475,6 +2577,49 @@ export type Database = {
           payee_agency_id: string | null
           provider: string
           provider_transfer_id: string | null
+          refunded_at: string | null
+          status: Database["public"]["Enums"]["creator_payment_status"]
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "creator_payment_records"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      claim_refund: {
+        Args: { p_lease_seconds?: number; p_record_id: string }
+        Returns: {
+          amount_cents: number
+          attempt_count: number
+          booking_id: string
+          canceled_at: string | null
+          company_id: string
+          created_at: string
+          creator_id: string
+          failed_at: string | null
+          failure_reason: string | null
+          funded_at: string | null
+          funding_attempts: number
+          funding_charge_id: string | null
+          funding_failure: string | null
+          funding_intent_id: string | null
+          funding_key: string | null
+          funding_lease_until: string | null
+          funding_method_id: string | null
+          funding_status: string
+          id: string
+          idempotency_key: string | null
+          last_error: string | null
+          lease_until: string | null
+          paid_at: string | null
+          paused_at: string | null
+          paused_by: string | null
+          payee_agency_id: string | null
+          provider: string
+          provider_transfer_id: string | null
+          refunded_at: string | null
           status: Database["public"]["Enums"]["creator_payment_status"]
           updated_at: string
         }[]

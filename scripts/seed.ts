@@ -222,6 +222,16 @@ async function main() {
     { company_id: companyId, user_id: ownerId, role: "owner" },
     { company_id: companyId, user_id: memberId, role: "member" },
   ]);
+  // The label's card: charged a creator's content fee when content is approved.
+  const labelCardId = "pm_mock_seed_label";
+  await db.from("mock_payment_state").insert({
+    id: labelCardId, kind: "payment_method",
+    state: { userId: ownerId, brand: "visa", last4: "4444", expMonth: 12, expYear: 2030, declineAtAuthorize: false } as never,
+  });
+  await db.from("payment_methods").insert({
+    user_id: ownerId, company_id: companyId, provider: "mock", provider_method_id: labelCardId,
+    brand: "visa", last4: "4444", exp_month: 12, exp_year: 2030, verified_at: iso(new Date()), is_default: true,
+  });
 
   // Two headliners carry the demo shows/bookings (with photos + real tours).
   const showArtists = [
@@ -607,6 +617,7 @@ async function main() {
       status: "paid", amount_cents: s.def.payCents, provider: "mock",
       provider_transfer_id: transferId, idempotency_key: "payout:seed:past",
       paid_at: iso(addDays(s.def.date, 2)),
+      funding_status: "charged", funded_at: iso(addDays(s.def.date, 2)),
     });
     await db.from("attendance_submissions").insert({
       booking_id: pastBookingId, creator_id: miaId, company_id: companyId,

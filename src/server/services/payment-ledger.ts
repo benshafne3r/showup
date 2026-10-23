@@ -5,14 +5,15 @@ import { serviceDb } from "@/server/db/service";
 
 /**
  * payment_operations: one row per provider call (authorize / release /
- * capture / payout / void), keyed by its idempotency key. A row stays
+ * capture / payout / void, and label charge / refund), keyed by its
+ * idempotency key. A row stays
  * 'started' until the record it acts on has its final state written; a
  * 'started' row whose lease expired means the process died mid-call, and
  * recovery (payment-recovery.ts) asks the provider what happened.
  */
 
 export const LEASE_SECONDS = 120;
-export type OperationKind = "authorize" | "release" | "capture" | "payout" | "void";
+export type OperationKind = "authorize" | "release" | "capture" | "payout" | "void" | "charge" | "refund";
 export type Actor = { id: string | null; role: string };
 
 export const leaseUntil = (now = new Date()) => new Date(now.getTime() + LEASE_SECONDS * 1000).toISOString();

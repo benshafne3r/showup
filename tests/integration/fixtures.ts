@@ -97,11 +97,21 @@ export async function bookingWithHold(showInDays: number) {
   return { bookingId: booking!.id, authId: auth!.id, creatorId: mia!.id, companyId, showId: show!.id };
 }
 
-/** A content payment ready to pay out for that booking. */
+/** A content payment ready to pay out for that booking (the label already paid for it). */
 export async function readyPayment(bookingId: string, creatorId: string, companyId: string) {
   const { data } = await db
     .from("creator_payment_records")
-    .insert({ booking_id: bookingId, creator_id: creatorId, company_id: companyId, status: "ready", amount_cents: 5000, provider: "mock" })
+    .insert({
+      booking_id: bookingId,
+      creator_id: creatorId,
+      company_id: companyId,
+      status: "ready",
+      amount_cents: 5000,
+      provider: "mock",
+      funding_status: "charged",
+      funding_charge_id: "ch_mock_fixture",
+      funded_at: new Date().toISOString(),
+    })
     .select("id")
     .single();
   return data!.id;
@@ -132,6 +142,7 @@ export async function expireLeases() {
   const past = new Date(Date.now() - 5 * 60_000).toISOString();
   await db.from("authorization_records").update({ lease_until: past }).not("lease_until", "is", null);
   await db.from("creator_payment_records").update({ lease_until: past }).not("lease_until", "is", null);
+  await db.from("creator_payment_records").update({ funding_lease_until: past }).not("funding_lease_until", "is", null);
   await db.from("payment_operations").update({ lease_until: past }).eq("status", "started");
   await db.from("webhook_events").update({ lease_until: past }).eq("status", "processing");
 }

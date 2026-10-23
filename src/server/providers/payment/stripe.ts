@@ -6,6 +6,9 @@ import type {
   AuthorizationResult,
   CaptureResult,
   CardInput,
+  ChargeLookup,
+  ChargeResult,
+  RefundResult,
   IntentLookup,
   TransferLookup,
   PaymentMethodInfo,
@@ -211,6 +214,68 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
+  async charge(input: {
+    providerMethodId: string;
+    amountCents: number;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+    transferGroup?: string;
+  }): Promise<ChargeResult> {
+    try {
+      const pm = await this.stripe.paymentMethods.retrieve(input.providerMethodId);
+      const intent = await this.stripe.paymentIntents.create(
+        {
+          amount: input.amountCents,
+          currency: "usd",
+          confirm: true,
+          payment_method: input.providerMethodId,
+          customer: typeof pm.customer === "string" ? pm.customer : undefined,
+          off_session: true,
+          metadata: input.metadata,
+          ...(input.transferGroup ? { transfer_group: input.transferGroup } : {}),
+        },
+        { idempotencyKey: input.idempotencyKey },
+      );
+      const chargeId = typeof intent.latest_charge === "string" ? intent.latest_charge : (intent.latest_charge?.id ?? null);
+      if (intent.status === "succeeded") return { ok: true, providerIntentId: intent.id, providerChargeId: chargeId };
+      return { ok: false, failureReason: `Unexpected payment status: ${intent.status}`, providerIntentId: intent.id };
+    } catch (err) {
+      // Off-session declines and "authentication required" land here.
+      const intentId = (err as { raw?: { payment_intent?: { id?: string } } }).raw?.payment_intent?.id ?? null;
+      return { ok: false, failureReason: err instanceof Error ? err.message : "Payment failed", providerIntentId: intentId };
+    }
+  }
+
+  async lookupCharge(input: { paymentRecordId: string; attemptKey: string }): Promise<ChargeLookup> {
+    const found = await this.stripe.paymentIntents.search({
+      query: `metadata['paymentRecordId']:'${input.paymentRecordId}'`,
+      limit: 20,
+    });
+    const intent = found.data.find((pi) => pi.metadata?.attemptKey === input.attemptKey);
+    if (!intent) return { found: false };
+    const chargeId = typeof intent.latest_charge === "string" ? intent.latest_charge : (intent.latest_charge?.id ?? null);
+    return {
+      found: true,
+      intentId: intent.id,
+      chargeId,
+      state: intent.status === "succeeded" ? "succeeded" : intent.status === "processing" ? "processing" : "failed",
+      failureReason: intent.last_payment_error?.message ?? null,
+    };
+  }
+
+  async refund(input: { providerIntentId: string; idempotencyKey: string }): Promise<RefundResult> {
+    try {
+      const refund = await this.stripe.refunds.create(
+        { payment_intent: input.providerIntentId },
+        { idempotencyKey: input.idempotencyKey },
+      );
+      return { ok: true, providerRefundId: refund.id };
+    } catch (err) {
+      if ((err as { code?: string }).code === "charge_already_refunded") return { ok: true, providerRefundId: null };
+      return { ok: false, failureReason: err instanceof Error ? err.message : "Refund failed" };
+    }
+  }
+
   async payout(input: {
     creatorUserId: string;
     amountCents: number;
@@ -218,6 +283,7 @@ export class StripePaymentProvider implements PaymentProvider {
     metadata: Record<string, string>;
     destinationAccountId?: string;
     transferGroup?: string;
+    sourceChargeId?: string;
   }): Promise<PayoutResult> {
     // Connect "separate charges and transfers": move funds from the platform
     // balance to the creator's connected account after content is approved.
@@ -237,6 +303,7 @@ export class StripePaymentProvider implements PaymentProvider {
           destination: input.destinationAccountId,
           metadata: input.metadata,
           ...(input.transferGroup ? { transfer_group: input.transferGroup } : {}),
+          ...(input.sourceChargeId ? { source_transaction: input.sourceChargeId } : {}),
         },
         { idempotencyKey: input.idempotencyKey },
       );

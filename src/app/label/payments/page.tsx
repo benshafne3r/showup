@@ -13,6 +13,12 @@ import { formatCents } from "@/lib/money";
 import { formatDateTime } from "@/lib/dates";
 import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/pagination";
+import { companyDefaultPaymentMethod } from "@/server/services/payments";
+import { addCompanyCardAction, addCompanyCardTokenAction } from "../actions";
+import { AddCardForm } from "@/app/creator/payments/add-card-form";
+import { StripeCardForm } from "@/app/creator/payments/stripe-card-form";
+import { publicEnv, serverEnv } from "@/lib/env";
+import { CreditCard } from "lucide-react";
 
 export const metadata: Metadata = { title: "Payments & campaign spend" };
 export const dynamic = "force-dynamic";
@@ -31,7 +37,7 @@ export default async function LabelPaymentsPage({
   const db = serviceDb();
 
   // Totals are aggregates over everything; the lists are one page each.
-  const [{ data: payments, count: paymentTotal }, { data: holds, count: holdTotal }, { data: totals }] = await Promise.all([
+  const [{ data: payments, count: paymentTotal }, { data: holds, count: holdTotal }, { data: totals }, card] = await Promise.all([
     db
       .from("creator_payment_records")
       .select("id, status, amount_cents, paid_at, created_at, booking_id, users:users!creator_id(full_name)", {
@@ -49,7 +55,9 @@ export default async function LabelPaymentsPage({
       .order("created_at", { ascending: false })
       .range(holdPage.from, holdPage.to),
     db.rpc("company_payment_totals", { p_company_id: context.companyId }),
+    companyDefaultPaymentMethod(context.companyId),
   ]);
+  const canManageCard = context.memberRole !== "member";
 
   const t = totals?.[0];
   const paid = Number(t?.paid_cents ?? 0);
@@ -62,6 +70,42 @@ export default async function LabelPaymentsPage({
   return (
     <div className="space-y-6">
       <PageHeader title="Payments & campaign spend" description="Where the money went, and what it bought." />
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <CreditCard className="size-4 text-primary" aria-hidden /> Card for creator payments
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground">
+            When you approve a creator&apos;s content, their content fee is charged to this card and paid to them.
+            Shows without a content fee never charge it.
+          </p>
+          {card ? (
+            <p className="font-medium">
+              {card.brand} •••• {card.last4}
+              {card.exp_month && card.exp_year ? (
+                <span className="font-normal text-muted-foreground">
+                  {" "}
+                  · expires {String(card.exp_month).padStart(2, "0")}/{card.exp_year}
+                </span>
+              ) : null}
+            </p>
+          ) : (
+            <p className="text-amber-300">No card yet. Add one before approving content you pay creators for.</p>
+          )}
+          {canManageCard ? (
+            serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
+              <StripeCardForm hasCard={!!card} action={addCompanyCardTokenAction} />
+            ) : (
+              <AddCardForm hasCard={!!card} action={addCompanyCardAction} />
+            )
+          ) : (
+            <p className="text-xs text-muted-foreground">Only your company owner or an admin can change the card.</p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid gap-4 sm:grid-cols-4">
         {[

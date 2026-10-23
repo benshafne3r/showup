@@ -12,8 +12,8 @@ import { cancelShow } from "@/server/services/catalog";
 import {
   releaseAuthorization,
   captureAuthorization,
-  payoutCreatorPayment,
 } from "@/server/services/payments";
+import { fundAndPayout } from "@/server/services/funding";
 import { updatePlatformSetting } from "@/server/services/settings";
 import { MAX_AUTHORIZATION_WINDOW_DAYS } from "@/lib/holds";
 import { runScheduledJobs } from "@/server/services/jobs";
@@ -183,7 +183,8 @@ export async function adminPayoutAction(
   try {
     const admin = await requireAdmin();
     const bookingId = z.string().uuid().parse(formData.get("bookingId"));
-    const result = await payoutCreatorPayment(bookingId, { id: admin.id, role: "admin" });
+    // Charges the label first if it hasn't paid for this content yet.
+    const result = await fundAndPayout(bookingId, { id: admin.id, role: "admin" });
     if (!result.ok) return { error: result.error };
     revalidatePath("/admin/payments");
     return { success: "Payout released" };

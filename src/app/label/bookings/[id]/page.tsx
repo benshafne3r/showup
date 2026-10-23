@@ -16,6 +16,7 @@ import { formatShowDateLong, formatDateTime, isShowDay, showIsOver } from "@/lib
 import { hoursLeft } from "@/lib/holds";
 import { MarkAttendedButton } from "../../mark-attended-button";
 import { formatCents } from "@/lib/money";
+import { companyDefaultPaymentMethod } from "@/server/services/payments";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TermsBreakdown } from "@/components/terms-breakdown";
@@ -48,7 +49,7 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
        shows!inner(date, artists(name), venues(name, city)),
        users:users!creator_id(full_name),
        authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, capture_amount_cents, failure_reason, expires_at, created_at),
-       creator_payment_records(status, amount_cents, paid_at, failure_reason),
+       creator_payment_records(status, amount_cents, paid_at, failure_reason, funding_status, funding_failure, funded_at, refunded_at),
        attendance_submissions(id, status, method, distance_m, checked_in_at, note, proof_paths, review_note, created_at),
        content_submissions(id, status, post_url, caption_note, proof_paths, review_note, submitted_at, platform, verification_status, view_count, like_count, last_checked_at)`,
     )
@@ -72,6 +73,11 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
     a.created_at < b.created_at ? 1 : -1,
   )[0];
   const paymentRecord = booking.creator_payment_records;
+  // The label pays the content fee when approving; show which card that hits.
+  const payCard =
+    booking.creator_payment_cents > 0 && !["charged", "waived"].includes(paymentRecord?.funding_status ?? "")
+      ? await companyDefaultPaymentMethod(context.companyId)
+      : null;
 
   const latestAttendance = [...(booking.attendance_submissions ?? [])].sort((a, b) =>
     a.created_at < b.created_at ? 1 : -1,
@@ -295,6 +301,9 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                           bookingId={booking.id}
                           submissionId={submission.id}
                           paymentCents={booking.creator_payment_cents}
+                          alreadyPaid={["charged", "waived"].includes(paymentRecord?.funding_status ?? "")}
+                          cardLast4={payCard?.last4 ?? null}
+                          lastChargeError={paymentRecord?.funding_status === "failed" ? paymentRecord.funding_failure : null}
                         />
                       ) : null}
                     </div>
@@ -350,6 +359,16 @@ export default async function LabelBookingPage({ params }: { params: Promise<{ i
                   <span className="text-muted-foreground">Creator payment</span>
                   <StatusBadge {...CREATOR_PAYMENT_STATUS_META[paymentRecord?.status ?? "not_required"]} />
                 </div>
+              ) : null}
+              {paymentRecord?.funded_at && paymentRecord.funding_status === "charged" ? (
+                <p className="text-xs text-muted-foreground">
+                  {formatCents(paymentRecord.amount_cents)} charged to your card {formatDateTime(paymentRecord.funded_at)}
+                </p>
+              ) : null}
+              {paymentRecord?.refunded_at ? (
+                <p className="text-xs text-muted-foreground">
+                  {formatCents(paymentRecord.amount_cents)} refunded to your card {formatDateTime(paymentRecord.refunded_at)}
+                </p>
               ) : null}
               {booking.cancel_reason ? (
                 <p className="text-xs text-muted-foreground">Cancel reason: {booking.cancel_reason}</p>

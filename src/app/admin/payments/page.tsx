@@ -21,6 +21,17 @@ export const dynamic = "force-dynamic";
 
 const PAGE_SIZE = 50;
 
+/** Where the money for a creator payment stands (the label pays on approval). */
+const FUNDING_LABEL: Record<string, string> = {
+  unfunded: "label not charged yet",
+  charging: "charging label",
+  charged: "label paid",
+  failed: "label card declined",
+  refunding: "refunding label",
+  refunded: "refunded to label",
+  waived: "paid by ShowUp",
+};
+
 export default async function AdminPaymentsPage({
   searchParams,
 }: {
@@ -46,7 +57,7 @@ export default async function AdminPaymentsPage({
     db
       .from("creator_payment_records")
       .select(
-        `id, status, amount_cents, paid_at, failure_reason, paused_at, created_at, booking_id,
+        `id, status, amount_cents, paid_at, failure_reason, paused_at, created_at, booking_id, funding_status,
          users:users!creator_id(full_name), companies(name)`,
         { count: "exact" },
       )
@@ -156,7 +167,10 @@ export default async function AdminPaymentsPage({
                   <tr key={payout.id} className="border-b last:border-0">
                     <td className="px-3 py-2.5">{payout.users?.full_name}</td>
                     <td className="px-3 py-2.5 text-muted-foreground">{payout.companies?.name}</td>
-                    <td className="px-3 py-2.5">{formatCents(payout.amount_cents)}</td>
+                    <td className="px-3 py-2.5">
+                      {formatCents(payout.amount_cents)}
+                      <span className="block text-xs text-muted-foreground">{FUNDING_LABEL[payout.funding_status] ?? ""}</span>
+                    </td>
                     <td className="px-3 py-2.5">
                       <div className="flex items-center gap-1.5">
                         <StatusBadge {...CREATOR_PAYMENT_STATUS_META[payout.status]} />
@@ -208,7 +222,10 @@ export default async function AdminPaymentsPage({
                     {payout.paused_at ? <StatusBadge label="paused" tone="warning" /> : null}
                   </div>
                 </div>
-                <p className="mt-2 text-sm">{formatCents(payout.amount_cents)}</p>
+                <p className="mt-2 text-sm">
+                  {formatCents(payout.amount_cents)}{" "}
+                  <span className="text-xs text-muted-foreground">{FUNDING_LABEL[payout.funding_status] ?? ""}</span>
+                </p>
                 {(["ready", "failed"].includes(payout.status) && !payout.paused_at) ||
                 ["pending_fulfillment", "ready", "failed", "disputed"].includes(payout.status) ? (
                   <div className="mt-3 flex flex-wrap items-center gap-1 border-t pt-3">

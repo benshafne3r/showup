@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import Link from "next/link";
 import { reviewContentAction, type ActionState } from "../../actions";
 import { formatCents } from "@/lib/money";
 import { Button } from "@/components/ui/button";
@@ -13,10 +14,19 @@ export function ContentReview({
   bookingId,
   submissionId,
   paymentCents,
+  alreadyPaid,
+  cardLast4,
+  lastChargeError,
 }: {
   bookingId: string;
   submissionId: string;
   paymentCents: number;
+  /** The content fee is already charged (or covered), so approving charges nothing. */
+  alreadyPaid: boolean;
+  /** The label's card for content fees, if it has one. */
+  cardLast4: string | null;
+  /** Why the last charge failed, when it did. */
+  lastChargeError: string | null;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(reviewContentAction, null);
   const [mode, setMode] = useState<"approved" | "revision_requested" | "rejected" | null>(null);
@@ -29,8 +39,27 @@ export function ContentReview({
     );
   }
 
+  const charges = paymentCents > 0 && !alreadyPaid;
   return (
     <div className="space-y-2 border-t pt-3">
+      {charges ? (
+        cardLast4 ? (
+          <p className="text-xs text-muted-foreground">
+            {`Approving charges ${formatCents(paymentCents)} to your card ending ${cardLast4} and pays the creator.`}
+          </p>
+        ) : (
+          <p className="text-xs text-amber-300">
+            {`Approving charges ${formatCents(paymentCents)} for the creator's payment. `}
+            <Link href="/label/payments" className="underline underline-offset-2">
+              Add a card in Payments
+            </Link>{" "}
+            first.
+          </p>
+        )
+      ) : null}
+      {lastChargeError ? (
+        <p className="text-xs text-red-400">{`Last charge didn't go through: ${lastChargeError}`}</p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         <form action={formAction}>
           <input type="hidden" name="bookingId" value={bookingId} />

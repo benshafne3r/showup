@@ -57,6 +57,30 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Labels pay for creator content (2026-10-23) — ⚠️ COMMITTED, NOT PUSHED
+Ben's rule: the label's card is charged a creator's content fee when the label approves the content;
+the creator is paid from that charge. Migration **0026** (local only; **apply to prod BEFORE pushing**):
+`payment_methods.company_id` (label cards), funding columns on `creator_payment_records`
+(`funding_status` unfunded → charging → charged / failed; charged + canceled → refunding → refunded;
+`waived` = paid by ShowUp, set for everything approved before this), `claim_funding`, `claim_refund`,
+and `claim_payout` now refuses unfunded records.
+- `services/funding.ts`: `fundCreatorPayment` (ledger op `charge`, key `fund:<record>:attemptN`),
+  `fundAndPayout` (label/admin retry, dispute paid to creator), `recoverFunding`, `refundFunding`,
+  `recoverRefund`. Recovery sweep (`payment-recovery.ts`) settles stalled charges/refunds and refunds
+  any charged record that got canceled, whatever canceled it.
+- Providers: `charge` (Stripe off-session PaymentIntent, auto-capture, `transfer_group` = record id),
+  `lookupCharge`, `refund`; payouts pass `source_transaction` = the label's charge, so they never
+  depend on ShowUp's balance.
+- `reviewContent`: on approve, charge first; a declined card or no card approves nothing (content
+  stays "submitted", clear error). Label Payments page: "Card for creator payments" (owner/admin).
+  Booking page shows which card approval charges, charge/refund lines. Admin payouts show funding.
+- Tests: `tests/integration/funding.test.ts` (charge once + payout from charge, decline then fix,
+  no card, double-click, unfunded payout refused, crash after/before charge, refund once).
+  Seed: demo label card visa 4444.
+- Known gaps: cards are saved without SetupIntents (Codex #8), so some banks may ask for
+  authentication on the off-session charge (shows as a decline). Stripe's fee on the label charge
+  (~2.9% + 30¢) currently comes out of ShowUp's side.
+
 ## Database-side lists + totals (2026-10-23, Codex #6) — LIVE
 Migration **0025** (applied to prod 2026-10-23, before the code push; the pages call its functions):
 generated `city_key` / `state_key` (venues) and `city_key` / `region_key` (creator_profiles) with
@@ -610,8 +634,7 @@ The add-card form no longer has to send a raw PAN to the server:
    Stripe status on GET. Atomic rate limiter. Remote image fetch limits (#9 rest).
 4. Then, separately: unused-code cleanup (#11), measured perf (#7).
 ✅ **Decided 2026-10-23 (Ben): labels fund content payouts through Stripe, charged when the content is
-approved** (label saves a card like agencies do; charge it at approval, then pay the creator). Not
-built yet: today payouts come out of ShowUp's own Stripe balance and labels are never charged.
+approved.** Built (see "Labels pay for creator content"); awaiting 0026 on prod + push.
 
 **Management (2026-10-06):** (1) mint a real partner link (`npm run invite -- manager --org … --prod`)
 and walk a real agency through onboarding + Stripe payout setup (KYC can't be automated);

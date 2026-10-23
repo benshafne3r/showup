@@ -8,11 +8,14 @@ import type {
   AuthorizationResult,
   CaptureResult,
   CardInput,
+  ChargeLookup,
+  ChargeResult,
   IntentLookup,
   TransferLookup,
   PaymentMethodInfo,
   PaymentProvider,
   PayoutResult,
+  RefundResult,
   ReleaseResult,
   WebhookEvent,
 } from "./types";
@@ -38,13 +41,15 @@ const DECLINE_AT_AUTHORIZE = "4000000000009995";
 
 type IntentState = {
   /** expired = the card network let the hold lapse (tests set this). */
-  status: "authorized" | "released" | "captured" | "failed" | "expired";
+  status: "authorized" | "released" | "captured" | "failed" | "expired" | "refunded";
   amountCents: number;
   capturedCents?: number;
   methodId: string;
   idempotencyKey: string;
   authRecordId?: string;
   attemptKey?: string;
+  /** Set on label charges (content funding) rather than holds. */
+  paymentRecordId?: string;
 };
 
 async function saveState(id: string, kind: "payment_method" | "intent" | "transfer", state: Record<string, unknown>) {
@@ -243,6 +248,70 @@ export class MockPaymentProvider implements PaymentProvider {
     return { ok: true, capturedCents: input.amountCents };
   }
 
+  async charge(input: {
+    providerMethodId: string;
+    amountCents: number;
+    idempotencyKey: string;
+    metadata: Record<string, string>;
+    transferGroup?: string;
+  }): Promise<ChargeResult> {
+    // Idempotency: same key → same outcome, never a second charge.
+    const existing = await findByIdempotencyKey<IntentState>("intent", input.idempotencyKey);
+    if (existing) {
+      return existing.state.status === "failed"
+        ? { ok: false, failureReason: "Card was declined", providerIntentId: existing.id }
+        : { ok: true, providerIntentId: existing.id, providerChargeId: `ch_mock_${existing.id.slice(8)}` };
+    }
+    const method = await loadState<{ declineAtAuthorize?: boolean }>(input.providerMethodId);
+    if (!method) return { ok: false, failureReason: "Unknown payment method" };
+
+    const id = `pi_mock_${randomUUID()}`;
+    const declined = !!method.declineAtAuthorize;
+    await saveState(id, "intent", {
+      status: declined ? "failed" : "captured",
+      amountCents: input.amountCents,
+      capturedCents: declined ? 0 : input.amountCents,
+      methodId: input.providerMethodId,
+      idempotencyKey: input.idempotencyKey,
+      paymentRecordId: input.metadata.paymentRecordId,
+      attemptKey: input.metadata.attemptKey,
+    } satisfies IntentState);
+    await emitWebhook(declined ? "funding.failed" : "funding.succeeded", { intentId: id, ...input.metadata });
+    return declined
+      ? { ok: false, failureReason: "Card was declined", providerIntentId: id }
+      : { ok: true, providerIntentId: id, providerChargeId: `ch_mock_${id.slice(8)}` };
+  }
+
+  async lookupCharge(input: { paymentRecordId: string; attemptKey: string }): Promise<ChargeLookup> {
+    const { data } = await serviceDb()
+      .from("mock_payment_state")
+      .select("id, state")
+      .eq("kind", "intent")
+      .eq("state->>paymentRecordId", input.paymentRecordId)
+      .eq("state->>attemptKey", input.attemptKey)
+      .limit(1)
+      .maybeSingle();
+    if (!data) return { found: false };
+    const intent = data.state as IntentState;
+    const failed = intent.status === "failed";
+    return {
+      found: true,
+      intentId: data.id,
+      chargeId: failed ? null : `ch_mock_${data.id.slice(8)}`,
+      state: failed ? "failed" : "succeeded",
+      failureReason: failed ? "Card was declined" : null,
+    };
+  }
+
+  async refund(input: { providerIntentId: string; idempotencyKey: string }): Promise<RefundResult> {
+    const intent = await loadState<IntentState>(input.providerIntentId);
+    if (!intent) return { ok: false, failureReason: "Unknown payment" };
+    if (intent.status === "refunded") return { ok: true, providerRefundId: null }; // idempotent
+    if (intent.status !== "captured") return { ok: false, failureReason: `Cannot refund payment in status ${intent.status}` };
+    await saveState(input.providerIntentId, "intent", { ...intent, status: "refunded" });
+    return { ok: true, providerRefundId: `re_mock_${input.providerIntentId.slice(8)}` };
+  }
+
   async payout(input: {
     creatorUserId: string;
     amountCents: number;
@@ -250,6 +319,7 @@ export class MockPaymentProvider implements PaymentProvider {
     metadata: Record<string, string>;
     destinationAccountId?: string;
     transferGroup?: string;
+    sourceChargeId?: string;
   }): Promise<PayoutResult> {
     const existing = await findByIdempotencyKey<{ status: string }>("transfer", input.idempotencyKey);
     if (existing) return { ok: true, providerTransferId: existing.id }; // idempotent
@@ -260,6 +330,7 @@ export class MockPaymentProvider implements PaymentProvider {
       creatorUserId: input.creatorUserId,
       amountCents: input.amountCents,
       idempotencyKey: input.idempotencyKey,
+      sourceChargeId: input.sourceChargeId ?? null,
     });
     await emitWebhook("payout.paid", { transferId: id, amountCents: input.amountCents, ...input.metadata });
     return { ok: true, providerTransferId: id };

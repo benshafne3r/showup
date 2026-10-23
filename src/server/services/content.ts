@@ -4,12 +4,15 @@ import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
 import { notify, notifyCompany } from "./notifications";
 import { payoutCreatorPayment } from "./payments";
+import { fundCreatorPayment } from "./funding";
 import { uploadFile } from "./uploads";
 
 /**
  * Content deliverables track: submit → review (approve / revision / reject).
- * Approval marks the payment ready and pays it out. Independent from
- * attendance — attending without posting releases the hold but pays nothing.
+ * Approval charges the label's card for the creator's fee (funding.ts), then
+ * marks the payment ready and pays it out; if the charge fails nothing is
+ * approved. Independent from attendance — attending without posting releases
+ * the hold but pays nothing.
  */
 
 export async function submitContent(input: {
@@ -84,8 +87,27 @@ export async function reviewContent(input: {
   companyId: string;
   decision: "approved" | "revision_requested" | "rejected";
   reviewNote?: string;
-}): Promise<{ ok: true; paid?: boolean } | { ok: false; error: string }> {
+}): Promise<{ ok: true; paid?: boolean; chargedCents?: number } | { ok: false; error: string }> {
   const db = serviceDb();
+
+  let chargedCents = 0;
+  if (input.decision === "approved") {
+    // The label pays first: charge their card before anything is approved, so
+    // a declined card leaves the content waiting for review, not half-approved.
+    const { data: reviewable } = await db
+      .from("content_submissions")
+      .select("id, bookings!inner(creator_payment_cents)")
+      .eq("id", input.submissionId)
+      .eq("booking_id", input.bookingId)
+      .eq("company_id", input.companyId)
+      .in("status", ["submitted", "disputed"])
+      .maybeSingle();
+    if (!reviewable) return { ok: false, error: "No reviewable content submission found" };
+    const funded = await fundCreatorPayment(input.bookingId, input.reviewer);
+    if (!funded.ok) return funded;
+    if (funded.charged) chargedCents = reviewable.bookings.creator_payment_cents;
+  }
+
   const { data: submission } = await db
     .from("content_submissions")
     .update({
@@ -175,5 +197,5 @@ export async function reviewContent(input: {
     companyId: booking.company_id,
     metadata: { bookingId: booking.id, reviewNote: input.reviewNote },
   });
-  return { ok: true, paid };
+  return { ok: true, paid, chargedCents };
 }

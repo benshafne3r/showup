@@ -63,39 +63,66 @@ export async function attachAgencyPaymentMethod(agencyId: string, userId: string
   await enforceRateLimit("payment_method.attach", userId);
   const provider = paymentProvider();
   const info = await provider.attachPaymentMethod(userId, card);
-  return recordPaymentMethod(userId, provider.name, info, agencyId);
+  return recordPaymentMethod(userId, provider.name, info, { agencyId });
 }
 
 export async function attachAgencyPaymentMethodByToken(agencyId: string, userId: string, paymentMethodId: string) {
   await enforceRateLimit("payment_method.attach", userId);
   const provider = paymentProvider();
   const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
-  return recordPaymentMethod(userId, provider.name, info, agencyId);
+  return recordPaymentMethod(userId, provider.name, info, { agencyId });
+}
+
+/**
+ * A label's card: charged for a creator's content fee when the label approves
+ * the content (services/funding.ts). Saved under the member who added it.
+ */
+export async function attachCompanyPaymentMethod(companyId: string, userId: string, card: CardInput) {
+  await enforceRateLimit("payment_method.attach", userId);
+  const provider = paymentProvider();
+  const info = await provider.attachPaymentMethod(userId, card);
+  return recordPaymentMethod(userId, provider.name, info, { companyId });
+}
+
+export async function attachCompanyPaymentMethodByToken(companyId: string, userId: string, paymentMethodId: string) {
+  await enforceRateLimit("payment_method.attach", userId);
+  const provider = paymentProvider();
+  const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
+  return recordPaymentMethod(userId, provider.name, info, { companyId });
 }
 
 async function recordPaymentMethod(
   userId: string,
   providerName: PaymentProvider["name"],
   info: Awaited<ReturnType<PaymentProvider["attachPaymentMethod"]>>,
-  agencyId?: string,
+  owner: { agencyId?: string; companyId?: string } = {},
 ) {
+  const { agencyId, companyId } = owner;
   if (!info.verified) {
     return { ok: false as const, error: info.failureReason ?? "Card verification failed" };
   }
 
   const provider = { name: providerName };
   const db = serviceDb();
-  // Single default per user, or per agency for an agency card.
+  // Single default per user, or per agency / label company for their cards.
   if (agencyId) {
     await db.from("payment_methods").update({ is_default: false }).eq("agency_id", agencyId);
+  } else if (companyId) {
+    await db.from("payment_methods").update({ is_default: false }).eq("company_id", companyId);
   } else {
-    await db.from("payment_methods").update({ is_default: false }).eq("user_id", userId).is("agency_id", null);
+    await db
+      .from("payment_methods")
+      .update({ is_default: false })
+      .eq("user_id", userId)
+      .is("agency_id", null)
+      .is("company_id", null);
   }
   const { data: row, error } = await db
     .from("payment_methods")
     .insert({
       user_id: userId,
       agency_id: agencyId ?? null,
+      company_id: companyId ?? null,
       provider: provider.name,
       provider_method_id: info.providerMethodId,
       brand: info.brand,
@@ -111,10 +138,11 @@ async function recordPaymentMethod(
 
   await audit({
     actorId: userId,
-    actorRole: agencyId ? "manager" : "creator",
+    actorRole: agencyId ? "manager" : companyId ? "label" : "creator",
     action: "payment_method.attach",
     entityType: "payment_method",
     entityId: row.id,
+    companyId: companyId ?? null,
     metadata: { brand: row.brand, last4: row.last4, provider: provider.name, agencyId: agencyId ?? null },
   });
   return { ok: true as const, paymentMethodId: row.id };
@@ -126,6 +154,7 @@ export async function defaultPaymentMethod(userId: string) {
     .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
     .eq("user_id", userId)
     .is("agency_id", null)
+    .is("company_id", null)
     .eq("is_default", true)
     .not("verified_at", "is", null)
     .maybeSingle();
@@ -137,6 +166,18 @@ export async function agencyDefaultPaymentMethod(agencyId: string) {
     .from("payment_methods")
     .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
     .eq("agency_id", agencyId)
+    .eq("is_default", true)
+    .not("verified_at", "is", null)
+    .maybeSingle();
+  return data;
+}
+
+/** A label company's card for content fees. */
+export async function companyDefaultPaymentMethod(companyId: string) {
+  const { data } = await serviceDb()
+    .from("payment_methods")
+    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
+    .eq("company_id", companyId)
     .eq("is_default", true)
     .not("verified_at", "is", null)
     .maybeSingle();
@@ -756,13 +797,23 @@ export async function cancelAuthorizationForBooking(
 
 // ── Creator payment (payout) ────────────────────────────────────────────
 
-type PayoutRow = { id: string; booking_id: string; creator_id: string; company_id: string; amount_cents: number; idempotency_key: string | null };
+type PayoutRow = {
+  id: string;
+  booking_id: string;
+  creator_id: string;
+  company_id: string;
+  amount_cents: number;
+  idempotency_key: string | null;
+  funding_charge_id: string | null;
+};
 
 /**
  * Pay the creator (or their agency) for approved content. ready/failed →
  * paying (claimed with a per-attempt key, leased) → paid once the transfer is
  * confirmed. A crash leaves 'paying'; recovery finds the transfer by its
- * transfer group or replays the same key, so it can't pay twice.
+ * transfer group or replays the same key, so it can't pay twice. Only funded
+ * records pay out (the label's charge, see funding.ts), and the transfer draws
+ * on that charge.
  */
 export async function payoutCreatorPayment(
   bookingId: string,
@@ -771,11 +822,14 @@ export async function payoutCreatorPayment(
   const db = serviceDb();
   const { data: record } = await db
     .from("creator_payment_records")
-    .select("id, creator_id, status, paused_at")
+    .select("id, creator_id, status, paused_at, funding_status")
     .eq("booking_id", bookingId)
     .maybeSingle();
   if (!record || !["ready", "failed"].includes(record.status) || record.paused_at) {
     return { ok: false, error: "Creator payment is not ready to pay (or is paused)" };
+  }
+  if (!["charged", "waived"].includes(record.funding_status)) {
+    return { ok: false, error: "The label hasn't paid for this content yet" };
   }
 
   // A managed creator is paid through their management company's account. In
@@ -811,6 +865,7 @@ export async function payoutCreatorPayment(
     metadata: { bookingId, paymentRecordId: claimed.id, attemptKey: key },
     destinationAccountId: destination.accountId ?? undefined,
     transferGroup: claimed.id,
+    sourceChargeId: claimed.funding_charge_id ?? undefined,
   });
   await checkpoint("payout.after_provider");
   return finishPayout(claimed, op.id, result, actor, destination.agency);

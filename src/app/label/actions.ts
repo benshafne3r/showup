@@ -20,7 +20,8 @@ import {
 } from "@/server/services/attendance";
 import { audit } from "@/server/services/audit";
 import { reviewContent } from "@/server/services/content";
-import { payoutCreatorPayment } from "@/server/services/payments";
+import { fundAndPayout } from "@/server/services/funding";
+import { attachCompanyPaymentMethod, attachCompanyPaymentMethodByToken } from "@/server/services/payments";
 import { formatCents, parseDollarsToCents } from "@/lib/money";
 import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
 import { enrichArtist } from "@/server/providers/artist-enrich";
@@ -1051,12 +1052,13 @@ export async function reviewContentAction(
     if (!result.ok) return { error: result.error };
     revalidatePath(`/label/bookings/${bookingId}`);
     revalidatePath("/label/content");
+    const charged = result.chargedCents ? ` ${formatCents(result.chargedCents)} charged to your card.` : "";
     return {
       success:
         decision === "approved"
           ? result.paid
-            ? "Content approved. Creator payment released"
-            : "Content approved"
+            ? `Content approved.${charged} Creator payment released`
+            : `Content approved.${charged}`
           : decision === "revision_requested"
             ? "Revision requested"
             : "Content rejected",
@@ -1081,10 +1083,49 @@ export async function retryPayoutAction(
       .eq("id", bookingId)
       .single();
     if (booking?.company_id !== context.companyId) return { error: "Booking not found" };
-    const result = await payoutCreatorPayment(bookingId, { id: context.user.id, role: "label" });
+    const result = await fundAndPayout(bookingId, { id: context.user.id, role: "label" });
     if (!result.ok) return { error: result.error };
     revalidatePath(`/label/bookings/${bookingId}`);
     return { success: "Creator payment released" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+// ── The label's card (pays for creator content when it's approved) ──────
+
+const companyCardSchema = z.object({
+  cardNumber: z.string().regex(/^[\d\s]{13,23}$/, "Enter a valid card number"),
+  expMonth: z.coerce.number().int().min(1, "Month").max(12, "Month"),
+  expYear: z.coerce.number().int().min(2024).max(2050),
+  cvc: z.string().regex(/^\d{3,4}$/, "Enter the 3–4 digit CVC"),
+});
+
+export async function addCompanyCardAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    if (context.memberRole === "member") return { error: "Ask your company owner or an admin to add the card" };
+    const parsed = companyCardSchema.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const result = await attachCompanyPaymentMethod(context.companyId, context.user.id, parsed.data);
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/label", "layout");
+    return { success: "Card verified and saved" };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function addCompanyCardTokenAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    if (context.memberRole === "member") return { error: "Ask your company owner or an admin to add the card" };
+    // Stripe Elements tokenized the card in the browser; we only get a pm_ id.
+    const paymentMethodId = z.string().startsWith("pm_").max(255).parse(formData.get("paymentMethodId"));
+    const result = await attachCompanyPaymentMethodByToken(context.companyId, context.user.id, paymentMethodId);
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/label", "layout");
+    return { success: "Card verified and saved" };
   } catch (err) {
     return fail(err);
   }

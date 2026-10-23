@@ -9,6 +9,7 @@ import { syncPayoutStatusByAccount } from "./connect";
 import { check } from "./payment-ledger";
 import { voidHold } from "./payments";
 import { recoverAuthorization, recoverPayout } from "./payment-recovery";
+import { recoverFunding } from "./funding";
 
 /**
  * Provider webhooks (Stripe, or the mock in dev/tests). Providers deliver
@@ -112,6 +113,8 @@ type Signal =
       capturedCents?: number;
     }
   | { kind: "transfer"; transferId: string; paymentRecordId?: string }
+  /** A label's content charge (funding.ts), mock or Stripe. */
+  | { kind: "funding"; paymentRecordId?: string }
   | null;
 
 const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
@@ -121,6 +124,9 @@ export function toSignal(event: WebhookEvent): Signal {
   const d = event.data;
   const meta = (d.metadata ?? {}) as Record<string, unknown>;
   const fromMeta = { authRecordId: str(meta.authRecordId) ?? str(d.authRecordId), attemptKey: str(meta.attemptKey) ?? str(d.attemptKey) };
+  if ((str(meta.kind) ?? str(d.kind)) === "content_funding") {
+    return { kind: "funding", paymentRecordId: str(meta.paymentRecordId) ?? str(d.paymentRecordId) };
+  }
   switch (event.type) {
     case "account.updated":
       return str(d.id)?.startsWith("acct_") ? { kind: "account", accountId: d.id as string } : null;
@@ -163,6 +169,17 @@ export async function applyWebhookEvent(event: WebhookEvent): Promise<void> {
   if (!signal) return;
   if (signal.kind === "account") {
     await syncPayoutStatusByAccount(signal.accountId);
+    return;
+  }
+  if (signal.kind === "funding") {
+    // Our own call records the outcome; only settle a charge whose process died.
+    if (!signal.paymentRecordId) return;
+    const { data: rec } = await serviceDb()
+      .from("creator_payment_records")
+      .select("id, funding_status, funding_lease_until")
+      .eq("id", signal.paymentRecordId)
+      .maybeSingle();
+    if (rec?.funding_status === "charging" && leaseExpired(rec.funding_lease_until)) await recoverFunding(rec.id);
     return;
   }
   if (signal.kind === "transfer") {

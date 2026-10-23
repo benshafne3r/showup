@@ -3,7 +3,8 @@ import "server-only";
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
 import { notify, notifyCompany } from "./notifications";
-import { cancelAuthorizationForBooking, captureAuthorization, payoutCreatorPayment } from "./payments";
+import { cancelAuthorizationForBooking, captureAuthorization } from "./payments";
+import { fundAndPayout } from "./funding";
 import { uploadFile } from "./uploads";
 import type { Database } from "@/lib/database.types";
 
@@ -174,7 +175,8 @@ export async function resolveDispute(input: {
       .eq("booking_id", booking.id)
       .in("status", ["disputed", "pending_fulfillment", "failed"]);
     if (booking.creator_payment_cents > 0) {
-      const paid = await payoutCreatorPayment(booking.id, input.admin);
+      // Resolved for the creator: the label pays (if it hasn't), then the creator is paid.
+      const paid = await fundAndPayout(booking.id, input.admin);
       if (!paid.ok) return paid;
     }
     await db
