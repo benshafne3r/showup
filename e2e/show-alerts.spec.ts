@@ -41,7 +41,7 @@ test("an opted-in creator is alerted when a label posts a show in their city", a
     headers: { "x-cron-secret": process.env.CRON_SECRET! },
   });
   expect(run.ok()).toBeTruthy();
-  expect((await run.json()).results.newShowAlertsSent).toBeGreaterThanOrEqual(1);
+  expect((await run.json()).results.ran.city_alert_email).toBeGreaterThanOrEqual(1);
 
   const { data: miaAlerts } = await db
     .from("notifications")
@@ -60,5 +60,5 @@ test("an opted-in creator is alerted when a label posts a show in their city", a
   const again = await request.post("/api/cron/run", {
     headers: { "x-cron-secret": process.env.CRON_SECRET! },
   });
-  expect((await again.json()).results.newShowsAnnounced).toBe(0);
+  expect((await again.json()).results.ran.city_alert_email ?? 0).toBe(0);
 });

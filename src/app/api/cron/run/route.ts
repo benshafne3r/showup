@@ -7,9 +7,12 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60;
 
 /**
- * Scheduled-job endpoint. Protect with CRON_SECRET. Accepts the secret via
- * either an `x-cron-secret` header (Railway cron service / manual runs) or an
- * `Authorization: Bearer <secret>` header (external cron schedulers).
+ * Scheduler tick. Protect with CRON_SECRET (`x-cron-secret` header, or
+ * `Authorization: Bearer <secret>`). Enqueues everything that's due as
+ * durable jobs, then runs due jobs for a bounded slice of time (the worker
+ * process, `npm run worker`, does the rest). Job failures are retried by the
+ * queue and show up in /api/health; this returns 500 only if scheduling
+ * itself failed.
  */
 export async function POST(request: NextRequest) {
   const provided =
@@ -19,13 +22,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
   try {
-    const results = await runScheduledJobs();
-    log.info("Scheduled jobs run", { results });
+    const results = await runScheduledJobs(45_000);
+    log.info("Scheduler tick", { results });
     return NextResponse.json({ ok: true, results });
   } catch (err) {
-    // Individual steps already isolate their own failures; this only fires on
-    // an unexpected error outside the steps (e.g. the DB client itself).
-    log.error("Scheduled job run failed", errorFields(err));
+    log.error("Scheduler tick failed", errorFields(err));
     return NextResponse.json({ ok: false, error: "Job run failed" }, { status: 500 });
   }
 }

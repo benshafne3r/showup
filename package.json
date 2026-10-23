@@ -12,6 +12,7 @@
     "roster:import": "tsx scripts/import-roster.ts",
     "db:status": "tsx scripts/db-status.ts",
     "cron": "node scripts/run-cron.mjs",
+    "worker": "tsx --conditions=react-server scripts/worker.ts",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:watch": "vitest",

@@ -57,7 +57,26 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Atomic booking transitions + job outbox (2026-10-22, Codex #4)
+## Durable jobs: scheduler + worker (2026-10-23, Codex #5)
+Migration **0024**: `schedule_due_jobs(limit)` (SQL selects genuinely due work, deterministic order,
+skips already-enqueued keys so capped batches can't starve), `commit_city_alerts` (mark announced +
+enqueue per-recipient emails in one txn), `job_queue_stats`, `heartbeats`, fairer `claim_jobs`
+(round-robin across companies within each priority; fills the batch).
+- `services/jobs.ts`: `runScheduler()` = schedule_due_jobs + per-minute `recover_payments` /
+  `retry_webhooks` jobs + city-alert fan-out + heartbeat. `runScheduledJobs()` (/api/cron/run) =
+  two scheduler passes + drain, 45 s budget; 500 only if scheduling itself fails.
+- Worker: `npm run worker` (`scripts/worker.ts`, tsx `--conditions=react-server`): schedules every
+  minute, drains in 10 s slices, SIGTERM-safe. ⬜ Not deployed as a service yet (Railway service =
+  small cost; until then the 10-min cron tick drains for 45 s).
+- Per-item handlers (`src/server/jobs/handlers.ts`): place_auth, expire_hold, grace_cancel,
+  expire_booking, auto_release, remind_*, no_show_decision, verify_content, geocode, setup_reminder,
+  city_alert_email. Paced in-worker (email 550 ms, Nominatim 1.1 s, TikWM 250 ms). Job key = the
+  notification's dedupe key.
+- `/api/health` adds `jobs` stats; 503 on dead jobs, backlog > 30 min, or no scheduler tick in 30 min.
+- Tests: `tests/integration/scheduler.test.ts` (250 due vs cap 100, overlapping schedulers, dead
+  worker mid-batch).
+
+
 Migration **0023**: `jobs` table (outbox + queue: dedupe_key unique, priority 0 money … 9 marketing,
 per-company fairness in `claim_jobs`, leases, backoff via `fail_job`, `dead` after max_attempts) and
 one-transaction functions: `create_request_tx`, `approve_request_tx`, `offer_request_tx`,

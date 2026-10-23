@@ -3,7 +3,6 @@ import "server-only";
 import type { ServiceClient } from "@/server/db/service";
 import { serviceDb } from "@/server/db/service";
 import { geocodeVenue } from "@/server/providers/geocode/nominatim";
-import { log, errorFields } from "@/server/log";
 
 type VenueRow = {
   id: string;
@@ -29,31 +28,19 @@ export async function geocodeAndStore(venue: VenueRow, db: ServiceClient = servi
 }
 
 /**
- * Scheduled step: geocode venues that have no coordinates yet (new venues
- * first; failed lookups retry after a week). Paced for Nominatim's 1 req/s.
+ * Job: geocode one venue that has no coordinates yet (the scheduler enqueues
+ * new venues first; failed lookups retry after a week).
  */
-export async function geocodePendingVenues(db: ServiceClient): Promise<{ located: number; missed: number }> {
-  const weekAgo = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const { data: venues } = await db
+export async function geocodeVenueById(venueId: string): Promise<boolean> {
+  const db = serviceDb();
+  const { data: venue, error } = await db
     .from("venues")
-    .select("id, name, address, city, state, country")
-    .is("latitude", null)
-    .or(`geocoded_at.is.null,geocoded_at.lt.${weekAgo}`)
-    .order("geocoded_at", { ascending: true, nullsFirst: true })
-    .limit(8);
-  let located = 0;
-  let missed = 0;
-  for (const venue of venues ?? []) {
-    try {
-      if (await geocodeAndStore(venue, db)) located++;
-      else missed++;
-    } catch (err) {
-      missed++;
-      log.warn("Venue geocoding failed", { venueId: venue.id, ...errorFields(err) });
-    }
-    await new Promise((r) => setTimeout(r, 1100));
-  }
-  return { located, missed };
+    .select("id, name, address, city, state, country, latitude")
+    .eq("id", venueId)
+    .maybeSingle();
+  if (error) throw new Error(`load venue: ${error.message}`);
+  if (!venue || venue.latitude != null) return false;
+  return (await geocodeAndStore(venue, db)) !== null;
 }
 
 export type VenueDetails = { name: string; address: string | null; state: string | null };

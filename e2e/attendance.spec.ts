@@ -131,7 +131,7 @@ test("an unreviewed photo check-in releases itself after 48 hours, unless the la
   // On (the default): released automatically.
   const jay = await confirmedBooking(ACCOUNTS.jay);
   await staleCheckIn(jay);
-  expect((await runJobs()).attendanceAutoReleased).toBeGreaterThanOrEqual(1);
+  expect((await runJobs()).ran.auto_release).toBeGreaterThanOrEqual(1);
   expect(await attendanceOf(jay.bookingId)).toBe("approved");
   const { data: sub } = await db
     .from("attendance_submissions")

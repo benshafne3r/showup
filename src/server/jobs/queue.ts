@@ -18,6 +18,7 @@ import { checkpoint } from "@/server/checkpoints";
 export type JobRow = {
   id: number;
   kind: string;
+  dedupe_key: string | null;
   payload: Json;
   attempts: number;
   max_attempts: number;
@@ -48,7 +49,10 @@ async function runOne(job: JobRow, worker: string): Promise<boolean> {
   const handler = JOB_HANDLERS[job.kind as keyof typeof JOB_HANDLERS];
   try {
     if (!handler) throw new Error(`No handler for job kind "${job.kind}"`);
-    await handler(job.payload as never);
+    // The job's key doubles as the idempotency key for what it sends.
+    await (handler as (p: unknown, ctx: { key: string }) => Promise<unknown>)(job.payload, {
+      key: job.dedupe_key ?? `job:${job.id}`,
+    });
     const { error } = await db.rpc("complete_job", { p_id: job.id, p_worker: worker });
     if (error) throw new Error(`complete job: ${error.message}`);
     return true;
@@ -83,6 +87,7 @@ export async function drainJobs(opts: { budgetMs?: number; batch?: number; kinds
   const worker = opts.worker ?? WORKER_ID;
   let ran = 0;
   let failed = 0;
+  const byKind: Record<string, number> = {};
   while (Date.now() < deadline) {
     const { data, error } = await serviceDb().rpc("claim_jobs", {
       p_worker: worker,
@@ -93,9 +98,11 @@ export async function drainJobs(opts: { budgetMs?: number; batch?: number; kinds
     const jobs = (data ?? []) as JobRow[];
     if (!jobs.length) break;
     for (const job of jobs) {
-      if (await runOne(job, worker)) ran++;
-      else failed++;
+      if (await runOne(job, worker)) {
+        ran++;
+        byKind[job.kind] = (byKind[job.kind] ?? 0) + 1;
+      } else failed++;
     }
   }
-  return { ran, failed };
+  return { ran, failed, byKind };
 }

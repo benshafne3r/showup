@@ -292,34 +292,42 @@ export const AUTO_RELEASE_HOURS = 48;
  * (companies.auto_release_attendance, default on). Holds expire at the bank a
  * few days after the show anyway; this releases them deliberately and on time.
  */
-export async function autoReleaseUnreviewedCheckIns(): Promise<{ released: number }> {
+export async function autoReleaseCheckIn(p: { bookingId: string; companyId: string }, dedupeKey: string): Promise<boolean> {
   const db = serviceDb();
-  const cutoff = new Date(Date.now() - AUTO_RELEASE_HOURS * 3_600_000).toISOString();
-  const { data: stale } = await db
+  // Re-check when the job runs: reviewed meanwhile, or the label turned it off.
+  const { data: row, error } = await db
     .from("attendance_submissions")
-    .select("booking_id, company_id, companies!inner(auto_release_attendance), users:users!attendance_submissions_creator_id_fkey(full_name)")
+    .select("booking_id, company_id, created_at, companies!inner(auto_release_attendance), users:users!attendance_submissions_creator_id_fkey(full_name)")
+    .eq("booking_id", p.bookingId)
+    .eq("company_id", p.companyId)
     .eq("status", "submitted")
-    .lt("created_at", cutoff)
-    .eq("companies.auto_release_attendance", true)
-    .limit(50);
-  let released = 0;
-  for (const row of stale ?? []) {
-    const result = await approveAttendance({
-      bookingId: row.booking_id,
-      reviewer: { id: null, role: "system" },
-      companyId: row.company_id,
-      reviewNote: `Released automatically: not reviewed within ${AUTO_RELEASE_HOURS} hours.`,
-    });
-    if (!result.ok) continue;
-    released++;
-    await notifyCompany(row.company_id, {
-      type: "attendance_approved",
-      title: "Hold released automatically",
-      body: `${row.users?.full_name ?? "A creator"}'s check-in wasn't reviewed within ${AUTO_RELEASE_HOURS} hours, so it was approved and their hold released. You can turn this off in Settings.`,
-      link: `/label/bookings/${row.booking_id}`,
-    });
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw new Error(`load check-in: ${error.message}`);
+  const cutoff = Date.now() - AUTO_RELEASE_HOURS * 3_600_000;
+  if (!row || !row.companies.auto_release_attendance || new Date(row.created_at).getTime() > cutoff) return false;
+
+  const result = await approveAttendance({
+    bookingId: row.booking_id,
+    reviewer: { id: null, role: "system" },
+    companyId: row.company_id,
+    reviewNote: `Released automatically: not reviewed within ${AUTO_RELEASE_HOURS} hours.`,
+  });
+  if (!result.ok) {
+    // A failed hold release is worth retrying; anything else means the
+    // booking moved on (canceled, reviewed) and there's nothing to do.
+    if (result.error.includes("hold release failed")) throw new Error(result.error);
+    return false;
   }
-  return { released };
+  await notifyCompany(row.company_id, {
+    type: "attendance_approved",
+    title: "Hold released automatically",
+    body: `${row.users?.full_name ?? "A creator"}'s check-in wasn't reviewed within ${AUTO_RELEASE_HOURS} hours, so it was approved and their hold released. You can turn this off in Settings.`,
+    link: `/label/bookings/${row.booking_id}`,
+    dedupeKey,
+  });
+  return true;
 }
 
 /**
@@ -544,63 +552,54 @@ export async function resolveNoShow(input: {
  * no-show before the hold expires. If nobody decides, the hold lapses and the
  * creator isn't charged. One reminder per booking.
  */
-export async function sendNoShowDecisionReminders(): Promise<{ reminded: number }> {
+export async function sendNoShowDecisionReminder(bookingId: string, dedupeKey: string): Promise<boolean> {
   const db = serviceDb();
   const now = new Date();
-  const { data: holds } = await db
+  const { data: hold, error } = await db
     .from("authorization_records")
     .select(
       `amount_cents, expires_at,
        bookings!inner(id, status, attendance_state, company_id,
          users!bookings_creator_id_fkey(full_name), shows!inner(date, artists(name)))`,
     )
+    .eq("booking_id", bookingId)
     .eq("status", "authorized")
     .gt("expires_at", now.toISOString())
-    .limit(500);
-
-  const due = (holds ?? []).filter(
-    (h) =>
-      ["confirmed", "no_show_review"].includes(h.bookings.status) &&
-      ["not_started", "rejected"].includes(h.bookings.attendance_state) &&
-      showIsOver(h.bookings.shows.date, now),
-  );
-
-  let reminded = 0;
-  for (const hold of due) {
-    const booking = hold.bookings;
-    const link = `/label/bookings/${booking.id}`;
-    const { data: already } = await db
-      .from("notifications")
-      .select("id")
-      .eq("type", "no_show_decision_due")
-      .eq("link", link)
-      .limit(1)
-      .maybeSingle();
-    if (already) continue;
-
-    const creator = booking.users?.full_name || "A creator";
-    const artist = booking.shows.artists?.name ?? "the show";
-    const amount = formatCents(hold.amount_cents);
-    const hours = hoursLeft(hold.expires_at!, now);
-    await notifyCompany(booking.company_id, {
-      type: "no_show_decision_due",
-      title: `Did ${creator} make it to ${artist}?`,
-      body:
-        `${creator} didn't check in for ${artist} on ${formatShowDate(booking.shows.date)}. ` +
-        `Mark them attended, or charge the ${amount} no-show hold, within the next ${hours} hours. ` +
-        "If you do nothing, the hold expires and they won't be charged.",
-      link,
-      email: {
-        details: [
-          { label: "Creator", value: creator },
-          { label: "Show", value: `${artist}, ${formatShowDate(booking.shows.date)}` },
-          { label: "Hold", value: amount },
-          { label: "Decide within", value: `${hours} hours` },
-        ],
-        ctaLabel: "Open the booking",
-      },
-    });
-    reminded++;
+    .maybeSingle();
+  if (error) throw new Error(`load hold: ${error.message}`);
+  // Re-check when the job runs: decided, checked in, or the hold went away.
+  if (
+    !hold ||
+    !["confirmed", "no_show_review"].includes(hold.bookings.status) ||
+    !["not_started", "rejected"].includes(hold.bookings.attendance_state) ||
+    !showIsOver(hold.bookings.shows.date, now)
+  ) {
+    return false;
   }
-  return { reminded };
+
+  const booking = hold.bookings;
+  const creator = booking.users?.full_name || "A creator";
+  const artist = booking.shows.artists?.name ?? "the show";
+  const amount = formatCents(hold.amount_cents);
+  const hours = hoursLeft(hold.expires_at!, now);
+  await notifyCompany(booking.company_id, {
+    type: "no_show_decision_due",
+    title: `Did ${creator} make it to ${artist}?`,
+    body:
+      `${creator} didn't check in for ${artist} on ${formatShowDate(booking.shows.date)}. ` +
+      `Mark them attended, or charge the ${amount} no-show hold, within the next ${hours} hours. ` +
+      "If you do nothing, the hold expires and they won't be charged.",
+    link: `/label/bookings/${booking.id}`,
+    email: {
+      details: [
+        { label: "Creator", value: creator },
+        { label: "Show", value: `${artist}, ${formatShowDate(booking.shows.date)}` },
+        { label: "Hold", value: amount },
+        { label: "Decide within", value: `${hours} hours` },
+      ],
+      ctaLabel: "Open the booking",
+    },
+    dedupeKey,
+  });
+  return true;
 }

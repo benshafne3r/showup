@@ -177,7 +177,7 @@ describe("job queue", () => {
     expect(job!.attempts).toBe(2);
   });
 
-  it("doesn't let one busy company starve another, and reclaims abandoned jobs", async () => {
+  it("takes turns across companies without idling capacity, and reclaims abandoned jobs", async () => {
     const tag = randomUUID().slice(0, 8);
     const busy = randomUUID();
     const quiet = randomUUID();
@@ -187,8 +187,8 @@ describe("job queue", () => {
     ]);
     const { data: batch } = await db.rpc("claim_jobs", { p_worker: "w1", p_limit: 8, p_kinds: [`fair_${tag}`] });
     const companies = (batch ?? []).map((j) => j.company_id);
-    expect(companies).toContain(quiet);
-    expect(companies.filter((c) => c === busy).length).toBeLessThanOrEqual(2);
+    expect(companies).toContain(quiet); // the quiet company isn't stuck behind 12 busy jobs
+    expect(companies).toHaveLength(8); // and the batch still fills up
 
     // w1 dies holding its jobs; once the lease expires another worker takes them.
     await db.from("jobs").update({ lease_until: new Date(Date.now() - 60_000).toISOString() }).eq("locked_by", "w1").like("dedupe_key", `${tag}:%`);

@@ -1,266 +1,69 @@
 import "server-only";
 
 import { serviceDb } from "@/server/db/service";
-import { expireBooking, cancelBooking } from "./bookings";
-import { expireLapsedHolds, placeAuthorization } from "./payments";
-import { recoverPaymentOperations } from "./payment-recovery";
-import { retryUnfinishedWebhooks } from "./webhooks";
-import { drainJobs } from "@/server/jobs/queue";
-import { notify } from "./notifications";
-import { verifyContentSubmissions } from "./content-verification";
-import { sendNewShowAlerts } from "./show-alerts";
-import { geocodePendingVenues } from "./venues";
-import { autoReleaseUnreviewedCheckIns, sendNoShowDecisionReminders } from "./attendance";
-import { sendSetupReminders } from "./setup-reminders";
-import { log, errorFields } from "@/server/log";
-
-export type JobResults = Record<string, number> & { errors: number };
+import { drainJobs, enqueueJobs } from "@/server/jobs/queue";
+import { fanOutCityAlerts } from "./show-alerts";
 
 /**
- * Scheduled job runner, invoked by /api/cron/run (a scheduled cron)
- * or manually by an admin. Every step is idempotent: state claims are
- * status-guarded and reminders are deduplicated against notification history.
- *
- * Each step is isolated: a transient failure in one step is logged and counted
- * (results.errors) but never aborts the remaining steps — so a blip while
- * placing one authorization can't stop reminders or grace cancellations from
- * running in the same tick.
+ * Scheduling. runScheduler() only decides what's due and enqueues it (fast,
+ * bounded): schedule_due_jobs() selects due records in SQL with unique job
+ * keys, periodic jobs (payment recovery, webhook retries) keyed per minute,
+ * and the city-alert fan-out, which only turns new shows into one email job
+ * per subscriber. The work itself runs in jobs: in the
+ * worker process (`npm run worker`), and, as a fallback, for a bounded time
+ * slice after each scheduler tick (/api/cron/run).
  */
-export async function runScheduledJobs(): Promise<JobResults> {
-  const results: JobResults = {
-    paymentsRecovered: 0,
-    webhooksRetried: 0,
-    jobsRun: 0,
-    expiredAcceptances: 0,
-    authorizationsPlaced: 0,
-    authorizationsFailed: 0,
-    graceCancellations: 0,
-    approvalExpiringReminders: 0,
-    upcomingShowReminders: 0,
-    contentDeadlineReminders: 0,
-    contentChecked: 0,
-    contentLive: 0,
-    contentGone: 0,
-    contentUnknown: 0,
-    contentUnsupported: 0,
-    contentCheckFailed: 0,
-    newShowsAnnounced: 0,
-    newShowAlertsSent: 0,
-    venuesLocated: 0,
-    attendanceAutoReleased: 0,
-    setupReminders: 0,
-    noShowDecisionReminders: 0,
-    holdsExpired: 0,
-    errors: 0,
-  };
-  const db = serviceDb();
-  const nowIso = new Date().toISOString();
 
-  /** Run one job step in isolation; log + count failures instead of throwing. */
-  async function step(name: string, fn: () => Promise<void>): Promise<void> {
-    try {
-      await fn();
-    } catch (err) {
-      results.errors++;
-      log.error("Scheduled job step failed", { step: name, ...errorFields(err) });
-    }
-  }
+export type SchedulerResult = { scheduled: Record<string, number> };
 
-  // 0. Money first: finish payment operations a crash left half-done, and
-  //    reprocess webhook events that failed or were abandoned.
-  await step("recoverPayments", async () => {
-    const counts = await recoverPaymentOperations();
-    results.paymentsRecovered += counts.recovered;
-    results.errors += counts.failed;
-  });
-  await step("retryWebhooks", async () => {
-    const counts = await retryUnfinishedWebhooks();
-    results.webhooksRetried += counts.retried;
-    results.errors += counts.failed;
-  });
-
-  // 0c. Outbox: follow-up jobs (notifications, hold releases) a transition
-  //     enqueued but didn't get to run.
-  await step("drainJobs", async () => {
-    const counts = await drainJobs({ budgetMs: 30_000 });
-    results.jobsRun += counts.ran;
-    results.errors += counts.failed;
-  });
-
-  // 1. Expire bookings whose acceptance window lapsed.
-  await step("expireAcceptances", async () => {
-    const { data: overdue } = await db
-      .from("bookings")
-      .select("id")
-      .in("status", ["awaiting_acceptance", "awaiting_payment_method"])
-      .lt("acceptance_deadline_at", nowIso)
-      .limit(200);
-    for (const booking of overdue ?? []) {
-      if (await expireBooking(booking.id)) results.expiredAcceptances++;
-    }
-  });
-
-  // 2. Place authorizations that are due.
-  await step("placeAuthorizations", async () => {
-    const { data: dueAuths } = await db
-      .from("authorization_records")
-      .select("id")
-      .eq("status", "scheduled")
-      .lte("scheduled_for", nowIso)
-      .limit(200);
-    for (const auth of dueAuths ?? []) {
-      const result = await placeAuthorization(auth.id);
-      if (result.ok) results.authorizationsPlaced++;
-      else results.authorizationsFailed++;
-    }
-  });
-
-  // 3. Cancel bookings whose payment-fix grace period lapsed.
-  await step("graceCancellations", async () => {
-    const { data: lapsedGrace } = await db
-      .from("authorization_records")
-      .select("id, booking_id")
-      .eq("status", "failed")
-      .lt("grace_deadline_at", nowIso)
-      .limit(200);
-    for (const auth of lapsedGrace ?? []) {
-      const result = await cancelBooking({
-        bookingId: auth.booking_id,
-        actor: { id: null, role: "system" },
-        reason: "Payment method could not be authorized before the deadline",
-      });
-      if (result.ok) results.graceCancellations++;
-    }
-  });
-
-  // 4. Approval-expiring reminders (≤ 6h left, not yet reminded).
-  await step("approvalExpiringReminders", async () => {
-    const sixHours = new Date(Date.now() + 6 * 3600 * 1000).toISOString();
-    const { data: expiring } = await db
-      .from("bookings")
-      .select("id, creator_id, acceptance_deadline_at")
-      .eq("status", "awaiting_acceptance")
-      .lt("acceptance_deadline_at", sixHours)
-      .gt("acceptance_deadline_at", nowIso)
-      .limit(200);
-    for (const booking of expiring ?? []) {
-      if (await alreadyNotified(booking.creator_id, "approval_expiring", `/creator/bookings/${booking.id}`)) continue;
-      await notify({
-        userId: booking.creator_id,
-        type: "approval_expiring",
-        title: "Your approval expires soon",
-        body: "Accept your spot before the window closes or it will be offered to someone else.",
-        link: `/creator/bookings/${booking.id}`,
-      });
-      results.approvalExpiringReminders++;
-    }
-  });
-
-  // 5. Upcoming-show reminders (show is tomorrow, confirmed bookings).
-  await step("upcomingShowReminders", async () => {
-    const tomorrow = new Date(Date.now() + 86400000).toISOString().slice(0, 10);
-    const { data: upcoming } = await db
-      .from("bookings")
-      .select("id, creator_id, shows!inner(date, artists(name))")
-      .in("status", ["confirmed", "authorization_failed"])
-      .eq("shows.date", tomorrow)
-      .limit(200);
-    for (const booking of upcoming ?? []) {
-      if (await alreadyNotified(booking.creator_id, "upcoming_show_reminder", `/creator/bookings/${booking.id}`)) continue;
-      await notify({
-        userId: booking.creator_id,
-        type: "upcoming_show_reminder",
-        title: `${booking.shows?.artists?.name ?? "Your show"} is tomorrow!`,
-        body: "Don't forget to check in at the venue. Attending releases your hold.",
-        link: `/creator/bookings/${booking.id}`,
-      });
-      results.upcomingShowReminders++;
-    }
-  });
-
-  // 6. Content deadline reminders (≤ 48h, content still pending).
-  await step("contentDeadlineReminders", async () => {
-    const twoDays = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
-    const { data: contentDue } = await db
-      .from("bookings")
-      .select("id, creator_id")
-      .in("content_state", ["pending", "revision_requested"])
-      .in("status", ["attended", "confirmed"])
-      .lt("content_deadline_at", twoDays)
-      .gt("content_deadline_at", nowIso)
-      .limit(200);
-    for (const booking of contentDue ?? []) {
-      if (await alreadyNotified(booking.creator_id, "content_deadline_approaching", `/creator/bookings/${booking.id}`)) continue;
-      await notify({
-        userId: booking.creator_id,
-        type: "content_deadline_approaching",
-        title: "Content deadline approaching",
-        body: "Submit your deliverables soon to earn your creator payment.",
-        link: `/creator/bookings/${booking.id}`,
-      });
-      results.contentDeadlineReminders++;
-    }
-  });
-
-  // 7. Verify submitted posts are still live + pull view counts (label ROI).
-  await step("verifyContentSubmissions", async () => {
-    const counts = await verifyContentSubmissions(db);
-    results.contentChecked += counts.checked;
-    results.contentLive += counts.live;
-    results.contentGone += counts.gone;
-    results.contentUnknown += counts.unknown;
-    results.contentUnsupported += counts.unsupported;
-    results.contentCheckFailed += counts.failed;
-  });
-
-  // 8. Email opted-in creators about shows newly published in their city.
-  await step("newShowAlerts", async () => {
-    const counts = await sendNewShowAlerts(db);
-    results.newShowsAnnounced += counts.shows;
-    results.newShowAlertsSent += counts.alerts;
-  });
-
-  // 9. Put new venues on the map (location check-in needs their pin).
-  await step("geocodeVenues", async () => {
-    const counts = await geocodePendingVenues(db);
-    results.venuesLocated += counts.located;
-  });
-
-  // 10. Release holds for check-ins nobody reviewed in time (if the label allows).
-  await step("autoReleaseCheckIns", async () => {
-    const counts = await autoReleaseUnreviewedCheckIns();
-    results.attendanceAutoReleased += counts.released;
-  });
-
-  // 11. Nudge creators who signed up but never finished their profile or added a card.
-  await step("setupReminders", async () => {
-    const counts = await sendSetupReminders(db);
-    results.setupReminders += counts.sent;
-  });
-
-  // 12. Ask labels to decide on no-shows (mark attended or charge) before holds lapse.
-  await step("noShowDecisionReminders", async () => {
-    const counts = await sendNoShowDecisionReminders();
-    results.noShowDecisionReminders += counts.reminded;
-  });
-
-  // 13. Mark holds past their network expiry as expired (never charged).
-  await step("expireLapsedHolds", async () => {
-    const counts = await expireLapsedHolds();
-    results.holdsExpired += counts.expired;
-  });
-
-  return results;
+export async function heartbeat(name: string, info: Record<string, unknown> = {}): Promise<void> {
+  await serviceDb()
+    .from("heartbeats")
+    .upsert({ name, at: new Date().toISOString(), info: info as never });
 }
 
-async function alreadyNotified(userId: string, type: string, link: string): Promise<boolean> {
-  const { data } = await serviceDb()
-    .from("notifications")
-    .select("id")
-    .eq("user_id", userId)
-    .eq("type", type as never)
-    .eq("link", link)
-    .limit(1)
-    .maybeSingle();
-  return !!data;
+export async function runScheduler(): Promise<SchedulerResult> {
+  const db = serviceDb();
+  const { data, error } = await db.rpc("schedule_due_jobs", { p_limit: 500 });
+  if (error) throw new Error(`schedule due jobs: ${error.message}`);
+  const minute = Math.floor(Date.now() / 60_000);
+  await enqueueJobs([
+    { kind: "recover_payments", payload: {}, dedupe_key: `recover_payments:${minute}`, priority: 0 },
+    { kind: "retry_webhooks", payload: {}, dedupe_key: `retry_webhooks:${minute}`, priority: 0 },
+  ]);
+  const alerts = await fanOutCityAlerts();
+  const scheduled = {
+    ...Object.fromEntries((data ?? []).map((r) => [r.kind, r.enqueued])),
+    city_alert_email: alerts.alerts,
+  };
+  await heartbeat("scheduler", { scheduled });
+  return { scheduled };
+}
+
+export async function queueStats() {
+  const { data, error } = await serviceDb().rpc("job_queue_stats");
+  if (error) throw new Error(`job queue stats: ${error.message}`);
+  return data?.[0] ?? { queued: 0, running: 0, dead: 0, oldest_due_seconds: 0, retrying: 0 };
+}
+
+/**
+ * Fallback tick (/api/cron/run): schedule, run due jobs, then schedule once
+ * more so follow-on work (e.g. a reminder that's due once a hold was placed
+ * in the same tick) runs now instead of a tick later. Bounded by `budgetMs`.
+ */
+export async function runScheduledJobs(budgetMs = 45_000) {
+  const deadline = Date.now() + budgetMs;
+  const scheduled: Record<string, number> = {};
+  const ran: Record<string, number> = {};
+  let jobsRun = 0;
+  let jobsFailed = 0;
+  for (let pass = 0; pass < 2 && Date.now() < deadline; pass++) {
+    const tick = await runScheduler();
+    for (const [k, v] of Object.entries(tick.scheduled)) scheduled[k] = (scheduled[k] ?? 0) + v;
+    const drained = await drainJobs({ budgetMs: Math.max(0, deadline - Date.now()) });
+    for (const [k, v] of Object.entries(drained.byKind)) ran[k] = (ran[k] ?? 0) + v;
+    jobsRun += drained.ran;
+    jobsFailed += drained.failed;
+  }
+  return { scheduled, ran, jobsRun, jobsFailed, queue: await queueStats() };
 }

@@ -163,8 +163,6 @@ type AuthRow = {
   provider_intent_id: string | null;
   payment_method_id: string | null;
 };
-const AUTH_COLUMNS =
-  "id, booking_id, creator_id, company_id, amount_cents, attempt_count, idempotency_key, provider_intent_id, payment_method_id";
 
 /**
  * Create the authorization record at booking confirmation. If the show is
@@ -678,51 +676,40 @@ async function settleCaptured(claimed: HeldRow, capturedCents: number, from: "ca
  * it's gone at the provider. Nobody is charged: a no-show the label never
  * decided on simply lapses (Ben's rule, 2026-10-06).
  */
-export async function expireLapsedHolds(): Promise<{ expired: number }> {
+export async function expireHold(authRecordId: string): Promise<boolean> {
   const db = serviceDb();
   const now = new Date().toISOString();
-  const lapsed = check(
-    await db.from("authorization_records").select("id").eq("status", "authorized").lt("expires_at", now).limit(100),
-    "load lapsed holds",
+  // Claim first, so a concurrent capture or release can't race this.
+  const claimed = check(
+    await db
+      .from("authorization_records")
+      .update({ status: "expired", released_at: now })
+      .eq("id", authRecordId)
+      .eq("status", "authorized")
+      .lt("expires_at", now)
+      .select("id, company_id, amount_cents, provider_intent_id")
+      .maybeSingle(),
+    "expire hold",
   );
-
-  let expired = 0;
-  for (const hold of lapsed ?? []) {
-    // Claim first, so a concurrent capture or release can't race this.
-    const claimed = check(
-      await db
-        .from("authorization_records")
-        .update({ status: "expired", released_at: now })
-        .eq("id", hold.id)
-        .eq("status", "authorized")
-        .select("id, company_id, amount_cents, provider_intent_id")
-        .maybeSingle(),
-      "expire hold",
-    );
-    if (!claimed) continue;
-    expired++;
-    if (claimed.provider_intent_id) {
-      // Normally already canceled by the network; this cancels any that aren't.
-      const result = await paymentProvider().release({
-        providerIntentId: claimed.provider_intent_id,
-        idempotencyKey: `expire:${claimed.id}`,
-      });
-      if (!result.ok) {
-        log.error("Could not cancel an expired hold at the provider", {
-          authRecordId: claimed.id,
-          reason: result.failureReason,
-        });
-      }
-    }
-    await audit({
-      action: "authorization.expired",
-      entityType: "authorization_record",
-      entityId: claimed.id,
-      companyId: claimed.company_id,
-      metadata: { amountCents: claimed.amount_cents },
+  if (!claimed) return false;
+  if (claimed.provider_intent_id) {
+    // Normally already canceled by the network; this cancels any that aren't.
+    const result = await paymentProvider().release({
+      providerIntentId: claimed.provider_intent_id,
+      idempotencyKey: `expire:${claimed.id}`,
     });
+    if (!result.ok) {
+      log.error("Could not cancel an expired hold at the provider", { authRecordId: claimed.id, reason: result.failureReason });
+    }
   }
-  return { expired };
+  await audit({
+    action: "authorization.expired",
+    entityType: "authorization_record",
+    entityId: claimed.id,
+    companyId: claimed.company_id,
+    metadata: { amountCents: claimed.amount_cents },
+  });
+  return true;
 }
 
 /**

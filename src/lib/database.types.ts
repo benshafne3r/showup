@@ -1266,6 +1266,24 @@ export type Database = {
           },
         ]
       }
+      heartbeats: {
+        Row: {
+          at: string
+          info: Json
+          name: string
+        }
+        Insert: {
+          at?: string
+          info?: Json
+          name: string
+        }
+        Update: {
+          at?: string
+          info?: Json
+          name?: string
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           attempts: number
@@ -2440,6 +2458,10 @@ export type Database = {
           isSetofReturn: true
         }
       }
+      commit_city_alerts: {
+        Args: { p_jobs: Json; p_opportunity_ids: string[] }
+        Returns: number
+      }
       complete_job: {
         Args: { p_id: number; p_worker: string }
         Returns: undefined
@@ -2465,6 +2487,16 @@ export type Database = {
       is_agency_member: { Args: { aid: string }; Returns: boolean }
       is_company_member: { Args: { cid: string }; Returns: boolean }
       is_managed_creator: { Args: { cid: string }; Returns: boolean }
+      job_queue_stats: {
+        Args: never
+        Returns: {
+          dead: number
+          oldest_due_seconds: number
+          queued: number
+          retrying: number
+          running: number
+        }[]
+      }
       manages_creator: { Args: { cid: string }; Returns: boolean }
       mark_thread_read: {
         Args: { p_thread_id: string; p_user_id: string }
@@ -2496,6 +2528,13 @@ export type Database = {
       reserve_tickets: {
         Args: { p_count: number; p_opportunity_id: string }
         Returns: boolean
+      }
+      schedule_due_jobs: {
+        Args: { p_limit?: number }
+        Returns: {
+          enqueued: number
+          kind: string
+        }[]
       }
       shares_company_with: { Args: { other: string }; Returns: boolean }
     }
