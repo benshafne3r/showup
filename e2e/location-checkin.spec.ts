@@ -38,7 +38,8 @@ test("a creator at the venue checks in by location and the hold is released", as
 
   // Across town: refused, with the distance.
   await page.getByRole("button", { name: "I'm here" }).click();
-  await expect(page.getByText(/You.re about .+ from The Greek Theatre/)).toBeVisible();
+  // The first check-in compiles the server action on a cold CI dev server; allow for that.
+  await expect(page.getByText(/You.re about .+ from The Greek Theatre/)).toBeVisible({ timeout: 45_000 });
 
   // At the venue: verified instantly.
   await context.setGeolocation({ latitude: 34.1199, longitude: -118.296, accuracy: 20 });
