@@ -708,6 +708,8 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
   3f1bb737…, env 7576ef41…): `railway api 'mutation($sid: String!, $eid: String!) {
   serviceInstanceDeploy(serviceId: $sid, environmentId: $eid, latestCommit: true) }' --raw-var
   sid=<service id> --raw-var eid=<env id>`.
+- **CI e2e failing en masse** (404s on API routes, many unrelated tests) after "Data limit exceeded"
+  pulling Supabase images = runner flake (2026-10-28). `gh run rerun <id> --failed` passed.
 - Applying a migration with the Supabase MCP: name it with its number (`0025_search_and_aggregates`),
   or `/api/health` reports it missing (fixed by renaming the row in `supabase_migrations.schema_migrations`).
 - Types: `supabase gen types typescript --local --schema public`, then re-add the
