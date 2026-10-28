@@ -57,16 +57,18 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
-## Cards saved with Stripe SetupIntents (2026-10-28, Codex #8) — ⚠️ COMMITTED, NOT PUSHED
-Migration **0028** (local only): `users.payment_customer_id` (stored Stripe customer; legacy ones
+## Cards saved with Stripe SetupIntents (2026-10-28, Codex #8) — LIVE
+Migration **0028** (applied to prod 2026-10-28): `users.payment_customer_id` (stored Stripe customer; legacy ones
 found by metadata once), `payment_methods.setup_intent_id`. Card form (`stripe-card-form.tsx`):
 server `startCardSetup` → browser `stripe.confirmCardSetup` (Stripe shows the bank's 3DS check)
 → server `finishCardSetup` (checks the SetupIntent belongs to this person's customer, succeeded;
 finishing twice saves once). Start/finish actions per owner: creator, agency (manager), label.
 Old token path removed. Test-card hint only shows with a `pk_test_` key.
-- ⬜ **Before pushing:** run `scripts/check-stripe-card-setup.ts` against Stripe test mode. The local
-  `.env.local` test key AND the Stripe CLI keys expired 2026-10-14 → Ben runs `stripe login`.
-  Then apply 0028 to prod (ask), push, verify.
+- Verified against Stripe TEST mode with `scripts/check-stripe-card-setup.ts` (plain card saved +
+  off-session hold OK; another customer's setup refused; 3DS card not saved until confirmed).
+  Run it with the CLI's test key: `STRIPE_SECRET_KEY=$(python3 -c "import tomllib;print(tomllib.load(open('$HOME/.config/stripe/config.toml','rb'))['default']['test_mode_api_key'])") npx tsx --conditions=react-server scripts/check-stripe-card-setup.ts`
+  (`stripe config --list` shows MASKED keys; read the toml). CLI login renewed 2026-10-28 (90 days).
+  The `.env.local` STRIPE_SECRET_KEY test key is expired (only matters for local Stripe-mode dev).
 - Tests: `tests/integration/card-setup.test.ts` (mock provider; the mock "confirms" a setup when
   its state gets `status: succeeded` + `paymentMethodId`).
 
