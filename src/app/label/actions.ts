@@ -21,7 +21,7 @@ import {
 import { audit } from "@/server/services/audit";
 import { reviewContent } from "@/server/services/content";
 import { fundAndPayout } from "@/server/services/funding";
-import { attachCompanyPaymentMethod, attachCompanyPaymentMethodByToken } from "@/server/services/payments";
+import { attachCompanyPaymentMethod, finishCardSetup, startCardSetup } from "@/server/services/payments";
 import { formatCents, parseDollarsToCents } from "@/lib/money";
 import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
 import { enrichArtist } from "@/server/providers/artist-enrich";
@@ -1162,13 +1162,25 @@ export async function addCompanyCardAction(_prev: ActionState, formData: FormDat
   }
 }
 
-export async function addCompanyCardTokenAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+/** The label's card through Stripe's card setup (see startCardSetup). */
+export async function startCompanyCardSetupAction(): Promise<{ clientSecret: string } | { error: string }> {
   try {
     const context = await requireLabelWithCompany();
     if (context.memberRole === "member") return { error: "Ask your company owner or an admin to add the card" };
-    // Stripe Elements tokenized the card in the browser; we only get a pm_ id.
-    const paymentMethodId = z.string().startsWith("pm_").max(255).parse(formData.get("paymentMethodId"));
-    const result = await attachCompanyPaymentMethodByToken(context.companyId, context.user.id, paymentMethodId);
+    const result = await startCardSetup(context.user.id, { companyId: context.companyId });
+    return result.ok ? { clientSecret: result.clientSecret } : { error: result.error };
+  } catch (err) {
+    const failed = fail(err);
+    return failed && "error" in failed ? failed : { error: "Something went wrong" };
+  }
+}
+
+export async function finishCompanyCardSetupAction(setupIntentId: string): Promise<ActionState> {
+  try {
+    const context = await requireLabelWithCompany();
+    if (context.memberRole === "member") return { error: "Ask your company owner or an admin to add the card" };
+    const id = z.string().startsWith("seti_").max(255).parse(setupIntentId);
+    const result = await finishCardSetup(context.user.id, id, { companyId: context.companyId });
     if (!result.ok) return { error: result.error };
     revalidatePath("/label", "layout");
     return { success: "Card verified and saved" };

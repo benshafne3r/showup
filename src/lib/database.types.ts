@@ -1634,6 +1634,7 @@ export type Database = {
           last4: string
           provider: string
           provider_method_id: string
+          setup_intent_id: string | null
           updated_at: string
           user_id: string
           verified_at: string | null
@@ -1650,6 +1651,7 @@ export type Database = {
           last4?: string
           provider: string
           provider_method_id: string
+          setup_intent_id?: string | null
           updated_at?: string
           user_id: string
           verified_at?: string | null
@@ -1666,6 +1668,7 @@ export type Database = {
           last4?: string
           provider?: string
           provider_method_id?: string
+          setup_intent_id?: string | null
           updated_at?: string
           user_id?: string
           verified_at?: string | null
@@ -2165,6 +2168,7 @@ export type Database = {
           full_name: string
           id: string
           managed_profile: boolean
+          payment_customer_id: string | null
           role: Database["public"]["Enums"]["user_role"]
           status: Database["public"]["Enums"]["account_status"]
           suspended_at: string | null
@@ -2178,6 +2182,7 @@ export type Database = {
           full_name?: string
           id: string
           managed_profile?: boolean
+          payment_customer_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["account_status"]
           suspended_at?: string | null
@@ -2191,6 +2196,7 @@ export type Database = {
           full_name?: string
           id?: string
           managed_profile?: boolean
+          payment_customer_id?: string | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: Database["public"]["Enums"]["account_status"]
           suspended_at?: string | null

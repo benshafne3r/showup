@@ -9,8 +9,9 @@ import { createRequest, withdrawRequest } from "@/server/services/requests";
 import { acceptBooking } from "@/server/services/bookings";
 import {
   attachPaymentMethod,
-  attachPaymentMethodByToken,
+  finishCardSetup,
   retryAuthorizationForBooking,
+  startCardSetup,
 } from "@/server/services/payments";
 import { createOnboardingLink } from "@/server/services/connect";
 import { log, errorFields } from "@/server/log";
@@ -247,15 +248,26 @@ export async function addPaymentMethod(
   }
 }
 
-export async function addPaymentMethodToken(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
+/**
+ * Saving a card with Stripe: start a card setup (the browser confirms it with
+ * Stripe, and the bank may ask the cardholder to verify), then finish it.
+ */
+export async function startCardSetupAction(): Promise<{ clientSecret: string } | { error: string }> {
   try {
     const user = await requireCreator();
-    // Stripe Elements tokenized the card in the browser; we only get a pm_ id.
-    const paymentMethodId = z.string().startsWith("pm_").max(255).parse(formData.get("paymentMethodId"));
-    const result = await attachPaymentMethodByToken(user.id, paymentMethodId);
+    const result = await startCardSetup(user.id);
+    return result.ok ? { clientSecret: result.clientSecret } : { error: result.error };
+  } catch (err) {
+    const failed = fail(err);
+    return failed && "error" in failed ? failed : { error: "Something went wrong" };
+  }
+}
+
+export async function finishCardSetupAction(setupIntentId: string): Promise<ActionState> {
+  try {
+    const user = await requireCreator();
+    const id = z.string().startsWith("seti_").max(255).parse(setupIntentId);
+    const result = await finishCardSetup(user.id, id);
     if (!result.ok) return { error: result.error };
     revalidatePath("/creator", "layout");
     return { success: "Card verified and saved" };

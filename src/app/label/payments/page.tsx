@@ -14,7 +14,7 @@ import { formatDateTime } from "@/lib/dates";
 import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/pagination";
 import { companyDefaultPaymentMethod } from "@/server/services/payments";
-import { addCompanyCardAction, addCompanyCardTokenAction } from "../actions";
+import { addCompanyCardAction, startCompanyCardSetupAction, finishCompanyCardSetupAction } from "../actions";
 import { AddCardForm } from "@/app/creator/payments/add-card-form";
 import { StripeCardForm } from "@/app/creator/payments/stripe-card-form";
 import { publicEnv, serverEnv } from "@/lib/env";
@@ -97,7 +97,7 @@ export default async function LabelPaymentsPage({
           )}
           {canManageCard ? (
             serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
-              <StripeCardForm hasCard={!!card} action={addCompanyCardTokenAction} />
+              <StripeCardForm hasCard={!!card} start={startCompanyCardSetupAction} finish={finishCompanyCardSetupAction} />
             ) : (
               <AddCardForm hasCard={!!card} action={addCompanyCardAction} />
             )

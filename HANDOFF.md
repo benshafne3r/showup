@@ -57,6 +57,19 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Cards saved with Stripe SetupIntents (2026-10-28, Codex #8) — ⚠️ COMMITTED, NOT PUSHED
+Migration **0028** (local only): `users.payment_customer_id` (stored Stripe customer; legacy ones
+found by metadata once), `payment_methods.setup_intent_id`. Card form (`stripe-card-form.tsx`):
+server `startCardSetup` → browser `stripe.confirmCardSetup` (Stripe shows the bank's 3DS check)
+→ server `finishCardSetup` (checks the SetupIntent belongs to this person's customer, succeeded;
+finishing twice saves once). Start/finish actions per owner: creator, agency (manager), label.
+Old token path removed. Test-card hint only shows with a `pk_test_` key.
+- ⬜ **Before pushing:** run `scripts/check-stripe-card-setup.ts` against Stripe test mode. The local
+  `.env.local` test key AND the Stripe CLI keys expired 2026-10-14 → Ben runs `stripe login`.
+  Then apply 0028 to prod (ask), push, verify.
+- Tests: `tests/integration/card-setup.test.ts` (mock provider; the mock "confirms" a setup when
+  its state gets `status: succeeded` + `paymentMethodId`).
+
 ## Label Shows page + Creators city picker (2026-10-28)
 - `/label/tours` ("Shows"): one-off shows now use the same card as tours (photo, artist · genre,
   date chip; Edit / Share / Delete). **Active / Past / All** tabs (`?view=`), default Active =

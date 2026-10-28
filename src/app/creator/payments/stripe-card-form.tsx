@@ -10,16 +10,25 @@ import { Button } from "@/components/ui/button";
 // here means card data goes browser → Stripe directly, never through our server.
 const publishableKey = process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY ?? "";
 const stripePromise = publishableKey ? loadStripe(publishableKey) : null;
+const testMode = publishableKey.startsWith("pk_test_");
 
-type SaveCard = (prev: ActionState, formData: FormData) => Promise<ActionState>;
+type StartSetup = () => Promise<{ clientSecret: string } | { error: string }>;
+type FinishSetup = (setupIntentId: string) => Promise<ActionState>;
 
+/**
+ * Save a card with Stripe's card setup: the card details go from the browser
+ * to Stripe, the bank can ask the cardholder to confirm (once, now), and
+ * later holds and charges run without them. `start` / `finish` are the
+ * owner's server actions (a creator's own card, an agency's, or a label's).
+ */
 export function StripeCardForm({
   hasCard,
-  action,
+  start,
+  finish,
 }: {
   hasCard: boolean;
-  /** Server action that saves the tokenized card (creator's own, or an agency's). */
-  action: SaveCard;
+  start: StartSetup;
+  finish: FinishSetup;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -35,15 +44,15 @@ export function StripeCardForm({
   }
   return (
     <Elements stripe={stripePromise}>
-      <CardFields action={action} onCancel={() => setOpen(false)} />
+      <CardFields start={start} finish={finish} onCancel={() => setOpen(false)} />
     </Elements>
   );
 }
 
-function CardFields({ action, onCancel }: { action: SaveCard; onCancel: () => void }) {
+function CardFields({ start, finish, onCancel }: { start: StartSetup; finish: FinishSetup; onCancel: () => void }) {
   const stripe = useStripe();
   const elements = useElements();
-  const [pending, start] = useTransition();
+  const [pending, startSaving] = useTransition();
   const [state, setState] = useState<ActionState>(null);
 
   async function handleSubmit(e: FormEvent) {
@@ -52,15 +61,20 @@ function CardFields({ action, onCancel }: { action: SaveCard; onCancel: () => vo
     const card = elements.getElement(CardElement);
     if (!card) return;
 
-    const { paymentMethod, error } = await stripe.createPaymentMethod({ type: "card", card });
-    if (error || !paymentMethod) {
-      setState({ error: error?.message ?? "Could not read the card details." });
-      return;
-    }
-    start(async () => {
-      const fd = new FormData();
-      fd.set("paymentMethodId", paymentMethod.id);
-      setState(await action(null, fd));
+    setState(null);
+    startSaving(async () => {
+      const setup = await start();
+      if ("error" in setup) {
+        setState({ error: setup.error });
+        return;
+      }
+      // Stripe shows the bank's check (3D Secure) itself when the bank asks for one.
+      const { setupIntent, error } = await stripe.confirmCardSetup(setup.clientSecret, { payment_method: { card } });
+      if (error || !setupIntent) {
+        setState({ error: error?.message ?? "The card couldn't be confirmed. Try again." });
+        return;
+      }
+      setState(await finish(setupIntent.id));
     });
   }
 
@@ -80,9 +94,14 @@ function CardFields({ action, onCancel }: { action: SaveCard; onCancel: () => vo
           }}
         />
       </div>
-      <p className="text-xs text-muted-foreground">
-        Test mode: card 4242 4242 4242 4242, any future expiry, any CVC and ZIP.
-      </p>
+      {testMode ? (
+        <p className="text-xs text-muted-foreground">
+          Test mode: card 4242 4242 4242 4242 (or 4000 0025 0000 3155 to see the bank check), any future
+          expiry, CVC and ZIP.
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">Your bank may ask you to confirm the card. That&apos;s a one-time check.</p>
+      )}
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">
           {state.error}

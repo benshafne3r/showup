@@ -65,86 +65,91 @@ export class StripePaymentProvider implements PaymentProvider {
     this.stripe = new Stripe(key, { timeout: 20_000, maxNetworkRetries: 2 });
   }
 
-  async attachPaymentMethod(userId: string, card: CardInput): Promise<PaymentMethodInfo> {
-    // In production the card is tokenized client-side (Stripe Elements) and
-    // this receives a payment-method token instead of raw card data. Test
-    // mode accepts Stripe's test tokens mapped from well-known test numbers.
-    const testToken = TEST_CARD_TOKENS[card.cardNumber.replace(/\s+/g, "")];
-    if (!testToken) {
-      return {
-        providerMethodId: "",
-        brand: "card",
-        last4: card.cardNumber.slice(-4),
-        expMonth: card.expMonth,
-        expYear: card.expYear,
-        verified: false,
-        failureReason:
-          "Stripe test mode only accepts Stripe test card numbers (e.g. 4242 4242 4242 4242).",
-      };
-    }
-
-    const customer = await this.getOrCreateCustomer(userId);
-    try {
-      const pm = await this.stripe.paymentMethods.attach(testToken, { customer });
-      const cardInfo = pm.card;
-      return {
-        providerMethodId: pm.id,
-        brand: cardInfo?.brand ?? "card",
-        last4: cardInfo?.last4 ?? "0000",
-        expMonth: cardInfo?.exp_month ?? card.expMonth,
-        expYear: cardInfo?.exp_year ?? card.expYear,
-        verified: true,
-      };
-    } catch (err) {
-      return {
-        providerMethodId: "",
-        brand: "card",
-        last4: card.cardNumber.slice(-4),
-        expMonth: card.expMonth,
-        expYear: card.expYear,
-        verified: false,
-        failureReason: err instanceof Error ? err.message : "Card verification failed",
-      };
-    }
-  }
-
-  async attachPaymentMethodToken(userId: string, paymentMethodId: string): Promise<PaymentMethodInfo> {
-    // The card was tokenized in the browser by Stripe Elements; we only ever
-    // see the resulting `pm_…` id, never the PAN. This is the PCI-safe path.
-    const customer = await this.getOrCreateCustomer(userId);
-    try {
-      const pm = await this.stripe.paymentMethods.attach(paymentMethodId, { customer });
-      const card = pm.card;
-      return {
-        providerMethodId: pm.id,
-        brand: card?.brand ?? "card",
-        last4: card?.last4 ?? "0000",
-        expMonth: card?.exp_month ?? 0,
-        expYear: card?.exp_year ?? 0,
-        verified: true,
-      };
-    } catch (err) {
-      return {
-        providerMethodId: "",
-        brand: "card",
-        last4: "0000",
-        expMonth: 0,
-        expYear: 0,
-        verified: false,
-        failureReason: err instanceof Error ? err.message : "Card verification failed",
-      };
-    }
-  }
-
-  private async getOrCreateCustomer(userId: string): Promise<string> {
-    const search = await this.stripe.customers.search({
-      query: `metadata["showup_user_id"]:"${userId}"`,
-    });
+  async ensureCustomer(userId: string, knownCustomerId: string | null): Promise<string> {
+    if (knownCustomerId) return knownCustomerId;
+    // Customers made before ids were stored are found by metadata, once.
+    const search = await this.stripe.customers.search({ query: `metadata["showup_user_id"]:"${userId}"` });
     if (search.data[0]) return search.data[0].id;
-    const customer = await this.stripe.customers.create({
-      metadata: { showup_user_id: userId },
-    });
+    // The key makes concurrent first saves share one customer.
+    const customer = await this.stripe.customers.create(
+      { metadata: { showup_user_id: userId } },
+      { idempotencyKey: `customer:${userId}` },
+    );
     return customer.id;
+  }
+
+  async attachPaymentMethod(customerId: string, card: CardInput): Promise<PaymentMethodInfo> {
+    // Real cards are saved through startCardSetup (Stripe Elements in the
+    // browser). This maps well-known test numbers to Stripe test cards.
+    const testToken = TEST_CARD_TOKENS[card.cardNumber.replace(/\s+/g, "")];
+    const unverified = (failureReason: string): PaymentMethodInfo => ({
+      providerMethodId: "",
+      brand: "card",
+      last4: card.cardNumber.slice(-4),
+      expMonth: card.expMonth,
+      expYear: card.expYear,
+      verified: false,
+      failureReason,
+    });
+    if (!testToken) {
+      return unverified("Stripe test mode only accepts Stripe test card numbers (e.g. 4242 4242 4242 4242).");
+    }
+    try {
+      const pm = await this.stripe.paymentMethods.attach(testToken, { customer: customerId });
+      return {
+        providerMethodId: pm.id,
+        brand: pm.card?.brand ?? "card",
+        last4: pm.card?.last4 ?? "0000",
+        expMonth: pm.card?.exp_month ?? card.expMonth,
+        expYear: pm.card?.exp_year ?? card.expYear,
+        verified: true,
+      };
+    } catch (err) {
+      return unverified(err instanceof Error ? err.message : "Card verification failed");
+    }
+  }
+
+  async startCardSetup(
+    customerId: string,
+    metadata: Record<string, string>,
+  ): Promise<{ setupIntentId: string; clientSecret: string }> {
+    const intent = await this.stripe.setupIntents.create({
+      customer: customerId,
+      usage: "off_session",
+      payment_method_types: ["card"],
+      metadata,
+    });
+    if (!intent.client_secret) throw new Error("Stripe returned no client secret for the card setup");
+    return { setupIntentId: intent.id, clientSecret: intent.client_secret };
+  }
+
+  async finishCardSetup(customerId: string, setupIntentId: string): Promise<PaymentMethodInfo> {
+    const unverified = (failureReason: string): PaymentMethodInfo => ({
+      providerMethodId: "",
+      brand: "card",
+      last4: "0000",
+      expMonth: 0,
+      expYear: 0,
+      verified: false,
+      failureReason,
+    });
+    const intent = await this.stripe.setupIntents.retrieve(setupIntentId, { expand: ["payment_method"] });
+    const owner = typeof intent.customer === "string" ? intent.customer : intent.customer?.id;
+    if (owner !== customerId) return unverified("That card setup doesn't belong to this account.");
+    if (intent.status === "requires_action") return unverified("Your bank still needs you to confirm this card.");
+    if (intent.status !== "succeeded") {
+      return unverified(intent.last_setup_error?.message ?? "The card couldn't be confirmed. Try again or use another card.");
+    }
+    const pm = typeof intent.payment_method === "object" ? intent.payment_method : null;
+    if (!pm?.card) return unverified("The card couldn't be read. Try again.");
+    return {
+      providerMethodId: pm.id,
+      brand: pm.card.brand ?? "card",
+      last4: pm.card.last4 ?? "0000",
+      expMonth: pm.card.exp_month ?? 0,
+      expYear: pm.card.exp_year ?? 0,
+      verified: true,
+    };
   }
 
   async authorize(input: {

@@ -5,9 +5,9 @@ import "server-only";
  * only src/server/services/payments.ts calls these methods.
  *
  * Semantics:
- * - attachPaymentMethod: tokenize + verify a card. Never sees a real PAN in
- *   production (Stripe Elements would tokenize client-side); the mock accepts
- *   a test card number to simulate outcomes.
+ * - startCardSetup / finishCardSetup: save a card for later (Stripe
+ *   SetupIntent; card details go browser → Stripe, never through us).
+ * - attachPaymentMethod: save a raw test card (mock / Stripe test mode only).
  * - authorize: place a temporary hold (manual-capture intent). NOT a charge.
  * - release: cancel the hold without charging.
  * - capture: charge some or all of an active hold (no-show penalty).
@@ -99,14 +99,28 @@ export interface PaymentProvider {
   /** True when no real money can move (mock, or Stripe test keys). */
   readonly testMode: boolean;
 
-  attachPaymentMethod(userId: string, card: CardInput): Promise<PaymentMethodInfo>;
+  /**
+   * The provider-side customer that holds a person's saved cards. Pass the id
+   * stored for them (if any); returns the id to keep using (creating the
+   * customer the first time).
+   */
+  ensureCustomer(userId: string, knownCustomerId: string | null): Promise<string>;
+
+  /** Save a raw test card (mock, and Stripe test numbers only). */
+  attachPaymentMethod(customerId: string, card: CardInput): Promise<PaymentMethodInfo>;
 
   /**
-   * Attach a card that was tokenized client-side (Stripe Elements → `pm_…`),
-   * so a real PAN never reaches the server. This is the PCI-safe production
-   * path; `attachPaymentMethod` (raw card) remains for the mock provider.
+   * Start saving a card for later off-session charges (Stripe SetupIntent):
+   * the browser confirms it with the card details, and the bank can verify the
+   * cardholder once, up front.
    */
-  attachPaymentMethodToken(userId: string, paymentMethodId: string): Promise<PaymentMethodInfo>;
+  startCardSetup(customerId: string, metadata: Record<string, string>): Promise<{ setupIntentId: string; clientSecret: string }>;
+
+  /**
+   * The card from a setup the browser confirmed. Only succeeds for a setup that
+   * belongs to `customerId` and finished; otherwise `verified: false` with why.
+   */
+  finishCardSetup(customerId: string, setupIntentId: string): Promise<PaymentMethodInfo>;
 
   authorize(input: {
     providerMethodId: string;

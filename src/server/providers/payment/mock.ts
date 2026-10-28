@@ -98,7 +98,11 @@ export class MockPaymentProvider implements PaymentProvider {
   readonly name = "mock" as const;
   readonly testMode = true;
 
-  async attachPaymentMethod(userId: string, card: CardInput): Promise<PaymentMethodInfo> {
+  async ensureCustomer(userId: string, knownCustomerId: string | null): Promise<string> {
+    return knownCustomerId ?? `cus_mock_${userId}`;
+  }
+
+  async attachPaymentMethod(customerId: string, card: CardInput): Promise<PaymentMethodInfo> {
     const digits = card.cardNumber.replace(/\s+/g, "");
     if (!/^\d{13,19}$/.test(digits)) {
       return {
@@ -139,7 +143,7 @@ export class MockPaymentProvider implements PaymentProvider {
     const id = `pm_mock_${randomUUID()}`;
     const brand = digits.startsWith("4") ? "visa" : digits.startsWith("5") ? "mastercard" : "card";
     await saveState(id, "payment_method", {
-      userId,
+      customerId,
       brand,
       last4: digits.slice(-4),
       expMonth: card.expMonth,
@@ -156,13 +160,33 @@ export class MockPaymentProvider implements PaymentProvider {
     };
   }
 
-  async attachPaymentMethodToken(userId: string, paymentMethodId: string): Promise<PaymentMethodInfo> {
-    // Mock has no client tokenization, so this simulates a saved card from any
-    // token. (Real Elements + this token path is only exercised under Stripe.)
-    const id = `pm_mock_${randomUUID()}`;
-    const info = { brand: "visa", last4: "4242", expMonth: 12, expYear: new Date().getFullYear() + 3 };
-    await saveState(id, "payment_method", { userId, token: paymentMethodId, ...info });
-    return { providerMethodId: id, ...info, verified: true };
+  // Card setups: the mock has no browser step, so a setup is "confirmed" by
+  // writing { status: "succeeded", paymentMethodId } into its state (tests do).
+  async startCardSetup(
+    customerId: string,
+    metadata: Record<string, string>,
+  ): Promise<{ setupIntentId: string; clientSecret: string }> {
+    const id = `seti_mock_${randomUUID()}`;
+    await saveState(id, "intent", { setup: true, customerId, metadata, status: "requires_payment_method" });
+    return { setupIntentId: id, clientSecret: `${id}_secret_mock` };
+  }
+
+  async finishCardSetup(customerId: string, setupIntentId: string): Promise<PaymentMethodInfo> {
+    const unverified = (failureReason: string): PaymentMethodInfo => ({
+      providerMethodId: "",
+      brand: "card",
+      last4: "0000",
+      expMonth: 0,
+      expYear: 0,
+      verified: false,
+      failureReason,
+    });
+    const setup = await loadState<{ setup?: boolean; customerId: string; status: string; paymentMethodId?: string }>(setupIntentId);
+    if (!setup?.setup || setup.customerId !== customerId) return unverified("That card setup doesn't belong to this account.");
+    if (setup.status !== "succeeded" || !setup.paymentMethodId) return unverified("Your bank still needs you to confirm this card.");
+    const pm = await loadState<{ brand: string; last4: string; expMonth: number; expYear: number }>(setup.paymentMethodId);
+    if (!pm) return unverified("The card couldn't be read. Try again.");
+    return { providerMethodId: setup.paymentMethodId, brand: pm.brand, last4: pm.last4, expMonth: pm.expMonth, expYear: pm.expYear, verified: true };
   }
 
   async authorize(input: {

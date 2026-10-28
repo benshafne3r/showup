@@ -19,7 +19,8 @@ import { createRequest, withdrawRequest } from "@/server/services/requests";
 import { acceptBooking, passOnBooking } from "@/server/services/bookings";
 import {
   attachAgencyPaymentMethod,
-  attachAgencyPaymentMethodByToken,
+  finishCardSetup,
+  startCardSetup,
 } from "@/server/services/payments";
 import { createAgencyOnboardingLink } from "@/server/services/connect";
 import { serviceDb } from "@/server/db/service";
@@ -229,13 +230,25 @@ export async function addAgencyCardAction(_prev: ActionState, formData: FormData
   }
 }
 
-export async function addAgencyCardTokenAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+/** The agency's card through Stripe's card setup (see startCardSetup). */
+export async function startAgencyCardSetupAction(): Promise<{ clientSecret: string } | { error: string }> {
   try {
     const ctx = await requireManagerWithAgency();
     if (ctx.memberRole === "member") return { error: "Ask your company owner to add the card" };
-    // Stripe Elements tokenized the card in the browser; we only get a pm_ id.
-    const paymentMethodId = z.string().startsWith("pm_").max(255).parse(formData.get("paymentMethodId"));
-    const result = await attachAgencyPaymentMethodByToken(ctx.agencyId, ctx.user.id, paymentMethodId);
+    const result = await startCardSetup(ctx.user.id, { agencyId: ctx.agencyId });
+    return result.ok ? { clientSecret: result.clientSecret } : { error: result.error };
+  } catch (err) {
+    const failed = fail(err);
+    return failed && "error" in failed ? failed : { error: "Something went wrong" };
+  }
+}
+
+export async function finishAgencyCardSetupAction(setupIntentId: string): Promise<ActionState> {
+  try {
+    const ctx = await requireManagerWithAgency();
+    if (ctx.memberRole === "member") return { error: "Ask your company owner to add the card" };
+    const id = z.string().startsWith("seti_").max(255).parse(setupIntentId);
+    const result = await finishCardSetup(ctx.user.id, id, { agencyId: ctx.agencyId });
     if (!result.ok) return { error: result.error };
     revalidatePath("/manager", "layout");
     return { success: "Card verified and saved" };

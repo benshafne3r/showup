@@ -21,7 +21,7 @@ import {
   syncPayoutStatus,
 } from "@/server/services/connect";
 import { agencyForCreator } from "@/server/services/agencies";
-import { addPaymentMethod, addPaymentMethodToken, startPayoutOnboardingAction } from "../actions";
+import { addPaymentMethod, startCardSetupAction, finishCardSetupAction, startPayoutOnboardingAction } from "../actions";
 import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/pagination";
 import { serviceDb } from "@/server/db/service";
@@ -124,7 +124,7 @@ export default async function CreatorPaymentsPage({
             </p>
           )}
           {serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
-            <StripeCardForm hasCard={!!methods?.length} action={addPaymentMethodToken} />
+            <StripeCardForm hasCard={!!methods?.length} start={startCardSetupAction} finish={finishCardSetupAction} />
           ) : (
             <AddCardForm hasCard={!!methods?.length} action={addPaymentMethod} />
           )}

@@ -11,7 +11,7 @@ import { agencyDefaultPaymentMethod } from "@/server/services/payments";
 import { publicEnv, serverEnv } from "@/lib/env";
 import {
   addAgencyCardAction,
-  addAgencyCardTokenAction,
+  startAgencyCardSetupAction, finishAgencyCardSetupAction,
   startAgencyPayoutOnboardingAction,
 } from "../actions";
 import { AddCardForm } from "@/app/creator/payments/add-card-form";
@@ -106,7 +106,7 @@ export default async function ManagerPaymentsPage({
           )}
           {canManage ? (
             serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
-              <StripeCardForm hasCard={!!card} action={addAgencyCardTokenAction} />
+              <StripeCardForm hasCard={!!card} start={startAgencyCardSetupAction} finish={finishAgencyCardSetupAction} />
             ) : (
               <AddCardForm hasCard={!!card} action={addAgencyCardAction} />
             )

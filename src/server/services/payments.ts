@@ -40,62 +40,83 @@ import {
 
 // ── Payment methods ─────────────────────────────────────────────────────
 
-export async function attachPaymentMethod(userId: string, card: CardInput) {
-  await enforceRateLimit("payment_method.attach", userId);
-  const provider = paymentProvider();
-  const info = await provider.attachPaymentMethod(userId, card);
-  return recordPaymentMethod(userId, provider.name, info);
+/** Whose card it is: a person's own (default), an agency's, or a label company's. */
+export type CardOwner = { agencyId?: string; companyId?: string };
+
+/**
+ * The provider customer holding this person's cards: stored on the user, made
+ * the first time. (Agency and label cards sit on the member who added them.)
+ */
+async function paymentCustomerFor(userId: string, opts: { fresh?: boolean } = {}): Promise<string> {
+  const db = serviceDb();
+  const { data: user } = await db.from("users").select("payment_customer_id").eq("id", userId).single();
+  const known = opts.fresh ? null : (user?.payment_customer_id ?? null);
+  const customerId = await paymentProvider().ensureCustomer(userId, known);
+  if (customerId !== user?.payment_customer_id) {
+    check(await db.from("users").update({ payment_customer_id: customerId }).eq("id", userId), "store payment customer");
+  }
+  return customerId;
 }
 
-/** PCI-safe path: the card was tokenized client-side (Stripe Elements). */
-export async function attachPaymentMethodByToken(userId: string, paymentMethodId: string) {
+/** Save a raw test card (mock provider / Stripe test numbers). */
+export async function attachPaymentMethod(userId: string, card: CardInput, owner: CardOwner = {}) {
   await enforceRateLimit("payment_method.attach", userId);
   const provider = paymentProvider();
-  const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
-  return recordPaymentMethod(userId, provider.name, info);
+  const info = await provider.attachPaymentMethod(await paymentCustomerFor(userId), card);
+  return recordPaymentMethod(userId, provider.name, info, owner);
 }
 
 /**
- * An agency's card: covers ticket holds for the creators it accepts bookings
- * for. Saved under the manager who added it (their Stripe customer).
+ * An agency's card covers ticket holds for the creators it accepts bookings
+ * for; a label's card pays creators' content fees when it approves content
+ * (services/funding.ts). Both are saved under the member who added them.
  */
-export async function attachAgencyPaymentMethod(agencyId: string, userId: string, card: CardInput) {
-  await enforceRateLimit("payment_method.attach", userId);
-  const provider = paymentProvider();
-  const info = await provider.attachPaymentMethod(userId, card);
-  return recordPaymentMethod(userId, provider.name, info, { agencyId });
-}
-
-export async function attachAgencyPaymentMethodByToken(agencyId: string, userId: string, paymentMethodId: string) {
-  await enforceRateLimit("payment_method.attach", userId);
-  const provider = paymentProvider();
-  const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
-  return recordPaymentMethod(userId, provider.name, info, { agencyId });
-}
+export const attachAgencyPaymentMethod = (agencyId: string, userId: string, card: CardInput) =>
+  attachPaymentMethod(userId, card, { agencyId });
+export const attachCompanyPaymentMethod = (companyId: string, userId: string, card: CardInput) =>
+  attachPaymentMethod(userId, card, { companyId });
 
 /**
- * A label's card: charged for a creator's content fee when the label approves
- * the content (services/funding.ts). Saved under the member who added it.
+ * Step 1 of saving a card (Stripe): a SetupIntent for off-session use. The
+ * browser confirms it with the card details (the bank may ask the cardholder
+ * to verify, once), then calls finishCardSetup.
  */
-export async function attachCompanyPaymentMethod(companyId: string, userId: string, card: CardInput) {
+export async function startCardSetup(
+  userId: string,
+  owner: CardOwner = {},
+): Promise<{ ok: true; clientSecret: string } | { ok: false; error: string }> {
   await enforceRateLimit("payment_method.attach", userId);
-  const provider = paymentProvider();
-  const info = await provider.attachPaymentMethod(userId, card);
-  return recordPaymentMethod(userId, provider.name, info, { companyId });
+  const metadata = {
+    showup_user_id: userId,
+    ...(owner.agencyId ? { agency_id: owner.agencyId } : {}),
+    ...(owner.companyId ? { company_id: owner.companyId } : {}),
+  };
+  try {
+    const setup = await paymentProvider().startCardSetup(await paymentCustomerFor(userId), metadata);
+    return { ok: true, clientSecret: setup.clientSecret };
+  } catch (err) {
+    // A stored customer the provider doesn't know (e.g. keys switched between
+    // test and live): make a fresh one and try once more.
+    if (!/No such customer/i.test(err instanceof Error ? err.message : "")) throw err;
+    const setup = await paymentProvider().startCardSetup(await paymentCustomerFor(userId, { fresh: true }), metadata);
+    return { ok: true, clientSecret: setup.clientSecret };
+  }
 }
 
-export async function attachCompanyPaymentMethodByToken(companyId: string, userId: string, paymentMethodId: string) {
+/** Step 2: record the card from a setup the browser confirmed (checked to be this person's). */
+export async function finishCardSetup(userId: string, setupIntentId: string, owner: CardOwner = {}) {
   await enforceRateLimit("payment_method.attach", userId);
   const provider = paymentProvider();
-  const info = await provider.attachPaymentMethodToken(userId, paymentMethodId);
-  return recordPaymentMethod(userId, provider.name, info, { companyId });
+  const info = await provider.finishCardSetup(await paymentCustomerFor(userId), setupIntentId);
+  return recordPaymentMethod(userId, provider.name, info, owner, setupIntentId);
 }
 
 async function recordPaymentMethod(
   userId: string,
   providerName: PaymentProvider["name"],
   info: Awaited<ReturnType<PaymentProvider["attachPaymentMethod"]>>,
-  owner: { agencyId?: string; companyId?: string } = {},
+  owner: CardOwner = {},
+  setupIntentId: string | null = null,
 ) {
   const { agencyId, companyId } = owner;
   if (!info.verified) {
@@ -104,6 +125,16 @@ async function recordPaymentMethod(
 
   const provider = { name: providerName };
   const db = serviceDb();
+  // Finishing the same setup twice (double click, retry) saves the card once.
+  if (setupIntentId) {
+    const { data: existing } = await db
+      .from("payment_methods")
+      .select("id")
+      .eq("setup_intent_id", setupIntentId)
+      .eq("user_id", userId)
+      .maybeSingle();
+    if (existing) return { ok: true as const, paymentMethodId: existing.id };
+  }
   // Single default per user, or per agency / label company for their cards.
   if (agencyId) {
     await db.from("payment_methods").update({ is_default: false }).eq("agency_id", agencyId);
@@ -123,6 +154,7 @@ async function recordPaymentMethod(
       user_id: userId,
       agency_id: agencyId ?? null,
       company_id: companyId ?? null,
+      setup_intent_id: setupIntentId,
       provider: provider.name,
       provider_method_id: info.providerMethodId,
       brand: info.brand,
@@ -151,7 +183,7 @@ async function recordPaymentMethod(
 export async function defaultPaymentMethod(userId: string) {
   const { data } = await serviceDb()
     .from("payment_methods")
-    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
+    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at, setup_intent_id")
     .eq("user_id", userId)
     .is("agency_id", null)
     .is("company_id", null)
@@ -164,7 +196,7 @@ export async function defaultPaymentMethod(userId: string) {
 export async function agencyDefaultPaymentMethod(agencyId: string) {
   const { data } = await serviceDb()
     .from("payment_methods")
-    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
+    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at, setup_intent_id")
     .eq("agency_id", agencyId)
     .eq("is_default", true)
     .not("verified_at", "is", null)
@@ -176,7 +208,7 @@ export async function agencyDefaultPaymentMethod(agencyId: string) {
 export async function companyDefaultPaymentMethod(companyId: string) {
   const { data } = await serviceDb()
     .from("payment_methods")
-    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at")
+    .select("id, provider, provider_method_id, brand, last4, exp_month, exp_year, verified_at, setup_intent_id")
     .eq("company_id", companyId)
     .eq("is_default", true)
     .not("verified_at", "is", null)
