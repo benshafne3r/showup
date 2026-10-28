@@ -20,19 +20,28 @@ export function DeleteShowButton({
   showId,
   showLabel,
   backToShows = false,
+  withText = false,
 }: {
   showId: string;
   showLabel: string;
   /** Used on the show's own page: go back to Shows after deleting. */
   backToShows?: boolean;
+  /** "Delete" next to the icon, matching the tour cards. */
+  withText?: boolean;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(deleteShowAction, null);
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="ghost" size="sm" className="text-red-300 hover:text-red-200" aria-label="Delete show">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-red-300 hover:text-red-200"
+          aria-label={withText ? undefined : "Delete show"}
+        >
           <Trash2 className="size-3.5" aria-hidden />
+          {withText ? "Delete" : null}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

@@ -111,7 +111,8 @@ test("label invites managed creators; the agency accepts one on its card and pas
 
     // The Creators tab finds the same people by city, for any upcoming show there.
     await page.getByRole("link", { name: "Creators", exact: true }).click();
-    await page.getByRole("navigation", { name: "Cities" }).getByRole("link", { name: /Los Angeles/ }).click();
+    await page.getByRole("combobox", { name: "City" }).click();
+    await page.getByRole("option", { name: /Los Angeles/ }).click();
     await expect(page.getByText("Invite them to")).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "Invite Kai Moreno" })).toBeEnabled();
     await expect(page.getByRole("link", { name: "Kai Moreno on TikTok (opens in a new tab)" })).toHaveAttribute(

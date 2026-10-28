@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-10-23_
+_Last updated: 2026-10-28_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -56,6 +56,16 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Label Shows page + Creators city picker (2026-10-28)
+- `/label/tours` ("Shows"): one-off shows now use the same card as tours (photo, artist · genre,
+  date chip; Edit / Share / Delete). **Active / Past / All** tabs (`?view=`), default Active =
+  dates today or later and not canceled/completed (drafts + postponed count). A tour shows only the
+  dates in view ("2 upcoming of 4 shows"); a tour with no dates counts as active. Cards sort by
+  next date (Past: latest first).
+- `/label/creators`: city is a dropdown (`city-select.tsx`) instead of chip buttons.
+- Gotcha: seed show dates are fixed 2026 dates, so most demo tours are now "Past"; tests that need
+  a tour use `?view=all`.
 
 ## Labels pay for creator content (2026-10-23) — LIVE
 Ben's rules: the label's card is charged a creator's content fee **plus card processing** when the

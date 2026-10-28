@@ -4,6 +4,7 @@ import { requireLabelPage } from "../require-label";
 import { serviceDb } from "@/server/db/service";
 import { creatorCountsNear, SUGGESTION_PAGE, suggestCreatorsForShow } from "@/server/services/offers";
 import { PickCreators } from "../shows/[id]/pick-creators";
+import { CitySelect } from "./city-select";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { Button } from "@/components/ui/button";
@@ -95,29 +96,10 @@ export default async function CreatorsPage({
         description="Pick a city, choose the show, and check the creators you want. Creators with an agency are answered by their agency."
       />
 
-      <nav aria-label="Cities" className="flex flex-wrap gap-2">
-        {cityList.map(([key, c], i) => {
-          const n = counts[i];
-          return (
-            <Link
-              key={key}
-              href={`/label/creators?city=${encodeURIComponent(key)}`}
-              aria-current={key === cityKeySelected ? "page" : undefined}
-              className={cn(
-                "rounded-full border px-3 py-1.5 text-sm transition-colors",
-                key === cityKeySelected
-                  ? "border-primary bg-primary/15 font-medium"
-                  : "text-muted-foreground hover:border-primary/50 hover:text-foreground",
-              )}
-            >
-              {c.label}
-              <span className="ml-1.5 text-xs text-muted-foreground tabular-nums">
-                {n.inCity} here{n.nearby ? ` · ${n.nearby} nearby` : ""}
-              </span>
-            </Link>
-          );
-        })}
-      </nav>
+      <CitySelect
+        selected={cityKeySelected}
+        cities={cityList.map(([key, c], i) => ({ key, label: c.label, inCity: counts[i].inCity, nearby: counts[i].nearby }))}
+      />
 
       <Card>
         <CardContent className="space-y-5 pt-6">
