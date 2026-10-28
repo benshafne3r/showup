@@ -114,8 +114,10 @@ test("label invites managed creators; the agency accepts one on its card and pas
     await page.getByRole("combobox", { name: "City" }).click();
     await page.getByRole("option", { name: /San Diego/ }).click();
     await expect(page).toHaveURL(/city=san\+diego/);
-    await expect(page.getByText("Invite them to")).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "Invite Kai Moreno" })).toBeEnabled();
+    // Ticking someone brings up the floating invite panel.
+    await page.getByRole("checkbox", { name: "Invite Kai Moreno" }).check();
+    await expect(page.getByRole("region", { name: "Invite selected creators" }).getByText("Invite them to")).toBeVisible();
     await expect(page.getByRole("link", { name: "Kai Moreno on TikTok (opens in a new tab)" })).toHaveAttribute(
       "href",
       "https://www.tiktok.com/@kaimoreno",

@@ -86,7 +86,64 @@ export async function suggestCreatorsForShow(input: {
 export type DirectoryCreator = SuggestedCreator & {
   /** The label's upcoming shows this creator already has an invite or request for. */
   invitedTo: string[];
+  /** Normalized city (cityKey), for filtering in the browser. */
+  cityKey: string;
+  /** Lowercased name, @handle and location, for searching in the browser. */
+  searchText: string;
 };
+
+/** Up to this many creators load at once and filter instantly in the browser. */
+export const DIRECTORY_IN_BROWSER = 1000;
+
+const searchTextOf = (c: SuggestedCreator) => [c.name, c.handle ?? "", c.location].join(" ").toLowerCase();
+
+/**
+ * The whole directory in one query, when it's small enough to filter in the
+ * browser (no round trip per filter change). `complete` is false when there
+ * are more creators than that; then the page filters on the server instead.
+ */
+export async function creatorDirectoryAll(companyId: string): Promise<{
+  creators: DirectoryCreator[];
+  total: number;
+  complete: boolean;
+}> {
+  const db = serviceDb();
+  const today = new Date().toISOString().slice(0, 10);
+  const [{ data: profiles, count, error }, { data: requests }] = await Promise.all([
+    db
+      .from("creator_profiles")
+      .select(
+        `user_id, city, region, country, city_key, categories, audience_size,
+         users!inner(full_name, avatar_url, status, role,
+           agency_creators!agency_creators_creator_id_fkey(agencies(name))),
+         creator_social_accounts(platform, handle, followers)`,
+        { count: "exact" },
+      )
+      .not("onboarded_at", "is", null)
+      .eq("users.status", "active")
+      .eq("users.role", "creator")
+      .order("audience_size", { ascending: false })
+      .order("user_id", { ascending: true })
+      .limit(DIRECTORY_IN_BROWSER),
+    db
+      .from("show_requests")
+      .select("creator_id, show_id, shows!inner(date)")
+      .eq("company_id", companyId)
+      .in("status", [...ACTIVE_REQUEST])
+      .gte("shows.date", today),
+  ]);
+  if (error) throw new Error(`creator directory: ${error.message}`);
+  const total = count ?? 0;
+  if (total > DIRECTORY_IN_BROWSER) return { creators: [], total, complete: false };
+
+  const invitedTo = new Map<string, string[]>();
+  for (const r of requests ?? []) invitedTo.set(r.creator_id, [...(invitedTo.get(r.creator_id) ?? []), r.show_id]);
+  const creators = (profiles ?? []).map((p) => {
+    const card = toSuggestedCreator(p, p.users.agency_creators?.agencies?.name ?? null, false);
+    return { ...card, invitedTo: invitedTo.get(p.user_id) ?? [], cityKey: p.city_key ?? "", searchText: searchTextOf(card) };
+  });
+  return { creators, total, complete: true };
+}
 
 /**
  * The label's Creators tab: every onboarded creator, biggest audience first,
@@ -128,7 +185,7 @@ export async function creatorDirectory(input: {
     creators: ids
       .map((id) => cards.get(id))
       .filter((c): c is SuggestedCreator => !!c)
-      .map((c) => ({ ...c, invitedTo: invitedTo.get(c.id) ?? [] })),
+      .map((c) => ({ ...c, invitedTo: invitedTo.get(c.id) ?? [], cityKey: "", searchText: searchTextOf(c) })),
     total: Number(data?.[0]?.total ?? 0),
   };
 }
@@ -173,6 +230,39 @@ export async function creatorsInCity(
   return ids.filter((id) => !invited.has(id)).map((id) => ({ id, name: nameOf.get(id) ?? "Creator" }));
 }
 
+type CardProfile = {
+  user_id: string;
+  city: string;
+  region: string | null;
+  country: string;
+  categories: string[] | null;
+  users: { full_name: string; avatar_url: string | null };
+  creator_social_accounts: { platform: string; handle: string; followers: number }[] | null;
+};
+
+/** One creator card: photo, TikTok handle, biggest follower count per platform, agency. */
+function toSuggestedCreator(p: CardProfile, agencyName: string | null, taken: boolean): SuggestedCreator {
+  const followers = { tiktok: 0, instagram: 0, youtube: 0 };
+  let handle: string | null = null;
+  for (const s of p.creator_social_accounts ?? []) {
+    if (s.platform === "tiktok" || s.platform === "instagram" || s.platform === "youtube") {
+      followers[s.platform] = Math.max(followers[s.platform], s.followers);
+    }
+    if (s.platform === "tiktok" && s.handle) handle = s.handle;
+  }
+  return {
+    id: p.user_id,
+    name: p.users.full_name || "Creator",
+    avatarUrl: p.users.avatar_url,
+    handle,
+    followers,
+    tags: p.categories ?? [],
+    location: locationLabel(p),
+    agencyName,
+    taken,
+  };
+}
+
 /** Card details for creators (photo, followers, agency), and whether each is already invited to the opportunity. */
 async function creatorCards(ids: string[], opportunityId: string | null): Promise<Map<string, SuggestedCreator>> {
   if (!ids.length) return new Map();
@@ -200,25 +290,7 @@ async function creatorCards(ids: string[], opportunityId: string | null): Promis
   const agencyBy = new Map((rosters ?? []).map((r) => [r.creator_id, r.agencies?.name ?? null]));
   const cards = new Map<string, SuggestedCreator>();
   for (const p of profiles ?? []) {
-    const followers = { tiktok: 0, instagram: 0, youtube: 0 };
-    let handle: string | null = null;
-    for (const s of p.creator_social_accounts ?? []) {
-      if (s.platform === "tiktok" || s.platform === "instagram" || s.platform === "youtube") {
-        followers[s.platform] = Math.max(followers[s.platform], s.followers);
-      }
-      if (s.platform === "tiktok" && s.handle) handle = s.handle;
-    }
-    cards.set(p.user_id, {
-      id: p.user_id,
-      name: p.users.full_name || "Creator",
-      avatarUrl: p.users.avatar_url,
-      handle,
-      followers,
-      tags: p.categories ?? [],
-      location: locationLabel(p),
-      agencyName: agencyBy.get(p.user_id) ?? null,
-      taken: taken.has(p.user_id),
-    });
+    cards.set(p.user_id, toSuggestedCreator(p, agencyBy.get(p.user_id) ?? null, taken.has(p.user_id)));
   }
   return cards;
 }

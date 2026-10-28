@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { requireLabelPage } from "../require-label";
 import { serviceDb } from "@/server/db/service";
-import { creatorCities, creatorDirectory, SUGGESTION_PAGE } from "@/server/services/offers";
+import { creatorCities, creatorDirectory, creatorDirectoryAll, SUGGESTION_PAGE } from "@/server/services/offers";
 import { CreatorDirectory } from "./creator-directory";
 import { PageHeader } from "@/components/page-header";
 import { cityKey } from "@/lib/cities";
@@ -29,7 +29,7 @@ export default async function CreatorsPage({
   const today = new Date().toISOString().slice(0, 10);
   const db = serviceDb();
 
-  const [{ data: rows }, cities, directory, { data: everyone }] = await Promise.all([
+  const [{ data: rows }, cities, all] = await Promise.all([
     // Shows you can invite to: published, upcoming, still taking requests.
     db
       .from("shows")
@@ -42,9 +42,12 @@ export default async function CreatorsPage({
       .not("show_opportunities.published_at", "is", null)
       .order("date", { ascending: true }),
     creatorCities(),
-    creatorDirectory({ companyId: context.companyId, cityKey: city, query, limit }),
-    db.rpc("creators_search", { p_city_key: "", p_query: "", p_limit: 1, p_offset: 0 }),
+    // Everyone at once (filtered in the browser) while the list is small enough.
+    creatorDirectoryAll(context.companyId),
   ]);
+  const directory = all.complete
+    ? { creators: all.creators, total: all.total }
+    : await creatorDirectory({ companyId: context.companyId, cityKey: city, query, limit });
   const shows = (rows ?? [])
     .filter((s) => new Date(s.show_opportunities.application_deadline) > new Date())
     .map((s) => ({
@@ -66,12 +69,13 @@ export default async function CreatorsPage({
       <CreatorDirectory
         creators={directory.creators}
         total={directory.total}
+        complete={all.complete}
         cities={cities}
-        allCount={Number(everyone?.[0]?.total ?? 0)}
+        allCount={all.total}
         city={city}
         query={query}
         shows={shows}
-        moreHref={directory.total > limit ? `/label/creators?${more.toString()}` : null}
+        moreHref={!all.complete && directory.total > limit ? `/label/creators?${more.toString()}` : null}
       />
     </div>
   );

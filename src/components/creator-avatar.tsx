@@ -30,7 +30,7 @@ export function CreatorAvatar({
       style={{ width: size, height: size }}
     >
       {src ? (
-        <Image src={src} alt="" width={size} height={size} className="size-full object-cover" />
+        <Image src={src} alt="" width={size} height={size} unoptimized className="size-full object-cover" />
       ) : (
         <span aria-hidden>{initials}</span>
       )}
@@ -70,10 +70,13 @@ export function CreatorPhoto({
   const photo = (
     <span className="relative block aspect-square w-full overflow-hidden bg-muted">
       {src ? (
+        // Profile photos are small already; loading them straight from storage
+        // skips a resize round trip through our server (cold after every deploy).
         <Image
           src={src}
           alt=""
           fill
+          unoptimized
           sizes="(min-width: 1280px) 16vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
           className="object-cover transition-transform duration-200 group-hover:scale-[1.03] motion-reduce:transition-none"
         />

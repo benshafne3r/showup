@@ -69,6 +69,9 @@ than trusting notes (0007 was marked "done" but wasn't).
   message + "Invite N". "Select everyone in <show's city>" skips creators already invited to that
   show. Invites go through `sendOffers` (now up to 100, `message` posted in each invite's thread;
   agency creators' threads are their agency's). Card = shared `creator-check-card.tsx`.
+  Speed: up to 1,000 creators load once (`creatorDirectoryAll`) and filter in the browser (no
+  server trip; URL kept in sync); past that it falls back to server filtering. Creator photos skip
+  Next's image optimizer (`unoptimized`). The invite panel floats at the bottom once someone is ticked.
 - Gotcha: seed show dates are fixed 2026 dates, so most demo tours are now "Past"; tests that need
   a tour use `?view=all`.
 
