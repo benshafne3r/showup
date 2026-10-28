@@ -2703,14 +2703,6 @@ export type Database = {
           creators: number
         }[]
       }
-      creator_counts_near: {
-        Args: { p_city_keys: string[]; p_state_keys: string[] }
-        Returns: {
-          idx: number
-          in_city: number
-          nearby: number
-        }[]
-      }
       creator_paid_cents: { Args: { p_creator_id: string }; Returns: number }
       creators_near: {
         Args: {
@@ -2800,10 +2792,6 @@ export type Database = {
         }[]
       }
       owner_stats: { Args: never; Returns: Json }
-      release_tickets: {
-        Args: { p_count: number; p_opportunity_id: string }
-        Returns: boolean
-      }
       reserve_tickets: {
         Args: { p_count: number; p_opportunity_id: string }
         Returns: boolean
@@ -2822,7 +2810,6 @@ export type Database = {
           kind: string
         }[]
       }
-      shares_company_with: { Args: { other: string }; Returns: boolean }
       state_key: { Args: { p: string }; Returns: string }
       thread_summaries: {
         Args: {

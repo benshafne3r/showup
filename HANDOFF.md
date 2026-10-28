@@ -64,8 +64,8 @@ browser Supabase client, `saveArtistAction`, `markThreadReadAction`, `rosterCrea
 `roleForInvite`, `react-hook-form` + `@hookform/resolvers`. Internal-only helpers/constants made
 private. Knip false positives to ignore: `tailwindcss`, `tw-animate-css`, `shadcn` (imported from
 globals.css), `tests/stubs/server-only.ts` (vitest alias). `/creator/requests` and `/label/team`
-are deliberate redirects for old links. Dead DB functions still in prod (drop needs a migration):
-`creator_counts_near`, `release_tickets`, `shares_company_with`.
+are deliberate redirects for old links. Dead DB functions `creator_counts_near`, `release_tickets`,
+`shares_company_with` dropped (migration **0029**, applied to prod 2026-10-28).
 
 ## Cards saved with Stripe SetupIntents (2026-10-28, Codex #8) — LIVE
 Migration **0028** (applied to prod 2026-10-28): `users.payment_customer_id` (stored Stripe customer; legacy ones
