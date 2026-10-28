@@ -63,7 +63,12 @@ than trusting notes (0007 was marked "done" but wasn't).
   dates today or later and not canceled/completed (drafts + postponed count). A tour shows only the
   dates in view ("2 upcoming of 4 shows"); a tour with no dates counts as active. Cards sort by
   next date (Past: latest first).
-- `/label/creators`: city is a dropdown (`city-select.tsx`) instead of chip buttons.
+- `/label/creators` is a **master list of every creator** (`creator-directory.tsx`, migration
+  **0027**: `creators_search(city_key, query, limit, offset)` + `creator_cities()`): city filter +
+  search, tick many (picks survive filter changes), sticky invite bar = pick a show + optional
+  message + "Invite N". "Select everyone in <show's city>" skips creators already invited to that
+  show. Invites go through `sendOffers` (now up to 100, `message` posted in each invite's thread;
+  agency creators' threads are their agency's). Card = shared `creator-check-card.tsx`.
 - Gotcha: seed show dates are fixed 2026 dates, so most demo tours are now "Past"; tests that need
   a tour use `?view=all`.
 

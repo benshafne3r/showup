@@ -109,10 +109,11 @@ test("label invites managed creators; the agency accepts one on its card and pas
     await expect(page.getByRole("checkbox", { name: "Invite Rae Rivers" })).toBeDisabled();
     await expect(page.getByRole("checkbox", { name: "Invite Kai Moreno" })).toBeEnabled();
 
-    // The Creators tab finds the same people by city, for any upcoming show there.
+    // The Creators tab lists every creator; filter to a city and pick the show.
     await page.getByRole("link", { name: "Creators", exact: true }).click();
     await page.getByRole("combobox", { name: "City" }).click();
-    await page.getByRole("option", { name: /Los Angeles/ }).click();
+    await page.getByRole("option", { name: /San Diego/ }).click();
+    await expect(page).toHaveURL(/city=san\+diego/);
     await expect(page.getByText("Invite them to")).toBeVisible();
     await expect(page.getByRole("checkbox", { name: "Invite Kai Moreno" })).toBeEnabled();
     await expect(page.getByRole("link", { name: "Kai Moreno on TikTok (opens in a new tab)" })).toHaveAttribute(

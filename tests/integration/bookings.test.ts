@@ -147,6 +147,23 @@ describe("label invites", () => {
     expect(req!.bookings?.booking_tickets).toHaveLength(1);
     expect(await claimed(oppId)).toBe(1);
   });
+
+  it("post the label's note in each invite's conversation", async () => {
+    const { ownerId, companyId, creators } = await companyAndCreators();
+    const { showId, oppId } = await opportunity(companyId, 5);
+    const ids = creators.slice(0, 2).map((c) => c.id);
+    const result = await sendOffers({ companyId, showId, creatorIds: ids, reviewer: { id: ownerId, role: "label" }, message: "Bring your camera!" });
+    expect(result).toMatchObject({ ok: true, sent: 2 });
+    const { data: threads } = await db
+      .from("message_threads")
+      .select("last_message_at, messages(body, sender_id), show_requests!inner(opportunity_id)")
+      .eq("show_requests.opportunity_id", oppId);
+    expect(threads).toHaveLength(2);
+    for (const t of threads!) {
+      expect(t.messages).toEqual([{ body: "Bring your camera!", sender_id: ownerId }]);
+      expect(t.last_message_at).not.toBeNull();
+    }
+  });
 });
 
 describe("job queue", () => {

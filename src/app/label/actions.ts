@@ -9,7 +9,7 @@ import { serviceDb } from "@/server/db/service";
 import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
 import { setTourDeposit, upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
-import { sendOffers } from "@/server/services/offers";
+import { creatorsInCity, sendOffers } from "@/server/services/offers";
 import { sendTicketInstructions, cancelBooking } from "@/server/services/bookings";
 import {
   approveAttendance,
@@ -771,6 +771,52 @@ export async function sendOffersAction(_prev: ActionState, formData: FormData): 
   } catch (err) {
     return fail(err);
   }
+}
+
+/**
+ * Creators tab: invite the selected creators to one show, with an optional
+ * note posted in each invite's conversation.
+ */
+export async function inviteCreatorsAction(input: {
+  showId: string;
+  creatorIds: string[];
+  message: string;
+}): Promise<{ ok: true; message: string } | { ok: false; error: string }> {
+  try {
+    const context = await requireLabelWithCompany();
+    const parsed = z
+      .object({
+        showId: z.string().uuid(),
+        creatorIds: z.array(z.string().uuid()).min(1, "Pick at least one creator").max(100),
+        message: z.string().max(2000),
+      })
+      .safeParse(input);
+    if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
+    const result = await sendOffers({
+      companyId: context.companyId,
+      showId: parsed.data.showId,
+      creatorIds: parsed.data.creatorIds,
+      reviewer: { id: context.user.id, role: "label" },
+      message: parsed.data.message,
+    });
+    if (!result.ok) return { ok: false, error: result.error };
+    revalidatePath(`/label/shows/${parsed.data.showId}`);
+    revalidatePath("/label/creators");
+    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. They (or their agency) have 24 hours to accept.`;
+    return { ok: true, message: result.skipped.length ? `${sent} Skipped: ${result.skipped.join(", ")}.` : sent };
+  } catch (err) {
+    const failed = fail(err);
+    return { ok: false, error: failed && "error" in failed ? failed.error : "Something went wrong" };
+  }
+}
+
+/** Creators tab: everyone in a city not yet invited to the show, for "Select everyone in <city>". */
+export async function creatorsInCityAction(cityKey: string, showId: string): Promise<{ id: string; name: string }[]> {
+  const context = await requireLabelWithCompany();
+  return creatorsInCity(z.string().max(120).parse(cityKey), {
+    companyId: context.companyId,
+    showId: z.string().uuid().parse(showId),
+  });
 }
 
 // ── Request review ──────────────────────────────────────────────────────

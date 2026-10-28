@@ -4,12 +4,9 @@ import { useActionState, useState } from "react";
 import Link from "next/link";
 import { sendOffersAction, type ActionState } from "../../actions";
 import type { SuggestedCreator } from "@/server/services/offers";
-import { CreatorPhoto, tiktokUrl } from "@/components/creator-avatar";
-import { CreatorFollowers } from "@/components/creator-followers";
+import { CreatorCheckCard } from "../../creators/creator-check-card";
 import { SubmitButton } from "@/components/submit-button";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
-import { ExternalLink } from "lucide-react";
 
 const FIRST_SHOWN = 12;
 
@@ -27,6 +24,8 @@ export function PickCreators({
   nearbyTotal,
   moreHref,
   ticketsLeft,
+  title,
+  emptyText,
 }: {
   showId: string;
   city: string;
@@ -37,6 +36,10 @@ export function PickCreators({
   /** Link that loads a bigger page of creators, when there are more than shown. */
   moreHref?: string | null;
   ticketsLeft: number;
+  /** Heading for the first group instead of "In <city>" (e.g. "All creators"). */
+  title?: string;
+  /** Shown when there are no creators to list. */
+  emptyText?: string;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(sendOffersAction, null);
   const [picked, setPicked] = useState<Set<string>>(new Set());
@@ -56,13 +59,13 @@ export function PickCreators({
     });
 
   if (!inCity.length && !nearby.length) {
-    return <p className="text-sm text-muted-foreground">No creators listed in or near {city} yet.</p>;
+    return <p className="text-sm text-muted-foreground">{emptyText ?? `No creators listed in or near ${city} yet.`}</p>;
   }
 
   return (
     <form action={formAction} className="space-y-5">
       <input type="hidden" name="showId" value={showId} />
-      <Group title={`In ${city}`} creators={inCity} total={inCityTotal} picked={picked} onToggle={toggle} />
+      <Group title={title ?? `In ${city}`} creators={inCity} total={inCityTotal} picked={picked} onToggle={toggle} />
       <Group title="Nearby" creators={nearby} total={nearbyTotal} picked={picked} onToggle={toggle} />
       {moreHref ? (
         <Button asChild variant="outline" size="sm">
@@ -122,51 +125,13 @@ function Group({
           const checked = picked.has(c.id);
           return (
             <li key={c.id}>
-              <label
-                className={cn(
-                  "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border transition-colors",
-                  checked ? "border-primary ring-1 ring-primary" : "hover:border-primary/40",
-                  c.taken && "cursor-not-allowed opacity-60",
-                )}
-              >
-                <input
-                  type="checkbox"
-                  name="creatorId"
-                  value={c.id}
-                  checked={checked}
-                  disabled={c.taken}
-                  onChange={() => onToggle(c.id)}
-                  className="absolute top-2 left-2 z-10 size-4 accent-primary"
-                  aria-label={`Invite ${c.name}`}
-                />
-                <CreatorPhoto name={c.name} src={c.avatarUrl} handle={c.handle} />
-                <span className={cn("min-w-0 flex-1 space-y-0.5 p-2", checked && "bg-primary/10")}>
-                  <span className="block truncate text-sm leading-tight font-medium">{c.name}</span>
-                  {c.handle ? (
-                    <a
-                      href={tiktokUrl(c.handle)!}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-1 truncate text-[11px] text-muted-foreground hover:text-foreground"
-                    >
-                      <span className="truncate">@{c.handle}</span>
-                      <ExternalLink className="size-3 shrink-0" aria-hidden />
-                    </a>
-                  ) : null}
-                  {c.location ? (
-                    <span className="block truncate text-[11px] text-muted-foreground">{c.location}</span>
-                  ) : null}
-                  <CreatorFollowers followers={c.followers} className="gap-x-2 text-[11px]" />
-                  {c.tags.length ? (
-                    <span className="block truncate text-[11px] text-muted-foreground">{c.tags.slice(0, 3).join(" · ")}</span>
-                  ) : null}
-                  {c.taken ? (
-                    <span className="block truncate text-[11px] text-amber-300">Already invited</span>
-                  ) : c.agencyName ? (
-                    <span className="block truncate text-[11px] text-muted-foreground">via {c.agencyName}</span>
-                  ) : null}
-                </span>
-              </label>
+              <CreatorCheckCard
+                creator={c}
+                checked={checked}
+                onToggle={() => onToggle(c.id)}
+                disabled={c.taken}
+                note={c.taken ? "Already invited" : null}
+              />
             </li>
           );
         })}

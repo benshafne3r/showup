@@ -2,7 +2,7 @@ import { afterAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { cityKey, MAJOR_CITIES } from "@/lib/cities";
 import { CITY_STATE, showStateKey, stateKey } from "@/lib/us-states";
-import { creatorCountsNear, suggestCreatorsForShow } from "@/server/services/offers";
+import { creatorCities, creatorDirectory, suggestCreatorsForShow } from "@/server/services/offers";
 import { listThreadsFor } from "@/server/services/messaging-queries";
 import { unreadMessageCount } from "@/server/services/messaging";
 import { rosterPage } from "@/server/services/agencies";
@@ -171,9 +171,13 @@ describe("creator picks past the old caps", () => {
     const all = await suggestCreatorsForShow({ companyId, showId: showIds[0], limit: 600 });
     expect(new Set(all!.inCity.map((c) => c.id))).toEqual(new Set(local));
 
-    const [counts] = await creatorCountsNear([{ city, state: "OR" }]);
-    expect(counts.inCity).toBe(130);
-    expect(counts.nearby).toBe(first!.nearbyTotal);
+    // The Creators tab's master list: filtered to the city, with the true total.
+    const directory = await creatorDirectory({ companyId, cityKey: cityKey(city), query: "", limit: 60 });
+    expect(directory.total).toBe(130);
+    expect(directory.creators).toHaveLength(60);
+    expect((await creatorCities()).find((c) => c.key === cityKey(city))?.creators).toBe(130);
+    const searched = await creatorDirectory({ companyId, cityKey: "", query: `local ${tag}`.slice(0, 5), limit: 600 });
+    expect(searched.total).toBeGreaterThanOrEqual(130); // name search reaches past the first page
   });
 });
 

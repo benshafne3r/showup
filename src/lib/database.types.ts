@@ -2689,6 +2689,14 @@ export type Database = {
         }
         Returns: string
       }
+      creator_cities: {
+        Args: never
+        Returns: {
+          city: string
+          city_key: string
+          creators: number
+        }[]
+      }
       creator_counts_near: {
         Args: { p_city_keys: string[]; p_state_keys: string[] }
         Returns: {
@@ -2705,6 +2713,18 @@ export type Database = {
           p_limit: number
           p_offset: number
           p_state_key: string
+        }
+        Returns: {
+          total: number
+          user_id: string
+        }[]
+      }
+      creators_search: {
+        Args: {
+          p_city_key: string
+          p_limit: number
+          p_offset: number
+          p_query: string
         }
         Returns: {
           total: number

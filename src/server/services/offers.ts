@@ -12,6 +12,7 @@ import { showStateKey } from "@/lib/us-states";
 import { locationLabel } from "@/lib/roster";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
+import { log } from "@/server/log";
 
 /**
  * Label invites ("offers"): on a show page the label sees creators in that
@@ -34,29 +35,11 @@ export type SuggestedCreator = {
   taken: boolean;
 };
 
-const MAX_OFFERS_PER_SEND = 25;
+const MAX_OFFERS_PER_SEND = 100;
 const ACTIVE_REQUEST = ["pending", "approved", "waitlisted"] as const;
 
 /** Default number of creators shown per group; "load more" raises it. */
 export const SUGGESTION_PAGE = 60;
-
-/**
- * How many creators are in / near each venue (for the Creators tab's city
- * list), counted in SQL against the indexed city / state keys.
- */
-export async function creatorCountsNear(venues: { city: string; state?: string | null }[]) {
-  if (!venues.length) return [];
-  const { data, error } = await serviceDb().rpc("creator_counts_near", {
-    p_city_keys: venues.map((v) => cityKey(v.city)),
-    p_state_keys: venues.map((v) => showStateKey(v)),
-  });
-  if (error) throw new Error(`count creators: ${error.message}`);
-  const byIdx = new Map((data ?? []).map((r) => [r.idx, r]));
-  return venues.map((_, i) => ({
-    inCity: Number(byIdx.get(i + 1)?.in_city ?? 0),
-    nearby: Number(byIdx.get(i + 1)?.nearby ?? 0),
-  }));
-}
 
 /**
  * Creators for a show: in its city, then elsewhere in its state, biggest
@@ -95,9 +78,105 @@ export async function suggestCreatorsForShow(input: {
   const nearIds = (nearRes.data ?? []).map((r) => r.user_id);
   const inCityTotal = Number(cityRes.data?.[0]?.total ?? 0);
   const nearbyTotal = Number(nearRes.data?.[0]?.total ?? 0);
-  const ids = [...cityIds, ...nearIds];
-  if (!ids.length) return { inCity: [], nearby: [], inCityTotal, nearbyTotal, city: show.venues.city };
+  const cards = await creatorCards([...cityIds, ...nearIds], show.show_opportunities.id);
+  const pick = (list: string[]) => list.map((id) => cards.get(id)).filter((c): c is SuggestedCreator => !!c);
+  return { inCity: pick(cityIds), nearby: pick(nearIds), inCityTotal, nearbyTotal, city: show.venues.city };
+}
 
+export type DirectoryCreator = SuggestedCreator & {
+  /** The label's upcoming shows this creator already has an invite or request for. */
+  invitedTo: string[];
+};
+
+/**
+ * The label's Creators tab: every onboarded creator, biggest audience first,
+ * optionally in one city and/or matching a search, one page at a time with the
+ * true total.
+ */
+export async function creatorDirectory(input: {
+  companyId: string;
+  cityKey: string;
+  query: string;
+  limit?: number;
+}): Promise<{ creators: DirectoryCreator[]; total: number }> {
+  const db = serviceDb();
+  const limit = Math.min(Math.max(input.limit ?? SUGGESTION_PAGE, 1), 600);
+  const { data, error } = await db.rpc("creators_search", {
+    p_city_key: input.cityKey,
+    p_query: input.query.trim(),
+    p_limit: limit,
+    p_offset: 0,
+  });
+  if (error) throw new Error(`creator directory: ${error.message}`);
+  const ids = (data ?? []).map((r) => r.user_id);
+  const today = new Date().toISOString().slice(0, 10);
+  const [cards, { data: requests }] = await Promise.all([
+    creatorCards(ids, null),
+    ids.length
+      ? db
+          .from("show_requests")
+          .select("creator_id, show_id, shows!inner(date)")
+          .eq("company_id", input.companyId)
+          .in("creator_id", ids)
+          .in("status", [...ACTIVE_REQUEST])
+          .gte("shows.date", today)
+      : Promise.resolve({ data: [] as { creator_id: string; show_id: string }[] }),
+  ]);
+  const invitedTo = new Map<string, string[]>();
+  for (const r of requests ?? []) invitedTo.set(r.creator_id, [...(invitedTo.get(r.creator_id) ?? []), r.show_id]);
+  return {
+    creators: ids
+      .map((id) => cards.get(id))
+      .filter((c): c is SuggestedCreator => !!c)
+      .map((c) => ({ ...c, invitedTo: invitedTo.get(c.id) ?? [] })),
+    total: Number(data?.[0]?.total ?? 0),
+  };
+}
+
+/** Cities creators live in, most creators first. */
+export async function creatorCities(): Promise<{ key: string; label: string; creators: number }[]> {
+  const { data, error } = await serviceDb().rpc("creator_cities");
+  if (error) throw new Error(`creator cities: ${error.message}`);
+  return (data ?? []).map((c) => ({ key: c.city_key, label: c.city, creators: Number(c.creators) }));
+}
+
+/**
+ * Everyone in a city (for "Select everyone in <city>"), up to `limit`, minus
+ * creators who already have an invite or request for `showId`.
+ */
+export async function creatorsInCity(
+  cityKey: string,
+  opts: { companyId: string; showId: string; limit?: number },
+): Promise<{ id: string; name: string }[]> {
+  if (!cityKey) return [];
+  const db = serviceDb();
+  const { data, error } = await db.rpc("creators_search", {
+    p_city_key: cityKey,
+    p_query: "",
+    p_limit: opts.limit ?? 500,
+    p_offset: 0,
+  });
+  if (error) throw new Error(`creators in city: ${error.message}`);
+  const ids = (data ?? []).map((r) => r.user_id);
+  if (!ids.length) return [];
+  const [{ data: users }, { data: requests }] = await Promise.all([
+    db.from("users").select("id, full_name").in("id", ids),
+    db
+      .from("show_requests")
+      .select("creator_id")
+      .eq("show_id", opts.showId)
+      .eq("company_id", opts.companyId)
+      .in("status", [...ACTIVE_REQUEST]),
+  ]);
+  const invited = new Set((requests ?? []).map((r) => r.creator_id));
+  const nameOf = new Map((users ?? []).map((u) => [u.id, u.full_name || "Creator"]));
+  return ids.filter((id) => !invited.has(id)).map((id) => ({ id, name: nameOf.get(id) ?? "Creator" }));
+}
+
+/** Card details for creators (photo, followers, agency), and whether each is already invited to the opportunity. */
+async function creatorCards(ids: string[], opportunityId: string | null): Promise<Map<string, SuggestedCreator>> {
+  if (!ids.length) return new Map();
+  const db = serviceDb();
   const [{ data: profiles }, { data: requests }, { data: rosters }] = await Promise.all([
     db
       .from("creator_profiles")
@@ -107,21 +186,20 @@ export async function suggestCreatorsForShow(input: {
          creator_social_accounts(platform, handle, followers)`,
       )
       .in("user_id", ids),
-    db
-      .from("show_requests")
-      .select("creator_id")
-      .eq("opportunity_id", show.show_opportunities.id)
-      .in("creator_id", ids)
-      .in("status", [...ACTIVE_REQUEST]),
+    opportunityId
+      ? db
+          .from("show_requests")
+          .select("creator_id")
+          .eq("opportunity_id", opportunityId)
+          .in("creator_id", ids)
+          .in("status", [...ACTIVE_REQUEST])
+      : Promise.resolve({ data: [] as { creator_id: string }[] }),
     db.from("agency_creators").select("creator_id, agencies(name)").in("creator_id", ids),
   ]);
-  const profileBy = new Map((profiles ?? []).map((p) => [p.user_id, p]));
   const taken = new Set((requests ?? []).map((r) => r.creator_id));
   const agencyBy = new Map((rosters ?? []).map((r) => [r.creator_id, r.agencies?.name ?? null]));
-
-  const toCard = (id: string): SuggestedCreator | null => {
-    const p = profileBy.get(id);
-    if (!p) return null;
+  const cards = new Map<string, SuggestedCreator>();
+  for (const p of profiles ?? []) {
     const followers = { tiktok: 0, instagram: 0, youtube: 0 };
     let handle: string | null = null;
     for (const s of p.creator_social_accounts ?? []) {
@@ -130,20 +208,33 @@ export async function suggestCreatorsForShow(input: {
       }
       if (s.platform === "tiktok" && s.handle) handle = s.handle;
     }
-    return {
-      id,
+    cards.set(p.user_id, {
+      id: p.user_id,
       name: p.users.full_name || "Creator",
       avatarUrl: p.users.avatar_url,
       handle,
       followers,
       tags: p.categories ?? [],
       location: locationLabel(p),
-      agencyName: agencyBy.get(id) ?? null,
-      taken: taken.has(id),
-    };
-  };
-  const cards = (list: string[]) => list.map(toCard).filter((c): c is SuggestedCreator => c !== null);
-  return { inCity: cards(cityIds), nearby: cards(nearIds), inCityTotal, nearbyTotal, city: show.venues.city };
+      agencyName: agencyBy.get(p.user_id) ?? null,
+      taken: taken.has(p.user_id),
+    });
+  }
+  return cards;
+}
+
+/** The label's note on an invite, as the first message in its conversation. */
+async function postInviteNote(requestId: string, senderId: string, body: string) {
+  const db = serviceDb();
+  const { data: thread } = await db.from("message_threads").select("id").eq("request_id", requestId).maybeSingle();
+  if (!thread) return;
+  const { error } = await db.from("messages").insert({ thread_id: thread.id, sender_id: senderId, kind: "text", body, read_by: [senderId] });
+  if (error) {
+    // The invite itself went out; a missing note isn't worth failing the batch.
+    log.error("Invite note not posted", { requestId, message: error.message });
+    return;
+  }
+  await db.from("message_threads").update({ last_message_at: new Date().toISOString() }).eq("id", thread.id);
 }
 
 export async function sendOffers(input: {
@@ -151,8 +242,11 @@ export async function sendOffers(input: {
   showId: string;
   creatorIds: string[];
   reviewer: { id: string; role: string };
+  /** Posted in each invite's conversation (an agency creator's goes to their agency). */
+  message?: string;
 }): Promise<{ ok: true; sent: number; skipped: string[] } | { ok: false; error: string }> {
   const creatorIds = [...new Set(input.creatorIds)];
+  const note = input.message?.trim().slice(0, 2000) ?? "";
   if (!creatorIds.length) return { ok: false, error: "Pick at least one creator" };
   if (creatorIds.length > MAX_OFFERS_PER_SEND) {
     return { ok: false, error: `Pick up to ${MAX_OFFERS_PER_SEND} creators at a time` };
@@ -247,6 +341,7 @@ export async function sendOffers(input: {
     }
     sent++;
     for (const k of keysOf(jobs)) allKeys.add(k);
+    if (note) await postInviteNote(requestId, input.reviewer.id, note);
   }
 
   await runOutboxNow([...allKeys]);
