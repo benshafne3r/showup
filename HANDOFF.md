@@ -698,6 +698,11 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 - Run `npm run dev` · seed `npm run seed` (targets `.env.local` dev DB) · cron `npm run cron`.
 - Tests: `npm test` · `npm run test:integration` (local Supabase + seed) · `npm run test:e2e` ·
   `npm run typecheck` · `npm run lint`.
+- **Push didn't auto-deploy (2026-10-28).** If `/api/health` still shows the old `commit` ~20 min
+  after a push, deploy the latest commit on BOTH services (web `showup` 9b53d062…, `worker`
+  3f1bb737…, env 7576ef41…): `railway api 'mutation($sid: String!, $eid: String!) {
+  serviceInstanceDeploy(serviceId: $sid, environmentId: $eid, latestCommit: true) }' --raw-var
+  sid=<service id> --raw-var eid=<env id>`.
 - Applying a migration with the Supabase MCP: name it with its number (`0025_search_and_aggregates`),
   or `/api/health` reports it missing (fixed by renaming the row in `supabase_migrations.schema_migrations`).
 - Types: `supabase gen types typescript --local --schema public`, then re-add the
