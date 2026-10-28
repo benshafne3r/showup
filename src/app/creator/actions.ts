@@ -17,7 +17,7 @@ import { createOnboardingLink } from "@/server/services/connect";
 import { log, errorFields } from "@/server/log";
 import { checkInWithLocation, submitAttendance } from "@/server/services/attendance";
 import { submitContent } from "@/server/services/content";
-import { sendMessage, markThreadRead } from "@/server/services/messaging";
+import { sendMessage } from "@/server/services/messaging";
 import { openDispute } from "@/server/services/disputes";
 import {
   markAllNotificationsRead,
@@ -420,11 +420,6 @@ export async function sendMessageAction(
   } catch (err) {
     return fail(err);
   }
-}
-
-export async function markThreadReadAction(threadId: string): Promise<void> {
-  const user = await requireUser();
-  await markThreadRead(user.id, z.string().uuid().parse(threadId));
 }
 
 export async function markNotificationReadAction(formData: FormData): Promise<void> {

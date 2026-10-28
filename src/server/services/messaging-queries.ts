@@ -24,7 +24,7 @@ export type ThreadViewer =
 
 /** Threads per page in the inbox, and messages loaded per screen of a thread. */
 export const THREAD_PAGE = 30;
-export const MESSAGE_PAGE = 100;
+const MESSAGE_PAGE = 100;
 
 /**
  * One page of the viewer's inbox, newest activity first, with the true total.

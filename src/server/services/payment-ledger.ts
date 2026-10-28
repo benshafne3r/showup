@@ -12,7 +12,7 @@ import { serviceDb } from "@/server/db/service";
  * recovery (payment-recovery.ts) asks the provider what happened.
  */
 
-export const LEASE_SECONDS = 120;
+const LEASE_SECONDS = 120;
 export type OperationKind = "authorize" | "release" | "capture" | "payout" | "void" | "charge" | "refund";
 export type Actor = { id: string | null; role: string };
 

@@ -128,46 +128,6 @@ export async function enrichArtistAction(name: string): Promise<{ bio: string; i
   return enrichArtist(name);
 }
 
-const artistSchema = z.object({
-  artistId: z.string().uuid().optional().or(z.literal("")),
-  name: z.string().min(1, "Artist name is required").max(120),
-  genre: z.string().max(60),
-  bio: z.string().max(1000),
-  instagramHandle: z.string().max(60),
-  spotifyUrl: z.string().url().or(z.literal("")),
-  // A Spotify photo URL to fetch + store when the artist was picked from search.
-  imageUrl: z.string().url().or(z.literal("")).optional(),
-});
-
-export async function saveArtistAction(
-  _prev: ActionState,
-  formData: FormData,
-): Promise<ActionState> {
-  try {
-    const context = await requireLabelWithCompany();
-    const parsed = artistSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
-    const imageFile = formData.get("image");
-    const result = await upsertArtist({
-      companyId: context.companyId,
-      actor: { id: context.user.id, role: "label" },
-      artistId: parsed.data.artistId || undefined,
-      name: parsed.data.name,
-      genre: parsed.data.genre,
-      bio: parsed.data.bio,
-      instagramHandle: parsed.data.instagramHandle.replace(/^@/, ""),
-      spotifyUrl: parsed.data.spotifyUrl,
-      imageFile: imageFile instanceof File ? imageFile : null,
-      remoteImageUrl: parsed.data.imageUrl || undefined,
-    });
-    if (!result.ok) return { error: result.error };
-    revalidatePath("/label/tours");
-    return { success: "Artist saved" };
-  } catch (err) {
-    return fail(err);
-  }
-}
-
 const tourSchema = z.object({
   tourId: z.string().uuid().optional().or(z.literal("")),
   // Either an existing artist id, or new-artist fields (created inline).

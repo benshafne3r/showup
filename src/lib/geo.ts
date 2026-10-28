@@ -13,11 +13,11 @@ export function distanceMeters(
 }
 
 /** Within this many meters of the venue's pin counts as "at the venue" (arenas are big). */
-export const CHECK_IN_RADIUS_M = 350;
+const CHECK_IN_RADIUS_M = 350;
 /** We give back up to this much of the phone's reported uncertainty. */
-export const MAX_ACCURACY_ALLOWANCE_M = 150;
+const MAX_ACCURACY_ALLOWANCE_M = 150;
 /** A fix vaguer than this (e.g. Wi-Fi/IP only) can't prove anything. */
-export const MAX_USABLE_ACCURACY_M = 1500;
+const MAX_USABLE_ACCURACY_M = 1500;
 
 export type CheckInVerdict = "at_venue" | "too_far" | "imprecise";
 

@@ -40,7 +40,7 @@ export async function runScheduler(): Promise<SchedulerResult> {
   return { scheduled };
 }
 
-export async function queueStats() {
+async function queueStats() {
   const { data, error } = await serviceDb().rpc("job_queue_stats");
   if (error) throw new Error(`job queue stats: ${error.message}`);
   return data?.[0] ?? { queued: 0, running: 0, dead: 0, oldest_due_seconds: 0, retrying: 0 };

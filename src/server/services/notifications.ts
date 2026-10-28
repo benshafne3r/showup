@@ -136,7 +136,7 @@ export async function deliver(input: NotifyInput): Promise<void> {
   }
 }
 
-export async function notifyMany(inputs: NotifyInput[]): Promise<void> {
+async function notifyMany(inputs: NotifyInput[]): Promise<void> {
   await Promise.all(inputs.map((i) => notify(i)));
 }
 

@@ -93,7 +93,7 @@ export type DirectoryCreator = SuggestedCreator & {
 };
 
 /** Up to this many creators load at once and filter instantly in the browser. */
-export const DIRECTORY_IN_BROWSER = 1000;
+const DIRECTORY_IN_BROWSER = 1000;
 
 const searchTextOf = (c: SuggestedCreator) => [c.name, c.handle ?? "", c.location].join(" ").toLowerCase();
 

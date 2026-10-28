@@ -109,15 +109,7 @@ export async function agenciesForCreators(
   );
 }
 
-export async function rosterCreatorIds(agencyId: string): Promise<string[]> {
-  const { data } = await serviceDb()
-    .from("agency_creators")
-    .select("creator_id")
-    .eq("agency_id", agencyId);
-  return (data ?? []).map((r) => r.creator_id);
-}
-
-export async function agencyMemberIds(agencyId: string): Promise<string[]> {
+async function agencyMemberIds(agencyId: string): Promise<string[]> {
   const { data } = await serviceDb()
     .from("agency_members")
     .select("user_id")

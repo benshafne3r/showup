@@ -57,6 +57,16 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Unused-code cleanup (2026-10-28, Codex #11)
+Found with `npx knip@5` (config: entries = scripts, tests, e2e, proxy). Removed: 8 unused shadcn UI
+files (alert, avatar, dropdown-menu, popover, progress, switch, table, tooltip), the unused
+browser Supabase client, `saveArtistAction`, `markThreadReadAction`, `rosterCreatorIds`,
+`roleForInvite`, `react-hook-form` + `@hookform/resolvers`. Internal-only helpers/constants made
+private. Knip false positives to ignore: `tailwindcss`, `tw-animate-css`, `shadcn` (imported from
+globals.css), `tests/stubs/server-only.ts` (vitest alias). `/creator/requests` and `/label/team`
+are deliberate redirects for old links. Dead DB functions still in prod (drop needs a migration):
+`creator_counts_near`, `release_tickets`, `shares_company_with`.
+
 ## Cards saved with Stripe SetupIntents (2026-10-28, Codex #8) — LIVE
 Migration **0028** (applied to prod 2026-10-28): `users.payment_customer_id` (stored Stripe customer; legacy ones
 found by metadata once), `payment_methods.setup_intent_id`. Card form (`stripe-card-form.tsx`):

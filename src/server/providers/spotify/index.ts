@@ -20,7 +20,7 @@ export type SpotifyArtist = {
   followers: number;
 };
 
-export function spotifyConfigured(): boolean {
+function spotifyConfigured(): boolean {
   return Boolean(serverEnv.spotifyClientId && serverEnv.spotifyClientSecret);
 }
 

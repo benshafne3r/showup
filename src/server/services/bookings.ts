@@ -14,7 +14,7 @@ import { formatShowDate } from "@/lib/dates";
 import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
 import { keysOf, notifyCompanyJob, notifyJob, releaseHoldsJob } from "@/server/jobs/outbox";
 
-export const TERMS_VERSION = "2026-07-v1";
+const TERMS_VERSION = "2026-07-v1";
 
 /** An agency accepting for a creator on its roster: the hold goes on its card. */
 export type AgencyPayer = { agencyId: string; agencyName: string; actorId: string };

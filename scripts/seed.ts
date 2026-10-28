@@ -41,7 +41,6 @@ const daysFromNow = (days: number) => {
   d.setDate(d.getDate() + days);
   return d;
 };
-const dateStr = (d: Date) => d.toISOString().slice(0, 10);
 const iso = (d: Date) => d.toISOString();
 /** "2026-10-13" + n days → Date (UTC noon to dodge timezone edges). */
 const addDays = (date: string, days: number) => {

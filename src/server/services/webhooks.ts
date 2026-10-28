@@ -120,7 +120,7 @@ type Signal =
 const str = (v: unknown) => (typeof v === "string" && v ? v : undefined);
 
 /** Mock events and Stripe events, normalized. */
-export function toSignal(event: WebhookEvent): Signal {
+function toSignal(event: WebhookEvent): Signal {
   const d = event.data;
   const meta = (d.metadata ?? {}) as Record<string, unknown>;
   const fromMeta = { authRecordId: str(meta.authRecordId) ?? str(d.authRecordId), attemptKey: str(meta.attemptKey) ?? str(d.attemptKey) };
@@ -164,7 +164,7 @@ export function toSignal(event: WebhookEvent): Signal {
   }
 }
 
-export async function applyWebhookEvent(event: WebhookEvent): Promise<void> {
+async function applyWebhookEvent(event: WebhookEvent): Promise<void> {
   const signal = toSignal(event);
   if (!signal) return;
   if (signal.kind === "account") {

@@ -284,7 +284,7 @@ export async function markAllAttended(input: {
 }
 
 /** How long a photo check-in can wait for review before it releases itself. */
-export const AUTO_RELEASE_HOURS = 48;
+const AUTO_RELEASE_HOURS = 48;
 
 /**
  * Scheduled step: a creator checked in but nobody reviewed it within 48 hours

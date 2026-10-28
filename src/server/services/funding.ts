@@ -101,7 +101,7 @@ export async function fundCreatorPayment(bookingId: string, actor: Actor): Promi
   return { ok: true, chargedCents: claimed.funding_amount_cents! };
 }
 
-export async function finishFunding(
+async function finishFunding(
   claimed: FundingRow,
   operationId: string,
   result: ChargeResult,

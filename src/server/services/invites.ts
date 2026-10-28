@@ -40,7 +40,7 @@ export function newInviteToken(): { token: string; hash: string } {
   return { token, hash: hashInviteToken(token) };
 }
 
-export function hashInviteToken(token: string): string {
+function hashInviteToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -104,13 +104,6 @@ export async function resolveInvite(token: string): Promise<ResolvedInvite | nul
     };
   }
   return null;
-}
-
-/** Role an account created from this invite should have. */
-export function roleForInvite(invite: ResolvedInvite): "creator" | "label" | "manager" {
-  if (invite.kind === "partner") return invite.role;
-  if (invite.kind === "team") return "label";
-  return "creator";
 }
 
 /**
