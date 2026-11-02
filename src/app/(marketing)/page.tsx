@@ -13,10 +13,10 @@ const LABEL_CONTACT = "mailto:benshafner@gmail.com?subject=Join%20ShowUp%20as%20
 
 /** FanMoments-style fading name wall — real Columbia roster, loud to ghosted. */
 const ARTIST_WALL: Array<{ names: string[]; className: string }> = [
-  { names: ["Baby Keem", "Ella Langley"], className: "text-4xl md:text-6xl opacity-100" },
-  { names: ["Harry Styles", "Rosalía"], className: "text-3xl md:text-5xl opacity-75" },
-  { names: ["The Kid LAROI", "Lil Nas X", "Dominic Fike"], className: "text-2xl md:text-4xl opacity-50" },
-  { names: ["AJR", "Tyler Childers", "Måneskin", "Mora"], className: "text-xl md:text-3xl opacity-30" },
+  { names: ["Baby Keem", "Harry Styles"], className: "text-4xl md:text-6xl opacity-100" },
+  { names: ["Rosalía", "The Kid LAROI"], className: "text-3xl md:text-5xl opacity-75" },
+  { names: ["Lil Nas X", "Dominic Fike", "AJR"], className: "text-2xl md:text-4xl opacity-50" },
+  { names: ["Tyler Childers", "Måneskin", "Mora"], className: "text-xl md:text-3xl opacity-30" },
 ];
 
 const HOW_IT_WORKS: Array<[string, string]> = [
@@ -44,13 +44,13 @@ export default function LandingPage() {
       {/* ── Hero: full-bleed photo, giant centered headline (indify) ───── */}
       <section className="relative flex min-h-[86vh] items-center justify-center overflow-hidden">
         <Image
-          src={`${DEMO_IMAGES}/ella-langley.jpg`}
+          src={`${DEMO_IMAGES}/baby-keem.jpg`}
           alt=""
           aria-hidden
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[center_22%]"
+          className="object-cover object-[center_35%]"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-background" />
         <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 py-24 text-center">
@@ -115,19 +115,13 @@ export default function LandingPage() {
               showup.app/creator
             </span>
           </div>
-          <div className="grid gap-4 p-5 md:grid-cols-[1fr_1fr_0.9fr] md:p-6">
+          <div className="grid gap-4 p-5 md:grid-cols-[1.1fr_0.9fr] md:p-6">
             {[
               {
                 img: `${DEMO_IMAGES}/baby-keem.jpg`,
                 artist: "Baby Keem",
                 meta: "The Echoplex · Los Angeles",
                 pay: 15000,
-              },
-              {
-                img: `${DEMO_IMAGES}/ella-langley.jpg`,
-                artist: "Ella Langley",
-                meta: "The Basement East · Nashville",
-                pay: 17500,
               },
             ].map((card) => (
               <div key={card.artist} className="overflow-hidden rounded-xl border bg-card">

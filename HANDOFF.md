@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-10-28_
+_Last updated: 2026-11-02_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -56,6 +56,12 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Ella Langley removed (2026-11-02, Ben)
+Landing page: hero is now `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:
+the demo "Ella Langely Tour" and its 14 dates deleted; Ben's 2 test shows (Oct 9 + Oct 13 LA, with
+his canceled test bookings + test holds incl. the real $1) kept as canceled records off the tour, so
+the Ella artist row stays. Local seed/e2e still use Ella Langley as demo data (local only).
 
 ## Unused-code cleanup (2026-10-28, Codex #11)
 Found with `npx knip@5` (config: entries = scripts, tests, e2e, proxy). Removed: 8 unused shadcn UI
