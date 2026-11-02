@@ -39,7 +39,7 @@ export default function MarketingLayout({ children }: { children: React.ReactNod
       <footer className="border-t">
         <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-8 text-sm text-muted-foreground">
           <p>
-            © {new Date().getFullYear()} {BRAND.name}. {BRAND.tagline}
+            © {new Date().getFullYear()} {BRAND.name}
           </p>
           <nav aria-label="Legal" className="flex gap-4">
             <Link href="/terms" className="hover:text-foreground">Terms</Link>
