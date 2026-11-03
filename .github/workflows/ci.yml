@@ -44,7 +44,7 @@ jobs:
 
       - uses: supabase/setup-cli@v1
         with:
-          version: latest
+          version: 2.90.0 # pinned: v3 rejects our config ([inbucket])
       - name: Start local Supabase (all migrations)
         run: supabase start -x realtime,edge-runtime,logflare,vector,imgproxy,supavisor,studio
 
