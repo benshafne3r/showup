@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { fallbackHoldExpiry, hoursLeft, MAX_AUTHORIZATION_WINDOW_DAYS, SHORTEST_HOLD_VALIDITY_MS } from "@/lib/holds";
+import { acceptanceHours, fallbackHoldExpiry, hoursLeft, MAX_AUTHORIZATION_WINDOW_DAYS, SHORTEST_HOLD_VALIDITY_MS } from "@/lib/holds";
 import { showIsOver } from "@/lib/dates";
 import { AUTHORIZATION_TRANSITIONS, canTransition } from "@/lib/statuses";
 
@@ -13,6 +13,13 @@ describe("hold timing", () => {
   it("assumes the shortest network window when the provider gives no expiry", () => {
     const placed = new Date("2026-10-11T00:00:00Z");
     expect(fallbackHoldExpiry(placed).toISOString()).toBe("2026-10-15T18:00:00.000Z");
+  });
+
+  it("gives the full acceptance window unless the show comes first", () => {
+    const now = new Date("2026-11-03T21:37:00Z");
+    expect(acceptanceHours(72, "2026-11-19", now)).toBe(72);
+    expect(acceptanceHours(72, "2026-11-04", now)).toBe(26); // ends with the show day
+    expect(acceptanceHours(72, "2026-11-03", new Date("2026-11-03T23:30:00Z"))).toBe(1);
   });
 
   it("counts whole hours left and stops at zero", () => {

@@ -12,6 +12,7 @@ import { showStateKey } from "@/lib/us-states";
 import { locationLabel } from "@/lib/roster";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
+import { acceptanceHours } from "@/lib/holds";
 import { log } from "@/server/log";
 
 /**
@@ -355,6 +356,7 @@ export async function sendOffers(input: {
   const artist = show.artists?.name ?? "a show";
   const label = show.companies?.name ?? "A label";
   const settings = await getPlatformSettings();
+  const acceptHours = acceptanceHours(settings.acceptanceWindowHours, show.date);
   // One summary email per agency per batch: every invite in this batch writes
   // the same digest job (same key), so it's created once, atomically with the
   // first invite, and lists whatever invites the batch produced.
@@ -388,7 +390,7 @@ export async function sendOffers(input: {
             userId: creatorId,
             type: "offer_received",
             title: `${label} invited you to ${artist}`,
-            body: `You're invited to ${artist} on ${formatShowDate(show.date)}. Accept within ${settings.acceptanceWindowHours} hours to lock in your ticket.`,
+            body: `You're invited to ${artist} on ${formatShowDate(show.date)}. Accept within ${acceptHours} hours to lock in your ticket.`,
             link: `/creator/bookings/${bookingId}`,
           }, input.companyId),
         ];
@@ -400,7 +402,7 @@ export async function sendOffers(input: {
       p_company_id: input.companyId,
       p_reviewer: input.reviewer.id,
       p_message: `Invited by ${label}`,
-      p_accept_hours: settings.acceptanceWindowHours,
+      p_accept_hours: acceptHours,
       p_jobs: jobs as never,
     });
     if (error) {

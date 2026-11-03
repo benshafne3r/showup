@@ -8,6 +8,7 @@ import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
 import { formatShowDateLong } from "@/lib/dates";
+import { acceptanceHours } from "@/lib/holds";
 import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
 import { deliverJob, keysOf, notifyAgencyJob, notifyCompanyJob, notifyJob } from "@/server/jobs/outbox";
 import { randomUUID } from "node:crypto";
@@ -205,7 +206,7 @@ export async function approveRequest(input: {
   const db = serviceDb();
   const { data: request } = await db
     .from("show_requests")
-    .select("id, creator_id, ticket_count, show_opportunities(stated_ticket_value_cents, deposit_percentage, shows(artists(name)))")
+    .select("id, creator_id, ticket_count, show_opportunities(stated_ticket_value_cents, deposit_percentage, shows(date, artists(name)))")
     .eq("id", input.requestId)
     .eq("company_id", input.companyId)
     .maybeSingle();
@@ -218,6 +219,7 @@ export async function approveRequest(input: {
   // For the message only; the transaction computes the authoritative amount.
   const holdCents = opp ? authorizationAmountCents(opp.stated_ticket_value_cents, ticketCount, opp.deposit_percentage) : 0;
   const artistName = opp?.shows?.artists?.name ?? "the show";
+  const acceptHours = opp?.shows ? acceptanceHours(settings.acceptanceWindowHours, opp.shows.date) : settings.acceptanceWindowHours;
   const jobs: OutboxJob[] = input.quiet
     ? []
     : [
@@ -225,7 +227,7 @@ export async function approveRequest(input: {
           userId: request.creator_id,
           type: "request_approved",
           title: `You're approved for ${artistName}!`,
-          body: `You have ${settings.acceptanceWindowHours} hours to review the terms and secure your spot. The temporary hold will be ${formatCents(holdCents)} across ${ticketCount} ticket${ticketCount > 1 ? "s" : ""}.`,
+          body: `You have ${acceptHours} hours to review the terms and secure your spot. The temporary hold will be ${formatCents(holdCents)} across ${ticketCount} ticket${ticketCount > 1 ? "s" : ""}.`,
           link: `/creator/bookings/${bookingId}`,
         }, input.companyId),
       ];
@@ -236,7 +238,7 @@ export async function approveRequest(input: {
     p_reviewer: input.reviewer.id,
     p_ticket_count: ticketCount,
     p_booking_id: bookingId,
-    p_accept_hours: settings.acceptanceWindowHours,
+    p_accept_hours: acceptHours,
     p_jobs: jobs as never,
   });
   if (error) {

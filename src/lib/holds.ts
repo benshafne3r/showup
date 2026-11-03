@@ -22,3 +22,13 @@ export function fallbackHoldExpiry(authorizedAt: Date): Date {
 export function hoursLeft(iso: string, now = new Date()): number {
   return Math.max(0, Math.floor((new Date(iso).getTime() - now.getTime()) / HOUR_MS));
 }
+
+/**
+ * Hours to accept an invite or approval: the platform window, cut short so it
+ * never runs past the show date (end of that day in UTC, before US evening
+ * shows). At least 1.
+ */
+export function acceptanceHours(windowHours: number, showDate: string, now = new Date()): number {
+  const untilShow = Math.floor((Date.parse(`${showDate}T23:59:59Z`) - now.getTime()) / HOUR_MS);
+  return Math.max(1, Math.min(windowHours, untilShow));
+}

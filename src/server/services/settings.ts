@@ -12,7 +12,7 @@ export type PlatformSettings = {
 
 const DEFAULTS: PlatformSettings = {
   depositPercentageTemplates: [25, 50, 75, 100],
-  acceptanceWindowHours: 24,
+  acceptanceWindowHours: 72,
   authorizationWindowDays: 2,
   paymentMethodGraceDays: 3,
   contentDeadlineDefaultDays: 7,
