@@ -4,7 +4,7 @@ import {
   pngFixture,
   signIn,
   signOut,
-  todayDeadlineLocal,
+  soonDeadlineLocal,
   todayISO,
 } from "./helpers";
 
@@ -47,7 +47,7 @@ test("label creates an artist (via a tour) and a show with an opportunity", asyn
   await page.getByLabel("Deposit per ticket (USD)").fill("40");
   await page.getByLabel("Tickets available to creators").fill("4");
   await page.getByLabel("Creator payment (USD, 0 = attend-only)").fill("50");
-  await page.getByLabel("Application deadline").fill(todayDeadlineLocal());
+  await page.getByLabel("Application deadline").fill(soonDeadlineLocal());
   await page.getByRole("button", { name: "Publish show" }).click();
 
   await expect(page).toHaveURL(/\/label\/shows\/[0-9a-f-]+\?saved=1/);

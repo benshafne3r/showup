@@ -59,6 +59,13 @@ export function todayISO(): string {
   return new Date().toISOString().slice(0, 10);
 }
 
-export function todayDeadlineLocal(): string {
-  return `${todayISO()}T23:00`;
+/**
+ * An application deadline (datetime-local) three hours out, so it hasn't
+ * passed whatever time of day the suite runs. "Today 23:00" broke in CI
+ * (UTC) between 23:00 and midnight.
+ */
+export function soonDeadlineLocal(): string {
+  const d = new Date(Date.now() + 3 * 3_600_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
