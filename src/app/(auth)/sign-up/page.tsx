@@ -23,11 +23,6 @@ function inviteCopy(invite: ResolvedInvite): { title: string; subtitle: string }
         title: `Join ${invite.companyName}`,
         subtitle: `You've been invited to ${invite.companyName}'s team on ${BRAND.name}.`,
       };
-    case "roster":
-      return {
-        title: `Join ${invite.agencyName} on ${BRAND.name}`,
-        subtitle: `${invite.agencyName} will handle your conversations with artist teams. You'll browse shows and add your card for ticket holds.`,
-      };
   }
 }
 
@@ -60,7 +55,7 @@ export default async function SignUpPage({
   const copy = invite
     ? inviteCopy(invite)
     : { title: "Create your creator account", subtitle: "Free tickets to shows in your city." };
-  const lockEmail = invite ? invite.kind !== "roster" && !!invite.email : false;
+  const lockEmail = !!invite?.email;
 
   return (
     <div className="space-y-6 rounded-2xl border bg-card/70 p-8 backdrop-blur">
@@ -76,7 +71,7 @@ export default async function SignUpPage({
                 token: params.invite,
                 email: invite.email ?? "",
                 emailLocked: lockEmail,
-                fullName: invite.kind === "roster" ? invite.fullName : "",
+                fullName: "",
               }
             : undefined
         }

@@ -90,7 +90,7 @@ export async function signUp(_prev: SignUpState, formData: FormData): Promise<Si
     return { error: "This invite link is invalid, expired, or already used." };
   }
   // Partner + teammate invites are tied to the address they were sent to.
-  const lockedEmail = invite?.kind === "roster" ? null : invite?.email;
+  const lockedEmail = invite?.email;
   if (lockedEmail && lockedEmail.toLowerCase() !== email.toLowerCase()) {
     return { error: `This invite is for ${lockedEmail}. Sign up with that email address.` };
   }

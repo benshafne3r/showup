@@ -459,7 +459,7 @@ export async function sendOfferDigest(p: { agencyId: string; showId: string; com
     type: "offer_received",
     title: single ? `${label} invited ${name(single)} to ${artist}` : `${label} invited ${offers.length} of your creators to ${artist}`,
     body: `${artist}, ${formatShowDate(first.shows.date)}${first.shows.venues?.city ? ` in ${first.shows.venues.city}` : ""}. Accept or pass for each by ${formatDateTime(first.acceptance_deadline_at)}. Holds go on your card.`,
-    link: single ? `/manager/bookings/${single.id}` : "/manager",
+    link: "/manager/messages?tab=requests",
     email: { details: offers.map((o) => ({ label: name(o), value: "Invited" })), ctaLabel: "Review invites" },
     dedupeKey: `offers:${p.agencyId}:${p.showId}:${p.since}`,
     strict: true,
@@ -486,7 +486,7 @@ export async function pendingOffersForAgency(agencyId: string, limit = 200) {
     .select(
       `id, authorization_amount_cents, acceptance_deadline_at, ticket_count,
        users:users!creator_id(full_name, avatar_url),
-       shows!inner(date, artists(name), venues(city)),
+       shows!inner(id, date, artists(name), venues(city)),
        companies(name),
        show_requests(offered_at)`,
     )
@@ -497,11 +497,13 @@ export async function pendingOffersForAgency(agencyId: string, limit = 200) {
     bookingId: b.id,
     creatorName: b.users?.full_name || "Creator",
     avatarUrl: b.users?.avatar_url ?? null,
+    showId: b.shows.id,
     artist: b.shows.artists?.name ?? "Show",
     date: b.shows.date,
     city: b.shows.venues?.city ?? "",
     label: b.companies?.name ?? "A label",
     hold: formatCents(b.authorization_amount_cents),
+    holdCents: b.authorization_amount_cents,
     acceptBy: b.acceptance_deadline_at,
     invited: !!b.show_requests?.offered_at,
   }));

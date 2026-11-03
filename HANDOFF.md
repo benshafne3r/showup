@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-11-02_
+_Last updated: 2026-11-03_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -56,6 +56,22 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Agency "Add creator" from TikTok + invites moved to Messages (2026-11-03, Ben)
+- **Add creator** (manager Roster header): paste a TikTok link/@handle → `findRosterCandidate`
+  (`services/agencies.ts`) looks them up via TikWM Pro `/user/info` (`lookupTikTokUser` in
+  `providers/social-metrics/tikwm.ts`; short vm./vt. links resolved) → manager edits name, adds
+  "City, ST" + genres → `addManagedCreator` makes a managed profile (placeholder email, photo copied
+  to `avatars/managed/`, followers re-fetched server-side). **No email is ever sent.** Refuses: already
+  on your roster / another agency's roster / has their own ShowUp login. TikWM key is only in Railway,
+  so locally the preview says "Couldn't load their TikTok details" (name typed by hand).
+- **Email roster invites removed** (`inviteCreator`, `/join/<token>` roster kind, its actions file).
+  `agency_invites` table stays (0 open on prod). `/join/<token>` is now partner/team only.
+- **"Waiting on you"** (label invites for the agency's creators) moved off Roster into
+  **Messages → Requests** (`manager/messages/waiting-invites.tsx`): grouped by show, one card note at
+  the top, Accept / Accept all N / Pass with confirm dialogs. Messages nav badge counts them; the
+  offer digest notification links to `/manager/messages?tab=requests`.
+- Tests: `tests/integration/roster.test.ts`, `e2e/roster-add.spec.ts`, `e2e/agency-offers.spec.ts`.
 
 ## Ella Langley removed (2026-11-02, Ben)
 Landing page: hero is now `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:
@@ -240,7 +256,7 @@ directly**; the agency's card covers the deposit holds; creator rates are NOT im
   "Nearby" (same state, `lib/us-states.ts`), with photo, followers, tags, "via <agency>". Checked ones
   get an approved request (`show_requests.offered_at`) + booking awaiting acceptance; agencies get one
   batched email; independent creators are invited directly.
-- **Manager Roster:** "Waiting on you" list (accept/pass, nav badge) + compact photo-first creator cards
+- **Manager Roster:** compact photo-first creator cards ("Waiting on you" now lives in Messages → Requests)
   (photo / @handle open their TikTok; name opens the ShowUp page). Same cards in the label picker.
 - Tests: `tests/roster.test.ts`, `e2e/agency-offers.spec.ts`. Seed adds managed Rae Rivers (LA) +
   Kai Moreno (San Diego) and a Northside agency card (visa 1881).
@@ -384,7 +400,7 @@ management are "sub-accounts": own login to browse shows + add their card; accep
 - Tables (0012): `agencies`, `agency_members`, `agency_creators` (roster, 1 agency per creator),
   `agency_invites` (hashed tokens), `partner_invites`. Helpers `manages_creator()`,
   `is_managed_creator()`. Service: `services/agencies.ts`.
-- Managers invite creators from the Roster ("Add creator" → email + copyable `/join/<token>`).
+- Managers add creators from a TikTok link (managed profiles, no email; see 2026-11-03 section).
 - `notify()` copies a managed creator's notifications to their agency (links mapped by
   `lib/manager-links.ts`); `deliver()` is the no-copy primitive.
 - **Public sign-up is creator-only.** Labels/managers only via **private single-use links**:

@@ -3,12 +3,9 @@ import "server-only";
 import { serviceDb } from "@/server/db/service";
 import { audit } from "./audit";
 import { deliver, type NotifyInput } from "./notifications";
-import { newInviteToken } from "./invites";
-import { emailProvider } from "@/server/providers/email";
-import { notificationEmailHtml } from "@/server/providers/email/template";
-import { publicEnv } from "@/lib/env";
-import { BRAND } from "@/lib/brand";
-import { locationLabel } from "@/lib/roster";
+import { locationLabel, parseCityState } from "@/lib/roster";
+import { copyAvatarToStorage, managedProfileEmail } from "@/lib/managed-profiles";
+import { lookupTikTokUser, resolveTikTokHandle, type TikTokProfile } from "@/server/providers/social-metrics";
 
 /**
  * Management companies ("agencies") and their creator rosters. A managed
@@ -272,170 +269,159 @@ async function rosterEntries(rows: RosterRow[]): Promise<RosterEntry[]> {
   });
 }
 
-export async function listOpenInvites(agencyId: string) {
-  const { data } = await serviceDb()
-    .from("agency_invites")
-    .select("id, email, full_name, created_at, expires_at")
-    .eq("agency_id", agencyId)
-    .is("accepted_at", null)
-    .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false });
-  return data ?? [];
+/** A creator found from a pasted TikTok link, ready to add to a roster. */
+export type RosterCandidate = {
+  handle: string;
+  name: string;
+  avatarUrl: string | null;
+  followers: number;
+  /** False when TikTok details couldn't be loaded; the manager types the name. */
+  found: boolean;
+};
+
+/**
+ * Look up a TikTok link or @handle for "Add creator": refuses creators already
+ * on a roster or with their own ShowUp account.
+ */
+export async function findRosterCandidate(
+  agencyId: string,
+  input: string,
+  lookup: (handle: string) => Promise<TikTokProfile | null> = lookupTikTokUser,
+): Promise<{ ok: true; candidate: RosterCandidate } | { ok: false; error: string }> {
+  const handle = await resolveTikTokHandle(input);
+  if (!handle) return { ok: false, error: "Paste a TikTok profile link or @handle" };
+  const blocked = await rosterConflict(agencyId, handle);
+  if (blocked) return { ok: false, error: blocked };
+  const profile = await lookup(handle);
+  return {
+    ok: true,
+    candidate: profile
+      ? { handle: profile.handle, name: profile.name, avatarUrl: profile.avatarUrl, followers: profile.followers, found: true }
+      : { handle, name: "", avatarUrl: null, followers: 0, found: false },
+  };
+}
+
+/** Why @handle can't be added to this roster, if it can't. */
+async function rosterConflict(agencyId: string, handle: string): Promise<string | null> {
+  const db = serviceDb();
+  const { data: managed } = await db.from("users").select("id").eq("email", managedProfileEmail(handle)).maybeSingle();
+  if (managed) {
+    const current = await agencyForCreator(managed.id);
+    if (current?.id === agencyId) return `@${handle} is already on your roster`;
+    if (current) return `@${handle} is on another management company's roster`;
+  }
+  // A creator who signed up themselves manages their own account.
+  const { data: own } = await db
+    .from("creator_social_accounts")
+    .select("creator_profiles!inner(users!inner(managed_profile))")
+    .eq("platform", "tiktok")
+    .ilike("handle", handle)
+    .eq("creator_profiles.users.managed_profile", false)
+    .limit(1);
+  if (own?.length) return `@${handle} already has their own ShowUp account`;
+  return null;
 }
 
 /**
- * Invite a creator onto the roster. Returns the join link so the manager can
- * also send it directly (it's emailed too). Re-inviting an email replaces the
- * previous open invite.
+ * Add a creator to the agency's roster as a managed profile (no login, no
+ * email sent): their TikTok photo and follower count are looked up here on
+ * the server, the name, location and genres come from the manager. Re-adding
+ * someone the agency removed earlier reuses their profile.
  */
-export async function inviteCreator(input: {
-  agencyId: string;
-  inviter: Actor;
-  email: string;
-  fullName: string;
-}): Promise<{ ok: true; link: string } | { ok: false; error: string }> {
+export async function addManagedCreator(
+  input: {
+    agencyId: string;
+    actor: Actor;
+    handleInput: string;
+    name: string;
+    location: string;
+    genres: string[];
+  },
+  lookup: (handle: string) => Promise<TikTokProfile | null> = lookupTikTokUser,
+): Promise<{ ok: true; creatorId: string } | { ok: false; error: string }> {
   const db = serviceDb();
-  const email = input.email.trim().toLowerCase();
+  const handle = await resolveTikTokHandle(input.handleInput);
+  if (!handle) return { ok: false, error: "Paste a TikTok profile link or @handle" };
+  const name = input.name.trim();
+  if (!name) return { ok: false, error: "Add their name" };
+  const blocked = await rosterConflict(input.agencyId, handle);
+  if (blocked) return { ok: false, error: blocked };
 
-  const { data: existingUser } = await db
-    .from("users")
-    .select("id, role")
-    .eq("email", email)
-    .maybeSingle();
-  if (existingUser) {
-    if (existingUser.role !== "creator") {
-      return { ok: false, error: "That email belongs to a label or management account" };
-    }
-    const current = await agencyForCreator(existingUser.id);
-    if (current?.id === input.agencyId) return { ok: false, error: "That creator is already on your roster" };
-    if (current) return { ok: false, error: "That creator is already represented by another management company" };
-  }
-
-  await db
-    .from("agency_invites")
-    .update({ revoked_at: new Date().toISOString() })
-    .eq("agency_id", input.agencyId)
-    .ilike("email", email)
-    .is("accepted_at", null)
-    .is("revoked_at", null);
-
-  const { token, hash } = newInviteToken();
-  const { error } = await db.from("agency_invites").insert({
-    agency_id: input.agencyId,
-    email,
-    full_name: input.fullName.trim(),
-    token_hash: hash,
-    invited_by: input.inviter.id,
-  });
-  if (error) return { ok: false, error: error.message };
-
-  const { data: agency } = await db.from("agencies").select("name").eq("id", input.agencyId).single();
-  const agencyName = agency?.name ?? "Your management";
-  const link = `${publicEnv.appUrl}/join/${token}`;
-  const greeting = input.fullName.trim().split(" ")[0] || "there";
-  const body = `${agencyName} added you to their roster on ${BRAND.name}: free concert tickets for creators. Join to see shows near you and add your card for ticket holds; ${agencyName} handles conversations with artist teams for you.`;
-  await emailProvider().send({
-    to: email,
-    subject: `${BRAND.name}: ${agencyName} invited you`,
-    text: `Hi ${greeting},\n\n${body}\n\nAccept the invite: ${link}\n\nThis link expires in 14 days.\n\nThe ${BRAND.name} team`,
-    html: notificationEmailHtml({
-      name: greeting,
-      title: `${agencyName} invited you to ${BRAND.name}`,
-      body,
-      href: link,
-    }),
-  });
-  if (existingUser) {
-    await deliver({
-      userId: existingUser.id,
-      type: "invite_received",
-      title: `${agencyName} wants to represent you`,
-      body: "Open the invite to accept or ignore it.",
-      link: `/join/${token}`,
+  const profile = await lookup(handle);
+  const email = managedProfileEmail(handle);
+  let { data: user } = await db.from("users").select("id").eq("email", email).maybeSingle();
+  if (!user) {
+    const { data, error } = await db.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: { full_name: name },
     });
+    if (error || !data.user) return { ok: false, error: "Couldn't add them. Please try again" };
+    user = { id: data.user.id };
   }
+  const creatorId = user.id;
+  const avatarUrl = profile?.avatarUrl ? await copyAvatarToStorage(db, creatorId, profile.avatarUrl) : null;
+  check(
+    await db
+      .from("users")
+      .update({ full_name: name, managed_profile: true, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) })
+      .eq("id", creatorId),
+    "save managed creator",
+  );
 
-  await audit({
-    actorId: input.inviter.id,
-    actorRole: input.inviter.role,
-    action: "agency.invite_creator",
-    entityType: "agency_invite",
-    metadata: { agencyId: input.agencyId, email },
-  });
-  return { ok: true, link };
-}
-
-export async function revokeInvite(agencyId: string, inviteId: string, actor: Actor): Promise<void> {
-  await serviceDb()
-    .from("agency_invites")
-    .update({ revoked_at: new Date().toISOString() })
-    .eq("id", inviteId)
-    .eq("agency_id", agencyId)
-    .is("accepted_at", null);
-  await audit({
-    actorId: actor.id,
-    actorRole: actor.role,
-    action: "agency.revoke_invite",
-    entityType: "agency_invite",
-    entityId: inviteId,
-    metadata: { agencyId },
-  });
-}
-
-/** A creator accepts a roster invite (new sign-up or existing account). */
-export async function acceptRosterInvite(input: {
-  inviteId: string;
-  agencyId: string;
-  creatorId: string;
-}): Promise<{ ok: true } | { ok: false; error: string }> {
-  const db = serviceDb();
-  const { data: user } = await db
-    .from("users")
-    .select("role, full_name")
-    .eq("id", input.creatorId)
-    .single();
-  if (user?.role !== "creator") return { ok: false, error: "Only creator accounts can join a roster" };
-
-  const current = await agencyForCreator(input.creatorId);
-  if (current?.id === input.agencyId) return { ok: true };
-  if (current) {
-    return { ok: false, error: `You're already represented by ${current.name}. Leave them first from your Profile.` };
-  }
-
-  // Claim the invite first so a link can't be replayed.
-  const { data: claimed } = await db
-    .from("agency_invites")
-    .update({ accepted_at: new Date().toISOString(), accepted_by: input.creatorId })
-    .eq("id", input.inviteId)
-    .is("accepted_at", null)
-    .is("revoked_at", null)
-    .gt("expires_at", new Date().toISOString())
+  const where = parseCityState(input.location);
+  const followers = profile?.followers ?? 0;
+  const { data: creatorProfile } = await db
+    .from("creator_profiles")
+    .upsert(
+      {
+        user_id: creatorId,
+        city: where.city,
+        region: where.region,
+        country: where.country,
+        categories: [...new Set(input.genres.map((g) => g.trim().toLowerCase()).filter(Boolean))].slice(0, 8),
+        audience_size: followers,
+        onboarded_at: new Date().toISOString(),
+        new_show_alerts: false,
+      },
+      { onConflict: "user_id" },
+    )
     .select("id")
-    .maybeSingle();
-  if (!claimed) return { ok: false, error: "This invite has expired or was already used" };
+    .single();
+  if (!creatorProfile) return { ok: false, error: "Couldn't save their profile. Please try again" };
+  await db.from("creator_social_accounts").delete().eq("profile_id", creatorProfile.id).eq("platform", "tiktok");
+  check(
+    await db.from("creator_social_accounts").insert({
+      profile_id: creatorProfile.id,
+      platform: "tiktok",
+      handle,
+      url: `https://www.tiktok.com/@${handle}`,
+      followers,
+    }),
+    "save tiktok account",
+  );
 
-  const { error } = await db.from("agency_creators").insert({
-    agency_id: input.agencyId,
-    creator_id: input.creatorId,
-  });
-  if (error) return { ok: false, error: "Could not join the roster. Please try again" };
-
-  await notifyAgency(input.agencyId, {
-    type: "invite_received",
-    title: `${user.full_name || "A creator"} joined your roster`,
-    body: "Their label conversations and payouts now route through your team.",
-    link: "/manager",
-  });
+  const { error: linkError } = await db
+    .from("agency_creators")
+    .insert({ agency_id: input.agencyId, creator_id: creatorId, added_by: input.actor.id });
+  if (linkError) {
+    return { ok: false, error: linkError.code === "23505" ? `@${handle} is already on a roster` : "Couldn't add them to your roster" };
+  }
   await audit({
-    actorId: input.creatorId,
-    actorRole: "creator",
-    action: "agency.join",
+    actorId: input.actor.id,
+    actorRole: input.actor.role,
+    action: "agency.add_managed_creator",
     entityType: "agency_creator",
-    metadata: { agencyId: input.agencyId },
+    entityId: creatorId,
+    metadata: { agencyId: input.agencyId, handle },
   });
-  return { ok: true };
+  return { ok: true, creatorId };
 }
+
+const check = <T>(res: { data: T; error: { message: string } | null }, what: string): T => {
+  if (res.error) throw new Error(`${what}: ${res.error.message}`);
+  return res.data;
+};
 
 /** The agency drops a creator from its roster. */
 export async function removeFromRoster(input: {

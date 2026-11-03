@@ -4,6 +4,9 @@ import { requireManagerPage } from "../require-manager";
 import { listThreadsFor, THREAD_PAGE } from "@/server/services/messaging-queries";
 import { serviceDb } from "@/server/db/service";
 import { withdrawForCreatorAction } from "../actions";
+import { pendingOffersForAgency } from "@/server/services/offers";
+import { agencyDefaultPaymentMethod } from "@/server/services/payments";
+import { WaitingInvites, type WaitingShow } from "./waiting-invites";
 import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
@@ -55,16 +58,33 @@ export default async function ManagerMessagesPage({
 }) {
   const ctx = await requireManagerPage();
   const params = await searchParams;
-  const defaultTab = params.tab === "requests" ? "requests" : "messages";
   const openPage = pageOf(params.op, REQUEST_PAGE);
   const decidedPage = pageOf(params.dp, REQUEST_PAGE);
   const threadPage = pageOf(params.tp, THREAD_PAGE);
 
-  const [openList, decidedList, inbox] = await Promise.all([
+  const [openList, decidedList, inbox, offers, card] = await Promise.all([
     rosterRequests(ctx.agencyId, true, openPage.from),
     rosterRequests(ctx.agencyId, false, decidedPage.from),
     listThreadsFor({ id: ctx.user.id, side: "manager", agencyId: ctx.agencyId }, { offset: threadPage.from }),
+    pendingOffersForAgency(ctx.agencyId),
+    agencyDefaultPaymentMethod(ctx.agencyId),
   ]);
+  // Label invites waiting on the agency open the Requests tab.
+  const defaultTab = params.tab === "messages" ? "messages" : params.tab === "requests" || offers.length ? "requests" : "messages";
+  const waiting: WaitingShow[] = [];
+  for (const offer of offers) {
+    let show = waiting.find((w) => w.showId === offer.showId);
+    if (!show) {
+      show = {
+        showId: offer.showId,
+        title: [offer.artist, formatShowDate(offer.date), offer.city].filter(Boolean).join(" · "),
+        detail: `${offer.label} · answer by ${formatDateTime(offer.acceptBy)}`,
+        invites: [],
+      };
+      waiting.push(show);
+    }
+    show.invites.push({ bookingId: offer.bookingId, creatorName: offer.creatorName, avatarUrl: offer.avatarUrl, hold: offer.hold });
+  }
   const open = openList.rows;
   const decided = decidedList.rows;
   const requestPager = (page: number, total: number, key: string) => (
@@ -126,10 +146,7 @@ export default async function ManagerMessagesPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Messages"
-        description="Your roster's ticket requests, and every conversation with artist teams about them."
-      />
+      <PageHeader title="Messages" />
       {params.submitted ? (
         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
           Request sent. The artist team will reply here, and the creator has been told.
@@ -138,7 +155,7 @@ export default async function ManagerMessagesPage({
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="messages">Chats ({inbox.total})</TabsTrigger>
-          <TabsTrigger value="requests">Requests ({openList.total})</TabsTrigger>
+          <TabsTrigger value="requests">Requests ({offers.length + openList.total})</TabsTrigger>
         </TabsList>
         <TabsContent value="messages" className="mt-4">
           <ThreadList threads={inbox.threads} basePath="/manager/messages" />
@@ -152,13 +169,18 @@ export default async function ManagerMessagesPage({
             className="mt-4"
           />
         </TabsContent>
-        <TabsContent value="requests" className="mt-4">
+        <TabsContent value="requests" className="mt-4 space-y-6">
+          {waiting.length ? (
+            <WaitingInvites shows={waiting} card={card ? `${card.brand} •••• ${card.last4}` : null} />
+          ) : null}
           {!openList.total && !decidedList.total ? (
+            waiting.length ? null : (
             <EmptyState
               icon={Inbox}
               title="No requests yet"
               description="Request tickets for your roster from the Shows tab, or your creators can request themselves."
             />
+            )
           ) : (
             <div className="space-y-6">
               <section className="space-y-2">

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { locationLabel, parseFollowerCount, parseRosterLocation } from "@/lib/roster";
+import { locationLabel, parseCityState, parseFollowerCount, parseRosterLocation } from "@/lib/roster";
 import { showStateKey, stateKey } from "@/lib/us-states";
 
 describe("parseFollowerCount", () => {
@@ -43,5 +43,15 @@ describe("state matching", () => {
     expect(showStateKey({ city: "Los Angeles", state: null })).toBe("california");
     expect(showStateKey({ city: "Somewhere", state: "TX" })).toBe("texas");
     expect(showStateKey({ city: "Paris", state: null })).toBe("");
+  });
+});
+
+describe("parseCityState", () => {
+  it("reads a location typed by a manager", () => {
+    expect(parseCityState("Los Angeles, CA")).toEqual({ city: "Los Angeles", region: "CA", country: "US" });
+    expect(parseCityState(" Nashville ")).toEqual({ city: "Nashville", region: "", country: "US" });
+    expect(parseCityState("Toronto, ON, Canada")).toEqual({ city: "Toronto", region: "ON", country: "Canada" });
+    expect(parseCityState("Austin, Texas, USA")).toEqual({ city: "Austin", region: "Texas", country: "US" });
+    expect(parseCityState("")).toEqual({ city: "", region: "", country: "US" });
   });
 });

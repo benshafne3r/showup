@@ -6,13 +6,13 @@ import { audit } from "./audit";
 
 /**
  * Invite links (`/join/<token>`) are the only way to get a non-creator
- * account. Three kinds resolve through the same URL:
+ * account. Two kinds resolve through the same URL:
  *   - partner: a private label / management sign-up link minted by the
  *     platform owner (scripts/partner-invite.ts)
  *   - team:    a label teammate invite (company_invites)
- *   - roster:  a management company inviting a creator onto its roster
- * Partner + roster tokens are stored hashed; team tokens predate that and are
- * stored as-is (random 24 bytes either way).
+ * Partner tokens are stored hashed; team tokens predate that and are stored
+ * as-is (random 24 bytes either way). Agencies add creators as managed
+ * profiles from a TikTok link, with no invite.
  */
 
 export type ResolvedInvite =
@@ -23,15 +23,7 @@ export type ResolvedInvite =
       email: string | null;
       orgName: string;
     }
-  | { kind: "team"; id: string; companyId: string; companyName: string; email: string }
-  | {
-      kind: "roster";
-      id: string;
-      agencyId: string;
-      agencyName: string;
-      email: string;
-      fullName: string;
-    };
+  | { kind: "team"; id: string; companyId: string; companyName: string; email: string };
 
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{20,128}$/;
 
@@ -65,25 +57,6 @@ export async function resolveInvite(token: string): Promise<ResolvedInvite | nul
       role: partner.kind as "label" | "manager",
       email: partner.email,
       orgName: partner.org_name,
-    };
-  }
-
-  const { data: roster } = await db
-    .from("agency_invites")
-    .select("id, agency_id, email, full_name, agencies(name, suspended_at)")
-    .eq("token_hash", hash)
-    .is("accepted_at", null)
-    .is("revoked_at", null)
-    .gt("expires_at", now)
-    .maybeSingle();
-  if (roster?.agencies && !roster.agencies.suspended_at) {
-    return {
-      kind: "roster",
-      id: roster.id,
-      agencyId: roster.agency_id,
-      agencyName: roster.agencies.name,
-      email: roster.email,
-      fullName: roster.full_name,
     };
   }
 

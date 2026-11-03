@@ -18,6 +18,24 @@ const SHORT_LINK_RE = /^https?:\/\/(?:(?:vm|vt)\.tiktok\.com\/|(?:www\.)?tiktok\
  */
 export const ID_TS_MARGIN_SECONDS = 86_400;
 
+const HANDLE_RE = /^[A-Za-z0-9_.]{2,24}$/;
+const PROFILE_RE = /tiktok\.com\/@([A-Za-z0-9_.]{2,24})(?:[/?#]|$)/i;
+
+/**
+ * A creator's TikTok from what a person pastes: "@handle", "handle", a
+ * profile or video link, or a vm./vt. short link (which must be resolved
+ * first). Null when it isn't any of those.
+ */
+export function parseTikTokProfileInput(input: string): { handle: string } | { shortLink: string } | null {
+  const text = (input ?? "").trim();
+  if (!text) return null;
+  if (SHORT_LINK_RE.test(text)) return { shortLink: text };
+  const fromLink = PROFILE_RE.exec(text);
+  if (fromLink) return { handle: fromLink[1].toLowerCase() };
+  const bare = text.replace(/^@/, "");
+  return HANDLE_RE.test(bare) ? { handle: bare.toLowerCase() } : null;
+}
+
 export function parseCanonical(url: string): { handle: string; videoId: string } | null {
   const m = CANONICAL_RE.exec(url ?? "");
   return m ? { handle: m[1], videoId: m[2] } : null;

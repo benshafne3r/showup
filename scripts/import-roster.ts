@@ -15,6 +15,7 @@ import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
 import type { Database } from "../src/lib/database.types";
 import { parseFollowerCount, parseRosterLocation } from "../src/lib/roster";
+import { copyAvatarToStorage, managedProfileEmail } from "../src/lib/managed-profiles";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => {
@@ -104,28 +105,9 @@ async function scrape(): Promise<{ creators: Scraped[]; total: number | null }> 
   }
 }
 
-/** Placeholder sign-in email for a profile nobody logs in to (never emailed). */
-const profileEmail = (handle: string) =>
-  `tt-${handle.toLowerCase().replace(/[^a-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "")}@profiles.showup.invalid`;
-
-async function copyAvatar(userId: string, src: string): Promise<string | null> {
-  try {
-    // CreatorCore serves a 96px crop; ask its image CDN for a sharper one.
-    const res = await fetch(src.replace(/w=\d+,h=\d+/, "w=256,h=256"));
-    if (!res.ok) return null;
-    const type = (res.headers.get("content-type") ?? "image/jpeg").split(";")[0];
-    if (!["image/jpeg", "image/png", "image/webp"].includes(type)) return null;
-    const ext = type === "image/png" ? "png" : type === "image/webp" ? "webp" : "jpg";
-    const path = `managed/${userId}.${ext}`;
-    const { error } = await db.storage
-      .from("avatars")
-      .upload(path, Buffer.from(await res.arrayBuffer()), { contentType: type, upsert: true });
-    if (error) return null;
-    return db.storage.from("avatars").getPublicUrl(path).data.publicUrl;
-  } catch {
-    return null;
-  }
-}
+// CreatorCore serves a 96px avatar crop; ask its image CDN for a sharper one.
+const copyAvatar = (userId: string, src: string) =>
+  copyAvatarToStorage(db, userId, src.replace(/w=\d+,h=\d+/, "w=256,h=256"));
 
 async function main() {
   const { data: agency } = await db.from("agencies").select("id, name").ilike("name", agencyName!).maybeSingle();
@@ -156,7 +138,7 @@ async function main() {
       continue;
     }
     const handle = c.handle.toLowerCase();
-    const email = profileEmail(handle);
+    const email = managedProfileEmail(handle);
     const name = (c.name ?? "").trim() || handle;
 
     let { data: user } = await db.from("users").select("id").eq("email", email).maybeSingle();

@@ -4,6 +4,7 @@ import type { Database } from "@/lib/database.types";
 import type { PostMetrics } from "./types";
 import { checkTikTokPost } from "./tikwm";
 
+export { lookupTikTokUser, resolveTikTokHandle, type TikTokProfile } from "./tikwm";
 export type { PostCheckStatus, PostMetrics } from "./types";
 
 type SocialPlatform = Database["public"]["Enums"]["social_platform"];

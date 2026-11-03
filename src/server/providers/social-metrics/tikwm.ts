@@ -8,6 +8,7 @@ import {
   feedNumber,
   isShortLink,
   parseCanonical,
+  parseTikTokProfileInput,
   type FeedItem,
 } from "./tiktok-logic";
 
@@ -197,4 +198,40 @@ export async function checkTikTokPost(url: string): Promise<PostMetrics> {
   const decision = decideFromFeed(parsed.videoId, items, exhausted);
   if (decision.status === "ok") return metricsFrom(decision.item);
   return { status: decision.status, viewCount: null, likeCount: null };
+}
+
+export type TikTokProfile = {
+  handle: string;
+  name: string;
+  avatarUrl: string | null;
+  followers: number;
+  bio: string;
+};
+
+/**
+ * A TikTok account's public profile (name, photo, followers) via TikWM Pro.
+ * Null when there's no key, the account doesn't exist, or TikWM didn't answer.
+ */
+export async function lookupTikTokUser(handle: string): Promise<TikTokProfile | null> {
+  const data = await tikwmProGet("/user/info", { unique_id: handle });
+  const user = (data?.user ?? null) as Record<string, unknown> | null;
+  if (!user || typeof user.uniqueId !== "string") return null;
+  const stats = (data?.stats ?? {}) as Record<string, unknown>;
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    handle: user.uniqueId.toLowerCase(),
+    name: text(user.nickname).trim(),
+    avatarUrl: text(user.avatarLarger) || text(user.avatarMedium) || null,
+    followers: feedNumber(stats, "followerCount") ?? 0,
+    bio: text(user.signature),
+  };
+}
+
+/** The @handle in what a person pasted (following a short link if needed). */
+export async function resolveTikTokHandle(input: string): Promise<string | null> {
+  const parsed = parseTikTokProfileInput(input);
+  if (!parsed) return null;
+  if ("handle" in parsed) return parsed.handle;
+  const resolved = parseTikTokProfileInput(await resolveShortLink(parsed.shortLink));
+  return resolved && "handle" in resolved ? resolved.handle : null;
 }

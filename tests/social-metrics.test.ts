@@ -6,6 +6,7 @@ import {
   feedNumber,
   isShortLink,
   parseCanonical,
+  parseTikTokProfileInput,
   timestampFromVideoId,
 } from "@/server/providers/social-metrics/tiktok-logic";
 import { detectPlatform } from "@/server/providers/social-metrics";
@@ -100,5 +101,22 @@ describe("detectPlatform", () => {
     expect(detectPlatform("https://x.com/user/status/1")).toBe("twitter");
     expect(detectPlatform("https://mymix.com/post/1")).toBe("other");
     expect(detectPlatform("not a url")).toBe("other");
+  });
+});
+
+describe("parseTikTokProfileInput", () => {
+  it("reads a handle from what a manager pastes", () => {
+    expect(parseTikTokProfileInput("@Mia.Torres")).toEqual({ handle: "mia.torres" });
+    expect(parseTikTokProfileInput("mia_torres")).toEqual({ handle: "mia_torres" });
+    expect(parseTikTokProfileInput("https://www.tiktok.com/@miatorres.live?lang=en")).toEqual({ handle: "miatorres.live" });
+    expect(parseTikTokProfileInput("tiktok.com/@miatorres")).toEqual({ handle: "miatorres" });
+    expect(parseTikTokProfileInput("https://www.tiktok.com/@miatorres/video/7301234567890")).toEqual({ handle: "miatorres" });
+  });
+
+  it("hands short links back to be followed, and rejects anything else", () => {
+    expect(parseTikTokProfileInput("https://vm.tiktok.com/ZMabc123/")).toEqual({ shortLink: "https://vm.tiktok.com/ZMabc123/" });
+    expect(parseTikTokProfileInput("")).toBeNull();
+    expect(parseTikTokProfileInput("https://instagram.com/mia")).toBeNull();
+    expect(parseTikTokProfileInput("mia torres")).toBeNull();
   });
 });

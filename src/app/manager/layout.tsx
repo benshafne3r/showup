@@ -44,9 +44,10 @@ export default async function ManagerLayout({ children }: { children: React.Reac
       notificationsHref="/manager/notifications"
       unreadNotifications={unreadNotifs}
       navItems={[
-        { href: "/manager", label: "Roster", exact: true, badge: waitingOnYou },
+        { href: "/manager", label: "Roster", exact: true },
         { href: "/manager/shows", label: "Shows" },
-        { href: "/manager/messages", label: "Messages", badge: pendingRequests + unreadMessages },
+        // Invites waiting on the agency live in Messages → Requests.
+        { href: "/manager/messages", label: "Messages", badge: waitingOnYou + pendingRequests + unreadMessages },
         { href: "/manager/payments", label: "Payments" },
         { href: "/manager/settings", label: "Settings" },
         ...(isPlatformOwner(user.email) ? [{ href: "/owner", label: "Owner" }] : []),

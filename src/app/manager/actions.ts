@@ -9,11 +9,12 @@ import {
   requireUser,
 } from "@/server/auth/guards";
 import {
+  addManagedCreator,
   createAgency,
-  inviteCreator,
+  findRosterCandidate,
   removeFromRoster,
-  revokeInvite,
   updateAgency,
+  type RosterCandidate,
 } from "@/server/services/agencies";
 import { createRequest, withdrawRequest } from "@/server/services/requests";
 import { acceptBooking, passOnBooking } from "@/server/services/bookings";
@@ -29,7 +30,6 @@ import { toActionError } from "@/server/action-error";
 
 // "use server" files may only export async functions; declare the type inline.
 export type ActionState = { error: string } | { success: string } | null;
-export type InviteState = { error: string } | { link: string; email: string } | null;
 
 const fail = (err: unknown): { error: string } => toActionError(err, "manager.action");
 
@@ -79,35 +79,46 @@ export async function updateAgencyAction(_prev: ActionState, formData: FormData)
 
 // ── Roster ──────────────────────────────────────────────────────────────
 
-const inviteSchema = z.object({
-  fullName: z.string().trim().min(2, "Enter the creator's name").max(80),
-  email: z.string().trim().email("Enter a valid email address"),
-});
-
-export async function inviteCreatorAction(_prev: InviteState, formData: FormData): Promise<InviteState> {
+/** "Add creator", step 1: look up a pasted TikTok link or @handle. */
+export async function findCreatorAction(
+  input: string,
+): Promise<{ candidate: RosterCandidate } | { error: string }> {
   try {
     const ctx = await requireManagerWithAgency();
-    const parsed = inviteSchema.safeParse(Object.fromEntries(formData));
-    if (!parsed.success) return { error: parsed.error.issues[0].message };
-    const result = await inviteCreator({
-      agencyId: ctx.agencyId,
-      inviter: { id: ctx.user.id, role: "manager" },
-      email: parsed.data.email,
-      fullName: parsed.data.fullName,
-    });
-    if (!result.ok) return { error: result.error };
-    revalidatePath("/manager");
-    return { link: result.link, email: parsed.data.email.toLowerCase() };
+    const result = await findRosterCandidate(ctx.agencyId, z.string().max(300).parse(input));
+    return result.ok ? { candidate: result.candidate } : { error: result.error };
   } catch (err) {
     return fail(err);
   }
 }
 
-export async function revokeInviteAction(formData: FormData): Promise<void> {
-  const ctx = await requireManagerWithAgency();
-  const inviteId = z.string().uuid().parse(formData.get("inviteId"));
-  await revokeInvite(ctx.agencyId, inviteId, { id: ctx.user.id, role: "manager" });
-  revalidatePath("/manager");
+const addCreatorSchema = z.object({
+  handle: z.string().trim().min(1).max(300),
+  name: z.string().trim().min(1, "Add their name").max(80),
+  location: z.string().trim().max(120),
+  genres: z.array(z.string().trim().max(40)).max(8),
+});
+
+/** "Add creator", step 2: add them to the roster as a managed profile (no email is sent). */
+export async function addCreatorAction(input: z.input<typeof addCreatorSchema>): Promise<ActionState> {
+  try {
+    const ctx = await requireManagerWithAgency();
+    const parsed = addCreatorSchema.safeParse(input);
+    if (!parsed.success) return { error: parsed.error.issues[0].message };
+    const result = await addManagedCreator({
+      agencyId: ctx.agencyId,
+      actor: { id: ctx.user.id, role: "manager" },
+      handleInput: parsed.data.handle,
+      name: parsed.data.name,
+      location: parsed.data.location,
+      genres: parsed.data.genres,
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/manager", "layout");
+    return { success: `${parsed.data.name} is on your roster` };
+  } catch (err) {
+    return fail(err);
+  }
 }
 
 export async function removeCreatorAction(formData: FormData): Promise<void> {
@@ -193,6 +204,33 @@ export async function acceptForCreatorAction(_prev: ActionState, formData: FormD
     return { success: "Accepted. The hold goes on your card a couple of days before the show." };
   } catch (err) {
     return fail(err);
+  }
+}
+
+/** Accept several waiting invites at once (one hold each, on the agency's card). */
+export async function acceptAllForCreatorsAction(
+  bookingIds: string[],
+): Promise<{ accepted: number; failed: string[] } | { error: string }> {
+  try {
+    const ids = z.array(z.string().uuid()).min(1).max(100).parse(bookingIds);
+    let accepted = 0;
+    const failed: string[] = [];
+    for (const bookingId of ids) {
+      const { ctx, creatorId } = await rosterBooking(bookingId);
+      const result = await acceptBooking({
+        creatorId,
+        bookingId,
+        agreedToTerms: true, // confirmed in the dialog
+        agency: { agencyId: ctx.agencyId, agencyName: ctx.agencyName, actorId: ctx.user.id },
+      });
+      if (result.ok) accepted++;
+      else failed.push(result.error);
+    }
+    revalidatePath("/manager", "layout");
+    return { accepted, failed };
+  } catch (err) {
+    const failure = fail(err);
+    return failure && "error" in failure ? failure : { error: "Something went wrong" };
   }
 }
 

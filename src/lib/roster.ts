@@ -30,6 +30,19 @@ export function parseRosterLocation(text: string | null | undefined): RosterLoca
   return { city: "", region: "", country: "" };
 }
 
+/**
+ * A location typed by a person: "Los Angeles, CA", "Austin, Texas, US" or
+ * just "Nashville". The country defaults to the US.
+ */
+export function parseCityState(text: string | null | undefined): RosterLocation {
+  const parts = (text ?? "")
+    .split(",")
+    .map((p) => p.replace(/\s+/g, " ").trim())
+    .filter(Boolean);
+  const country = parts[2] && !/^(united states|usa|us)$/i.test(parts[2]) ? parts[2] : "US";
+  return { city: parts[0] ?? "", region: parts[1] ?? "", country };
+}
+
 /** "Los Angeles, California" / "Kentucky" / "Spain" for display. */
 export function locationLabel(loc: { city?: string | null; region?: string | null; country?: string | null }): string {
   const parts = [loc.city, loc.region].filter((p): p is string => !!p && p.trim() !== "");

@@ -73,15 +73,20 @@ test("label invites managed creators; the agency accepts one on its card and pas
     expect(raeNotes).toBe(0);
     await signOut(page);
 
-    // Agency: both invites are waiting; accept Rae on the agency card.
+    // Agency: both invites wait in Messages → Requests, grouped by show; the
+    // Messages tab shows the count. Accept Rae on the agency card.
     await signIn(page, ACCOUNTS.manager);
     await page.goto("/manager");
-    await expect(page.getByRole("heading", { name: "Waiting on you (2)" })).toBeVisible();
-    const raeRow = page.getByRole("listitem").filter({ hasText: "Rae Rivers ·" });
-    await raeRow.getByRole("checkbox", { name: /Put a .* hold on visa •••• 1881/ }).check();
-    await raeRow.getByRole("button", { name: "Accept for Rae" }).click();
-    await expect(page.getByText(/Rae Rivers: Accepted\./)).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Waiting on you (1)" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /Waiting on you/ })).toHaveCount(0); // not on the roster any more
+    await page.getByRole("link", { name: /^Messages/ }).click();
+    const waiting = page.getByRole("region", { name: /Waiting on you/ });
+    await expect(waiting.getByRole("heading", { name: /Waiting on you\s*2/ })).toBeVisible();
+    await expect(waiting.getByText(/Holds go on visa •••• 1881/)).toBeVisible();
+    const raeRow = waiting.getByRole("listitem").filter({ hasText: "Rae Rivers" });
+    await raeRow.getByRole("button", { name: "Accept" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Accept" }).click();
+    await expect(page.getByText("Accepted for Rae Rivers")).toBeVisible();
+    await expect(waiting.getByRole("heading", { name: /Waiting on you\s*1/ })).toBeVisible();
 
     await expect
       .poll(async () => (await bookingFor(rae!.id)).status)
@@ -92,7 +97,7 @@ test("label invites managed creators; the agency accepts one on its card and pas
     expect(raeBooking.authorization_records[0]?.status).toBe("authorized");
 
     // …and pass on Kai: the ticket goes back to the label.
-    const kaiRow = page.getByRole("listitem").filter({ hasText: "Kai Moreno ·" });
+    const kaiRow = waiting.getByRole("listitem").filter({ hasText: "Kai Moreno" });
     await kaiRow.getByRole("button", { name: "Pass" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Pass" }).click();
     await expect.poll(async () => (await bookingFor(kai!.id)).cancel_reason).toBe("declined");
