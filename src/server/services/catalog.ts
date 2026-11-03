@@ -103,6 +103,46 @@ export async function upsertArtist(input: {
   return { ok: true, artistId: data.id };
 }
 
+/**
+ * The company's artist for a Spotify pick: the one they already have (same
+ * Spotify link, or same name with no link yet), else a new one with the
+ * Spotify photo.
+ */
+export async function artistFromSpotify(input: {
+  companyId: string;
+  actor: { id: string; role: string };
+  name: string;
+  genre: string;
+  bio: string;
+  instagramHandle: string;
+  spotifyUrl: string;
+  imageUrl: string;
+}): Promise<{ ok: true; artistId: string } | { ok: false; error: string }> {
+  const db = serviceDb();
+  const { data: artists, error } = await db.from("artists").select("id, name, spotify_url").eq("company_id", input.companyId);
+  if (error) return { ok: false, error: error.message };
+  const name = input.name.trim().toLowerCase();
+  const match =
+    artists.find((a) => input.spotifyUrl && a.spotify_url === input.spotifyUrl) ??
+    artists.find((a) => !a.spotify_url && a.name.trim().toLowerCase() === name);
+  if (match) {
+    if (!match.spotify_url && input.spotifyUrl) {
+      await db.from("artists").update({ spotify_url: input.spotifyUrl }).eq("id", match.id);
+    }
+    return { ok: true, artistId: match.id };
+  }
+  return upsertArtist({
+    companyId: input.companyId,
+    actor: input.actor,
+    name: input.name.trim(),
+    genre: input.genre,
+    bio: input.bio,
+    instagramHandle: input.instagramHandle,
+    spotifyUrl: input.spotifyUrl,
+    remoteImageUrl: input.imageUrl || undefined,
+  });
+}
+
 export async function upsertTour(input: {
   companyId: string;
   actor: { id: string; role: string };
@@ -429,6 +469,44 @@ async function postponeShowInternal(
 
 // ── Delete tour / show (hard delete, guarded against bookings) ────────────
 
+/**
+ * Sorts shows for a delete. Any live booking blocks it. Bookings that ended
+ * before money moved (invites or approvals canceled or run out before anyone
+ * accepted) go with their show. A show whose bookings have hold or payment
+ * records is kept for the books (it must be canceled or over).
+ */
+async function sortShowsForDelete(
+  db: ReturnType<typeof serviceDb>,
+  shows: { id: string; status: string }[],
+): Promise<{ blocked: true } | { blocked: false; remove: string[]; keep: string[] }> {
+  if (!shows.length) return { blocked: false, remove: [], keep: [] };
+  const { data: bookings, error } = await db
+    .from("bookings")
+    .select("show_id, status, authorization_records(id), creator_payment_records(id)")
+    .in(
+      "show_id",
+      shows.map((s) => s.id),
+    );
+  if (error) throw new Error(`bookings: ${error.message}`);
+  if (bookings.some((b) => b.status !== "canceled" && b.status !== "completed")) return { blocked: true };
+  const has = (rows: unknown) => (Array.isArray(rows) ? rows.length > 0 : rows != null);
+  const paid = new Set(
+    bookings.filter((b) => has(b.authorization_records) || has(b.creator_payment_records)).map((b) => b.show_id),
+  );
+  const keep = shows.filter((s) => paid.has(s.id));
+  if (keep.some((s) => s.status !== "canceled" && s.status !== "completed")) return { blocked: true };
+  return { blocked: false, remove: shows.filter((s) => !paid.has(s.id)).map((s) => s.id), keep: keep.map((s) => s.id) };
+}
+
+/** Deletes shows (and their canceled, never-accepted bookings). Cascades to opportunities, requests, threads. */
+async function removeShows(db: ReturnType<typeof serviceDb>, showIds: string[]): Promise<string | null> {
+  if (!showIds.length) return null;
+  const { error: bookingErr } = await db.from("bookings").delete().in("show_id", showIds).eq("status", "canceled");
+  if (bookingErr) return bookingErr.message;
+  const { error } = await db.from("shows").delete().in("id", showIds);
+  return error?.message ?? null;
+}
+
 export async function deleteTour(input: {
   tourId: string;
   companyId: string;
@@ -445,24 +523,15 @@ export async function deleteTour(input: {
 
   const { data: shows } = await db
     .from("shows")
-    .select("id")
+    .select("id, status")
     .eq("tour_id", input.tourId)
     .eq("company_id", input.companyId);
-  const showIds = (shows ?? []).map((s) => s.id);
+  const sorted = await sortShowsForDelete(db, shows ?? []);
+  if (sorted.blocked) return { ok: false, error: "Some shows have creator bookings. Cancel those shows first." };
+  const removeErr = await removeShows(db, sorted.remove);
+  if (removeErr) return { ok: false, error: removeErr };
 
-  if (showIds.length) {
-    const { count } = await db
-      .from("bookings")
-      .select("id", { count: "exact", head: true })
-      .in("show_id", showIds);
-    if ((count ?? 0) > 0) {
-      return { ok: false, error: "Some shows have creator bookings. Cancel those shows first." };
-    }
-    // Deleting the shows cascades to their opportunities, requests, deliverables.
-    const { error: showErr } = await db.from("shows").delete().in("id", showIds);
-    if (showErr) return { ok: false, error: showErr.message };
-  }
-
+  // Kept shows (payment history) stay as canceled one-offs: tour_id is set null.
   const { error } = await db
     .from("tours")
     .delete()
@@ -477,9 +546,9 @@ export async function deleteTour(input: {
     entityType: "tour",
     entityId: input.tourId,
     companyId: input.companyId,
-    metadata: { name: tour.name, deletedShows: showIds.length },
+    metadata: { name: tour.name, deletedShows: sorted.remove.length, keptShows: sorted.keep },
   });
-  return { ok: true, deletedShows: showIds.length };
+  return { ok: true, deletedShows: sorted.remove.length };
 }
 
 export async function deleteShow(input: {
@@ -490,26 +559,17 @@ export async function deleteShow(input: {
   const db = serviceDb();
   const { data: show } = await db
     .from("shows")
-    .select("id")
+    .select("id, status")
     .eq("id", input.showId)
     .eq("company_id", input.companyId)
     .maybeSingle();
   if (!show) return { ok: false, error: "Show not found" };
 
-  const { count } = await db
-    .from("bookings")
-    .select("id", { count: "exact", head: true })
-    .eq("show_id", input.showId);
-  if ((count ?? 0) > 0) {
-    return { ok: false, error: "This show has creator bookings. Cancel it instead." };
-  }
-
-  const { error } = await db
-    .from("shows")
-    .delete()
-    .eq("id", input.showId)
-    .eq("company_id", input.companyId);
-  if (error) return { ok: false, error: error.message };
+  const sorted = await sortShowsForDelete(db, [show]);
+  if (sorted.blocked) return { ok: false, error: "This show has creator bookings. Cancel it instead." };
+  if (sorted.keep.length) return { ok: false, error: "This show has payment history, so it's kept for your records." };
+  const removeErr = await removeShows(db, sorted.remove);
+  if (removeErr) return { ok: false, error: removeErr };
 
   await audit({
     actorId: input.actor.id,

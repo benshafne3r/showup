@@ -157,18 +157,12 @@ export default async function ToursPage({
   const { data: tours } = await db
     .from("tours")
     .select(
-      `id, name, description, starts_on, ends_on, artist_id,
+      `id, name, description, starts_on, ends_on,
        artists(id, name, genre, image_url, bio, instagram_handle, spotify_url),
        shows(id, date, status, venues(city), show_opportunities(stated_ticket_value_cents, deposit_percentage))`,
     )
     .eq("company_id", context.companyId)
     .order("created_at", { ascending: false });
-
-  // Existing artists (those already attached to a tour) for the "existing"
-  // picker. Artists with no tour don't surface — this is the Tours-first model.
-  const artistOptions = Array.from(
-    new Map((tours ?? []).map((t) => [t.artist_id, t.artists?.name ?? ""])).entries(),
-  ).map(([id, name]) => ({ id, name }));
 
   // Tours and one-off shows as one list of cards, filtered by view. A tour
   // shows only the dates in view; a new tour with no dates counts as active.
@@ -232,7 +226,7 @@ export default async function ToursPage({
                 <CalendarArrowDown className="size-4" aria-hidden /> Import dates
               </Link>
             </Button>
-            <CreateDialog artists={artistOptions} />
+            <CreateDialog />
           </div>
         }
       />
@@ -241,7 +235,7 @@ export default async function ToursPage({
           icon={Route}
           title="No shows yet"
           description="Create a tour (add the artist in the same step, then its dates) or a one-off event."
-          action={<CreateDialog artists={artistOptions} />}
+          action={<CreateDialog />}
         />
       ) : (
         <>
@@ -365,7 +359,7 @@ export default async function ToursPage({
                   ? "Shows move here once their date has passed or they're canceled."
                   : "Every date has passed. Add a date to a tour or create a new show."
               }
-              action={view === "active" ? <CreateDialog artists={artistOptions} /> : undefined}
+              action={view === "active" ? <CreateDialog /> : undefined}
             />
           )}
         </>

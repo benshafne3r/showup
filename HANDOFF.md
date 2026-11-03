@@ -74,7 +74,15 @@ than trusting notes (0007 was marked "done" but wasn't).
 - Tests: `tests/integration/roster.test.ts`, `e2e/roster-add.spec.ts`, `e2e/agency-offers.spec.ts`.
 - **Accept window is 72h on prod** (Admin → Settings, `acceptance_window_hours`; was 24, too short
   for agencies). `acceptanceHours()` in `lib/holds.ts` caps it at the end of the show date (UTC) so
-  nothing can be accepted after the show. Spark House's 6 waiting invites were extended to Nov 6.
+  nothing can be accepted after the show. (Ben then canceled that Casino Tour show, so those 6
+  invites are canceled.)
+- **Artist = Spotify search only** (tour + event create): `ArtistSelector` posts `artist*` fields;
+  `artistFromSpotify()` (`services/catalog.ts`) reuses the label's artist (same Spotify link, or
+  same name with no link) else creates it. e2e/CI set `ARTIST_LOOKUP=fake` (search echoes the query,
+  no enrichment) so tests never call Spotify/MusicBrainz/Wikipedia.
+- **Deleting a tour/show:** live bookings block it; canceled never-accepted bookings are deleted with
+  the show; canceled/over shows with hold or payment records are kept off the tour as one-offs
+  (`sortShowsForDelete`). Test: `tests/integration/delete-tour.test.ts`.
 
 ## Ella Langley removed (2026-11-02, Ben)
 Landing page: hero is now `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:

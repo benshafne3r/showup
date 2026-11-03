@@ -6,7 +6,7 @@ import { z } from "zod";
 import { requireUser, requireLabelWithCompany, requireCompanyRole } from "@/server/auth/guards";
 import { createCompany, inviteMember, removeMember, changeMemberRole } from "@/server/services/companies";
 import { serviceDb } from "@/server/db/service";
-import { upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
+import { artistFromSpotify, upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
 import { setTourDeposit, upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
 import { creatorsInCity, sendOffers } from "@/server/services/offers";
@@ -128,16 +128,33 @@ export async function enrichArtistAction(name: string): Promise<{ bio: string; i
   return enrichArtist(name);
 }
 
+/** The artist picked from Spotify search (tour + pop-up create forms). */
+const artistFields = {
+  artistName: z.string().trim().min(1, "Search Spotify and pick the artist").max(120),
+  artistGenre: z.string().max(60).optional().or(z.literal("")),
+  artistBio: z.string().max(1000).optional().or(z.literal("")),
+  artistInstagram: z.string().max(60).optional().or(z.literal("")),
+  artistSpotifyUrl: z.string().url("Search Spotify and pick the artist"),
+  artistImageUrl: z.string().url().or(z.literal("")).optional(),
+};
+
+/** The company's artist for the Spotify pick in a create form. */
+function artistFromForm(data: z.infer<z.ZodObject<typeof artistFields>>, companyId: string, actor: { id: string; role: string }) {
+  return artistFromSpotify({
+    companyId,
+    actor,
+    name: data.artistName,
+    genre: data.artistGenre ?? "",
+    bio: data.artistBio ?? "",
+    instagramHandle: (data.artistInstagram ?? "").replace(/^@/, ""),
+    spotifyUrl: data.artistSpotifyUrl,
+    imageUrl: data.artistImageUrl ?? "",
+  });
+}
+
 const tourSchema = z.object({
   tourId: z.string().uuid().optional().or(z.literal("")),
-  // Either an existing artist id, or new-artist fields (created inline).
-  artistId: z.string().uuid().optional().or(z.literal("")),
-  newArtistName: z.string().max(120).optional().or(z.literal("")),
-  newArtistGenre: z.string().max(60).optional().or(z.literal("")),
-  newArtistBio: z.string().max(1000).optional().or(z.literal("")),
-  newArtistInstagram: z.string().max(60).optional().or(z.literal("")),
-  newArtistSpotifyUrl: z.string().url().or(z.literal("")).optional(),
-  newArtistImageUrl: z.string().url().or(z.literal("")).optional(),
+  ...artistFields,
   name: z.string().min(1, "Tour name is required").max(160),
   description: z.string().max(1000),
   startsOn: z.string().optional().or(z.literal("")),
@@ -154,26 +171,9 @@ export async function saveTourAction(
     if (!parsed.success) return { error: parsed.error.issues[0].message };
     const actor = { id: context.user.id, role: "label" as const };
 
-    // Resolve the artist: use the selected one, or create a new one inline.
-    let artistId = parsed.data.artistId || "";
-    if (!artistId) {
-      const name = parsed.data.newArtistName?.trim();
-      if (!name) return { error: "Pick an existing artist or add a new one" };
-      const image = formData.get("image");
-      const created = await upsertArtist({
-        companyId: context.companyId,
-        actor,
-        name,
-        genre: parsed.data.newArtistGenre ?? "",
-        bio: parsed.data.newArtistBio ?? "",
-        instagramHandle: (parsed.data.newArtistInstagram ?? "").replace(/^@/, ""),
-        spotifyUrl: parsed.data.newArtistSpotifyUrl ?? "",
-        imageFile: image instanceof File ? image : null,
-        remoteImageUrl: parsed.data.newArtistImageUrl || undefined,
-      });
-      if (!created.ok) return { error: created.error };
-      artistId = created.artistId;
-    }
+    const artist = await artistFromForm(parsed.data, context.companyId, actor);
+    if (!artist.ok) return { error: artist.error };
+    const artistId = artist.artistId;
 
     const result = await upsertTour({
       companyId: context.companyId,
@@ -537,13 +537,7 @@ const CONTENT_PLATFORMS = [
 ] as const;
 
 const popupSchema = z.object({
-  artistId: z.string().uuid().optional().or(z.literal("")),
-  newArtistName: z.string().max(120).optional().or(z.literal("")),
-  newArtistGenre: z.string().max(60).optional().or(z.literal("")),
-  newArtistBio: z.string().max(1000).optional().or(z.literal("")),
-  newArtistInstagram: z.string().max(60).optional().or(z.literal("")),
-  newArtistSpotifyUrl: z.string().url().or(z.literal("")).optional(),
-  newArtistImageUrl: z.string().url().or(z.literal("")).optional(),
+  ...artistFields,
   venueName: z.string().min(1, "Venue name is required").max(160),
   venueCity: z.string().min(1, "City is required").max(80),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
@@ -567,26 +561,9 @@ export async function createPopupShowAction(
     const data = parsed.data;
     const actor = { id: context.user.id, role: "label" as const };
 
-    // Resolve the artist: existing selection, or create one inline (Spotify).
-    let artistId = data.artistId || "";
-    if (!artistId) {
-      const name = data.newArtistName?.trim();
-      if (!name) return { error: "Pick an artist or add a new one" };
-      const image = formData.get("image");
-      const created = await upsertArtist({
-        companyId: context.companyId,
-        actor,
-        name,
-        genre: data.newArtistGenre ?? "",
-        bio: data.newArtistBio ?? "",
-        instagramHandle: (data.newArtistInstagram ?? "").replace(/^@/, ""),
-        spotifyUrl: data.newArtistSpotifyUrl ?? "",
-        imageFile: image instanceof File ? image : null,
-        remoteImageUrl: data.newArtistImageUrl || undefined,
-      });
-      if (!created.ok) return { error: created.error };
-      artistId = created.artistId;
-    }
+    const artist = await artistFromForm(data, context.companyId, actor);
+    if (!artist.ok) return { error: artist.error };
+    const artistId = artist.artistId;
 
     let statedTicketValueCents: number;
     let creatorPaymentCents: number;

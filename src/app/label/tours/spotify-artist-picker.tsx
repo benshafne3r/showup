@@ -19,8 +19,7 @@ type SearchHit = Pick<PickedArtist, "name" | "genre" | "imageUrl" | "spotifyUrl"
 /**
  * Type-ahead over Spotify's artist catalog. On select it fills name/genre/photo
  * from Spotify and then enriches with a bio + Instagram from MusicBrainz +
- * Wikipedia (Spotify has neither). When Spotify isn't configured the search
- * returns [], so this quietly shows nothing and manual entry still works.
+ * Wikipedia (Spotify has neither).
  */
 export function SpotifyArtistPicker({
   onSelect,
@@ -35,6 +34,8 @@ export function SpotifyArtistPicker({
   const [searching, setSearching] = useState(false);
   const [enriching, setEnriching] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The latest pick; a slower bio/Instagram lookup for an earlier pick is dropped.
+  const latest = useRef("");
   const boxRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -73,13 +74,14 @@ export function SpotifyArtistPicker({
     setQuery(hit.name);
     setOpen(false);
     setEnriching(true);
+    latest.current = hit.spotifyUrl;
     // Fill Spotify data immediately; layer bio + Instagram on once fetched.
     onSelect({ ...hit, bio: "", instagram: "" });
     try {
       const extra = await enrichArtistAction(hit.name);
-      onSelect({ ...hit, bio: extra.bio, instagram: extra.instagram });
+      if (latest.current === hit.spotifyUrl) onSelect({ ...hit, bio: extra.bio, instagram: extra.instagram });
     } finally {
-      setEnriching(false);
+      if (latest.current === hit.spotifyUrl) setEnriching(false);
     }
   }
 
@@ -105,6 +107,12 @@ export function SpotifyArtistPicker({
         <p className="mt-1.5 flex items-center gap-1 text-xs text-emerald-400">
           <Check className="size-3.5" aria-hidden />
           {enriching ? `Fetching ${selectedName}'s details…` : `Using ${selectedName} from Spotify`}
+        </p>
+      ) : null}
+
+      {open && !searching && results.length === 0 ? (
+        <p className="absolute z-50 mt-1 w-full rounded-lg border bg-popover px-3 py-2 text-sm text-muted-foreground shadow-lg">
+          No matches on Spotify
         </p>
       ) : null}
 

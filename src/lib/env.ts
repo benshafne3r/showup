@@ -57,13 +57,18 @@ export const serverEnv = {
   get cronSecret() {
     return required("CRON_SECRET");
   },
-  // Spotify (Client Credentials) — powers the artist search + auto photo.
-  // Optional: unset → the picker falls back to manual entry.
+  // Spotify (Client Credentials) powers the artist search + auto photo.
   get spotifyClientId() {
     return process.env.SPOTIFY_CLIENT_ID ?? "";
   },
   get spotifyClientSecret() {
     return process.env.SPOTIFY_CLIENT_SECRET ?? "";
+  },
+  // ARTIST_LOOKUP=fake (e2e/CI): artist search echoes the query back as one
+  // Spotify-shaped result and enrichment returns blanks, so tests never call
+  // Spotify, MusicBrainz or Wikipedia.
+  get artistLookup(): "live" | "fake" {
+    return process.env.ARTIST_LOOKUP === "fake" ? "fake" : "live";
   },
   // TikWM Pro — content verification / view tracking for submitted TikTok
   // posts. Optional: unset → the free endpoint still updates view counts when

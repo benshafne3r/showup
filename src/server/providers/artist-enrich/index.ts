@@ -1,5 +1,6 @@
 import "server-only";
 
+import { serverEnv } from "@/lib/env";
 import { log, errorFields } from "@/server/log";
 
 /**
@@ -22,7 +23,7 @@ type WikiSummary = { type?: string; extract?: string };
 
 export async function enrichArtist(name: string): Promise<ArtistEnrichment> {
   const q = name.trim();
-  if (!q) return { bio: "", instagram: "" };
+  if (!q || serverEnv.artistLookup === "fake") return { bio: "", instagram: "" };
   const [instagram, bio] = await Promise.all([
     instagramFromMusicBrainz(q),
     bioFromWikipedia(q),

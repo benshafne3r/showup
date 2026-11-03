@@ -6,9 +6,8 @@ import { log, errorFields } from "@/server/log";
 /**
  * Spotify catalog access via the Client Credentials flow (no user login — the
  * app authenticates with its own id/secret and reads public catalog data).
- * Used to search artists and pull their profile photo. Degrades gracefully:
- * with no credentials, `searchArtists` returns [] and callers fall back to
- * manual entry.
+ * Used to search artists and pull their profile photo. Returns [] with no
+ * credentials or on error.
  */
 
 export type SpotifyArtist = {
@@ -74,6 +73,10 @@ type SpotifyApiArtist = {
 export async function searchArtists(query: string, limit = 8): Promise<SpotifyArtist[]> {
   const q = query.trim();
   if (!q) return [];
+  if (serverEnv.artistLookup === "fake") {
+    const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    return [{ spotifyId: `fake-${slug}`, name: q, genre: "", imageUrl: null, spotifyUrl: `https://open.spotify.com/artist/fake-${slug}`, followers: 0 }];
+  }
   const token = await getAccessToken();
   if (!token) return [];
 

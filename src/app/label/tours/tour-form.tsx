@@ -10,14 +10,14 @@ import { ArtistSelector } from "./artist-selector";
 
 /**
  * The "create tour" form body (no dialog wrapper), rendered inside the Create
- * dialog's "Tour" tab: an existing/new artist selector plus the tour fields.
+ * dialog's "Tour" tab: a Spotify artist search plus the tour fields.
  */
-export function TourCreateForm({ artists }: { artists: { id: string; name: string }[] }) {
+export function TourCreateForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(saveTourAction, null);
 
   return (
     <form action={formAction} className="space-y-4">
-      <ArtistSelector artists={artists} />
+      <ArtistSelector />
 
       <div className="space-y-1.5">
         <Label htmlFor="tour-name">Tour name</Label>

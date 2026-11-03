@@ -28,6 +28,8 @@ test("an opted-in creator is alerted when a label posts a show in their city", a
   await page.goto("/label/tours");
   await page.getByRole("button", { name: "Create" }).first().click();
   await page.getByRole("tab", { name: "Event" }).click();
+  await page.getByLabel("Search Spotify for an artist").fill("Baby Keem");
+  await page.getByRole("button", { name: "Baby Keem", exact: true }).click();
   await page.getByLabel("Venue / Address").fill(venue);
   await page.getByRole("textbox", { name: "City" }).fill("Los Angeles");
   await page.getByLabel("Show date").fill("2026-12-20");

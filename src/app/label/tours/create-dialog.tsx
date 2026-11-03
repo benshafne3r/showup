@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 import { Plus } from "lucide-react";
 
 /** One "Create" button → a tabbed dialog: a full Tour, or a one-off Pop-up show. */
-export function CreateDialog({ artists }: { artists: { id: string; name: string }[] }) {
+export function CreateDialog() {
   const [tab, setTab] = useState<"tour" | "popup">("tour");
 
   return (
@@ -68,9 +68,9 @@ export function CreateDialog({ artists }: { artists: { id: string; name: string 
         </p>
 
         {tab === "tour" ? (
-          <TourCreateForm artists={artists} />
+          <TourCreateForm />
         ) : (
-          <PopupShowForm artists={artists} />
+          <PopupShowForm />
         )}
       </DialogContent>
     </Dialog>

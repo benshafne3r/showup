@@ -27,7 +27,7 @@ export type ResolvedInvite =
 
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{20,128}$/;
 
-export function newInviteToken(): { token: string; hash: string } {
+function newInviteToken(): { token: string; hash: string } {
   const token = randomBytes(24).toString("base64url");
   return { token, hash: hashInviteToken(token) };
 }

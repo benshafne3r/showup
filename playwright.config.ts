@@ -25,7 +25,8 @@ export default defineConfig({
     reuseExistingServer: true,
     timeout: 180_000,
     // Redirects (auth callback) and mock webhooks use the app URL — point it
-    // at the test server rather than the dev server's port.
-    env: { NEXT_PUBLIC_APP_URL: "http://localhost:3111" },
+    // at the test server rather than the dev server's port. Artist search is
+    // faked so tests never call Spotify.
+    env: { NEXT_PUBLIC_APP_URL: "http://localhost:3111", ARTIST_LOOKUP: "fake" },
   },
 });

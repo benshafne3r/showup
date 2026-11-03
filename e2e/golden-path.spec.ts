@@ -25,12 +25,12 @@ test.describe.configure({ mode: "serial" });
 test("label creates an artist (via a tour) and a show with an opportunity", async ({ page }) => {
   await signIn(page, ACCOUNTS.labelOwner);
 
-  // Tours-first: create the artist inline while creating their tour.
+  // Tours-first: the artist is created from the Spotify pick with their tour.
   await page.goto("/label/tours");
   await page.getByRole("button", { name: "Create" }).first().click();
-  await page.getByRole("tab", { name: "New artist" }).click();
-  await page.getByLabel("Name", { exact: true }).fill(ARTIST);
-  await page.getByLabel("Genre").fill("Synthwave");
+  // Artist search is faked in e2e (ARTIST_LOOKUP=fake): it echoes the query.
+  await page.getByLabel("Search Spotify for an artist").fill(ARTIST);
+  await page.getByRole("button", { name: ARTIST, exact: true }).click();
   await page.getByLabel("Tour name").fill(`E2E Tour ${runId}`);
   await page.getByRole("button", { name: "Create tour" }).click();
   // The dialog stays open and shows a success message; the artist now exists.

@@ -19,12 +19,12 @@ import { ArtistSelector } from "./artist-selector";
  * Quick one-off pop-up: a standalone show (no tour) in a city, published
  * instantly. Everything not asked here uses a default (see createPopupShowAction).
  */
-export function PopupShowForm({ artists }: { artists: { id: string; name: string }[] }) {
+export function PopupShowForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(createPopupShowAction, null);
 
   return (
     <form action={formAction} className="space-y-4">
-      <ArtistSelector artists={artists} />
+      <ArtistSelector />
 
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
@@ -82,7 +82,6 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
         <div className="space-y-1.5">
           <Label htmlFor="pop-pay">Creator payment (USD)</Label>
           <Input id="pop-pay" name="creatorPayment" inputMode="decimal" placeholder="0 = attend-only" />
-          <p className="text-xs text-muted-foreground">Charged to your card with card processing (2.9% + 30¢) when you approve their content.</p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pop-content">Content ask</Label>
@@ -104,9 +103,6 @@ export function PopupShowForm({ artists }: { artists: { id: string; name: string
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">{state.error}</p>
       ) : null}
-      <p className="text-xs text-muted-foreground">
-        Publishes immediately so creators can request it right away.
-      </p>
       <SubmitButton className="w-full" pendingLabel="Publishing…">
         Publish event
       </SubmitButton>
