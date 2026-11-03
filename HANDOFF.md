@@ -72,6 +72,9 @@ than trusting notes (0007 was marked "done" but wasn't).
   the top, Accept / Accept all N / Pass with confirm dialogs. Messages nav badge counts them; the
   offer digest notification links to `/manager/messages?tab=requests`.
 - Tests: `tests/integration/roster.test.ts`, `e2e/roster-add.spec.ts`, `e2e/agency-offers.spec.ts`.
+- **Accept window is 72h on prod** (Admin → Settings, `acceptance_window_hours`; was 24, too short
+  for agencies). `acceptanceHours()` in `lib/holds.ts` caps it at the end of the show date (UTC) so
+  nothing can be accepted after the show. Spark House's 6 waiting invites were extended to Nov 6.
 
 ## Ella Langley removed (2026-11-02, Ben)
 Landing page: hero is now `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:
