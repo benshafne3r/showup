@@ -763,6 +763,8 @@ Production-readiness pass — remaining (security, resilience, auth email, Strip
 ## Gotchas / setup
 - **CI pins Supabase CLI 2.90.0** (`.github/workflows/ci.yml`). v3.0.0 (2026-11-03) rejects our
   `[inbucket]` config (wants `[local_smtp]`); migrate config.toml before unpinning.
+- CI e2e sometimes fails with "An invalid response was received from the upstream server" (local
+  Supabase gateway hiccup, not our code): `gh run rerun <id> --failed`.
 - Run `npm run dev` · seed `npm run seed` (targets `.env.local` dev DB) · cron `npm run cron`.
 - Tests: `npm test` · `npm run test:integration` (local Supabase + seed) · `npm run test:e2e` ·
   `npm run typecheck` · `npm run lint`.
