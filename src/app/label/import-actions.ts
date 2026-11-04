@@ -2,36 +2,32 @@
 
 import { z } from "zod";
 import { requireLabelWithCompany, AuthError } from "@/server/auth/guards";
-import { serviceDb } from "@/server/db/service";
+import { findCompanyArtist } from "@/server/services/catalog";
 import { eventProvider } from "@/server/providers/events";
 import { EventProviderError, type ExternalEvent } from "@/server/providers/events/types";
 
 export type ImportResult =
-  | { ok: true; artistName: string; provider: string; events: ExternalEvent[] }
+  | { ok: true; provider: string; events: ExternalEvent[]; artistId: string | null }
   | { ok: false; error: string };
 
+const artistSchema = z.object({ name: z.string().trim().min(1).max(120), spotifyUrl: z.string().url().or(z.literal("")).optional() });
+
 /**
- * Fetch an artist's announced tour dates from the configured event provider
- * (Bandsintown → Ticketmaster → offline demo) so the label can prefill the
- * show form instead of typing venue/city/date by hand.
+ * An artist's announced tour dates from the configured event provider
+ * (Bandsintown → Ticketmaster → offline demo), matched on their Spotify link
+ * where the provider can. Also returns the label's existing artist for that
+ * pick (null if they don't have them yet), so the tour list can be filtered.
  */
-export async function searchArtistEvents(artistId: string): Promise<ImportResult> {
+export async function searchArtistEvents(artist: { name: string; spotifyUrl?: string }): Promise<ImportResult> {
   try {
     const context = await requireLabelWithCompany();
-    const id = z.string().uuid().parse(artistId);
-
-    const { data: artist } = await serviceDb()
-      .from("artists")
-      .select("name, company_id")
-      .eq("id", id)
-      .maybeSingle();
-    if (!artist || artist.company_id !== context.companyId) {
-      return { ok: false, error: "Artist not found in your roster" };
-    }
-
+    const { name, spotifyUrl = "" } = artistSchema.parse(artist);
     const provider = eventProvider();
-    const events = await provider.searchEvents(artist.name);
-    return { ok: true, artistName: artist.name, provider: provider.name, events: events.slice(0, 40) };
+    const [events, existing] = await Promise.all([
+      provider.searchEvents(name, spotifyUrl || undefined),
+      findCompanyArtist(context.companyId, name, spotifyUrl),
+    ]);
+    return { ok: true, provider: provider.name, events: events.slice(0, 40), artistId: existing?.id ?? null };
   } catch (err) {
     if (err instanceof AuthError) return { ok: false, error: err.message };
     if (err instanceof EventProviderError) return { ok: false, error: err.message };

@@ -59,7 +59,7 @@ jobs:
             echo "PAYMENT_PROVIDER=mock"
             echo "MOCK_WEBHOOK_SECRET=ci-mock-webhook-secret"
             echo "EMAIL_PROVIDER=console"
-            echo "ARTIST_LOOKUP=fake"
+            echo "EXTERNAL_LOOKUPS=fake"
             echo "CRON_SECRET=ci-cron-secret"
             echo "OWNER_EMAILS=label.owner@demo.showup.test"
           } > .env.local

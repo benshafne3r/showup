@@ -23,7 +23,7 @@ type WikiSummary = { type?: string; extract?: string };
 
 export async function enrichArtist(name: string): Promise<ArtistEnrichment> {
   const q = name.trim();
-  if (!q || serverEnv.artistLookup === "fake") return { bio: "", instagram: "" };
+  if (!q || serverEnv.externalLookups === "fake") return { bio: "", instagram: "" };
   const [instagram, bio] = await Promise.all([
     instagramFromMusicBrainz(q),
     bioFromWikipedia(q),

@@ -16,7 +16,10 @@ test("label creates a one-off pop-up show", async ({ page }) => {
   await page.getByLabel("Search Spotify for an artist").fill("Baby Keem");
   await page.getByRole("button", { name: "Baby Keem", exact: true }).click();
   await page.getByLabel("Venue / Address").fill("The Echoplex");
-  await page.getByRole("textbox", { name: "City" }).fill("Los Angeles");
+  // City type-ahead (offline US city list): picking fills the city (and state).
+  await page.getByLabel("City", { exact: true }).fill("Los Ang");
+  await page.getByRole("option", { name: "Los Angeles, CA", exact: true }).click();
+  await expect(page.getByLabel("City", { exact: true })).toHaveValue("Los Angeles");
   await page.getByLabel("Show date").fill("2026-12-15");
   await page.getByLabel("Apply by").fill("2026-12-14");
   await page.getByLabel("Deposit per ticket (USD)").fill("45");

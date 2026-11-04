@@ -25,7 +25,7 @@ export default function ForLabelsPage() {
           <h2 className="text-base font-semibold text-foreground">Pick the right creators</h2>
           <p className="mt-1">
             Review profiles, cities, audience sizes, average views, categories, and example
-            work. Approve, waitlist, message, or pass. Approvals expire after 24 hours if the
+            work. Approve, waitlist, message, or pass. Approvals expire after 72 hours if the
             creator doesn't commit, so spots recycle automatically.
           </p>
         </div>

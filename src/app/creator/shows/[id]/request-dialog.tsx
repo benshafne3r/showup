@@ -44,7 +44,7 @@ export function RequestAccessDialog({
         <DialogHeader>
           <DialogTitle>Request access: {artistName}</DialogTitle>
           <DialogDescription>
-            Tell the team why you're a great fit. Approval gives you 24 hours to confirm.
+            Tell the team why you're a great fit. Approval gives you 72 hours to confirm.
           </DialogDescription>
         </DialogHeader>
         <form action={formAction} className="space-y-4">

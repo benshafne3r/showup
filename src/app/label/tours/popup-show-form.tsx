@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { ArtistSelector } from "./artist-selector";
+import { VenueFields } from "../shows/venue-fields";
 
 /**
  * Quick one-off pop-up: a standalone show (no tour) in a city, published
@@ -26,21 +27,7 @@ export function PopupShowForm() {
     <form action={formAction} className="space-y-4">
       <ArtistSelector />
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="pop-venue">Venue / Address</Label>
-          <Input
-            id="pop-venue"
-            name="venueName"
-            placeholder="The Echoplex, or 1155 Sunset Blvd"
-            required
-          />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pop-city">City</Label>
-          <Input id="pop-city" name="venueCity" placeholder="Los Angeles" required />
-        </div>
-      </div>
+      <VenueFields idPrefix="pop" compact />
 
       <label
         htmlFor="pop-hide"

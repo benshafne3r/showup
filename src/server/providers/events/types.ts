@@ -24,8 +24,11 @@ export type ExternalEvent = {
 
 export interface EventProvider {
   readonly name: "bandsintown" | "ticketmaster" | "demo";
-  /** Upcoming events for an artist, soonest first. Empty array = none found. */
-  searchEvents(artistName: string): Promise<ExternalEvent[]>;
+  /**
+   * Upcoming events for an artist, soonest first. Empty array = none found.
+   * With the artist's Spotify link, providers that can match on it do.
+   */
+  searchEvents(artistName: string, spotifyUrl?: string): Promise<ExternalEvent[]>;
 }
 
 export class EventProviderError extends Error {

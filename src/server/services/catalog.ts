@@ -104,9 +104,27 @@ export async function upsertArtist(input: {
 }
 
 /**
- * The company's artist for a Spotify pick: the one they already have (same
- * Spotify link, or same name with no link yet), else a new one with the
- * Spotify photo.
+ * The company's existing artist for a Spotify pick: same Spotify link, or the
+ * same name with no link yet.
+ */
+export async function findCompanyArtist(
+  companyId: string,
+  name: string,
+  spotifyUrl: string,
+): Promise<{ id: string; spotify_url: string | null } | null> {
+  const { data: artists, error } = await serviceDb().from("artists").select("id, name, spotify_url").eq("company_id", companyId);
+  if (error) throw new Error(`artists: ${error.message}`);
+  const lower = name.trim().toLowerCase();
+  return (
+    artists.find((a) => spotifyUrl && a.spotify_url === spotifyUrl) ??
+    artists.find((a) => !a.spotify_url && a.name.trim().toLowerCase() === lower) ??
+    null
+  );
+}
+
+/**
+ * The company's artist for a Spotify pick: the one they already have, else a
+ * new one with the Spotify photo.
  */
 export async function artistFromSpotify(input: {
   companyId: string;
@@ -118,16 +136,10 @@ export async function artistFromSpotify(input: {
   spotifyUrl: string;
   imageUrl: string;
 }): Promise<{ ok: true; artistId: string } | { ok: false; error: string }> {
-  const db = serviceDb();
-  const { data: artists, error } = await db.from("artists").select("id, name, spotify_url").eq("company_id", input.companyId);
-  if (error) return { ok: false, error: error.message };
-  const name = input.name.trim().toLowerCase();
-  const match =
-    artists.find((a) => input.spotifyUrl && a.spotify_url === input.spotifyUrl) ??
-    artists.find((a) => !a.spotify_url && a.name.trim().toLowerCase() === name);
+  const match = await findCompanyArtist(input.companyId, input.name, input.spotifyUrl);
   if (match) {
     if (!match.spotify_url && input.spotifyUrl) {
-      await db.from("artists").update({ spotify_url: input.spotifyUrl }).eq("id", match.id);
+      await serviceDb().from("artists").update({ spotify_url: input.spotifyUrl }).eq("id", match.id);
     }
     return { ok: true, artistId: match.id };
   }

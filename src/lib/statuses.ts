@@ -106,6 +106,15 @@ export const REQUEST_STATUS_META: Record<RequestStatus, { label: string; tone: T
   withdrawn: { label: "Withdrawn", tone: "neutral" },
 };
 
+/**
+ * A decided request's badge. An approved request whose booking was canceled
+ * (show canceled, invite passed on or ran out) reads "Canceled", not "Approved".
+ */
+export function requestOutcomeMeta(status: RequestStatus, bookingStatus?: BookingStatus | null): { label: string; tone: Tone } {
+  if (status === "approved" && bookingStatus === "canceled") return { label: "Canceled", tone: "neutral" };
+  return REQUEST_STATUS_META[status];
+}
+
 export const BOOKING_STATUS_META: Record<BookingStatus, { label: string; tone: Tone }> = {
   awaiting_acceptance: { label: "Awaiting your acceptance", tone: "warning" },
   awaiting_payment_method: { label: "Payment method needed", tone: "warning" },

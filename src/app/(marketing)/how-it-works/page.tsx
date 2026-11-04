@@ -9,7 +9,7 @@ const STEPS = [
   ["Labels post shows", "Artist teams list tour dates and set aside a limited number of complimentary tickets for creators, with a deposit per ticket, content deliverables, and a creator payment."],
   ["Creators request access", "Creators browse shows in their city and request one ticket (or a ticket plus a +1) with a pitch or content idea."],
   ["The team reviews", "Labels review creator profiles and audience metrics, then approve, waitlist, message, or pass."],
-  ["24 hours to accept", "Approved creators review the final terms (the deposit per ticket, the exact temporary hold, and the creator payment), then add a payment method and accept."],
+  ["72 hours to accept", "Approved creators review the final terms (the deposit per ticket, the exact temporary hold, and the creator payment), then add a payment method and accept."],
   ["A temporary hold, placed close to the show", "The hold equals the deposit per ticket × the number of tickets. It covers every requested ticket, including a +1. It is placed a few days before the show, never charged upfront."],
   ["Attend, and the hold is released", "Check in at the venue with photo proof. Once the team verifies attendance, the hold is released in full. Attending means you are never charged."],
   ["Post and get paid", "Submit your post link and proof. When the team approves your deliverables, the agreed creator payment is released to you."],

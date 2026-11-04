@@ -46,7 +46,8 @@ export function ImportPanel({
     setError(null);
     setEvents(null);
     startTransition(async () => {
-      const result = await searchArtistEvents(artistId);
+      const name = artists.find((a) => a.id === artistId)?.name ?? "";
+      const result = await searchArtistEvents({ name });
       if (!result.ok) {
         setError(result.error);
         return;

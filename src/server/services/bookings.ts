@@ -57,7 +57,7 @@ export async function acceptBooking(input: {
   if (new Date(booking.acceptance_deadline_at) < new Date() &&
       ["awaiting_acceptance", "awaiting_payment_method"].includes(booking.status)) {
     await expireBooking(booking.id);
-    return { ok: false, error: "The 24-hour acceptance window has passed" };
+    return { ok: false, error: "The acceptance window has passed" };
   }
 
   const pm = input.agency
@@ -115,7 +115,7 @@ export async function acceptBooking(input: {
   const failure = txError(error, {
     booking_not_found: "Booking not found",
     not_acceptable: "Booking can no longer be accepted",
-    acceptance_expired: "The 24-hour acceptance window has passed",
+    acceptance_expired: "The acceptance window has passed",
   });
   if (failure) return { ok: false, error: failure };
 
@@ -240,7 +240,7 @@ export async function expireBooking(bookingId: string): Promise<boolean> {
         userId: creatorId,
         type: "booking_canceled",
         title: "Your approval expired",
-        body: "The 24-hour acceptance window passed, so the spot was released. You can request other shows anytime.",
+        body: "The acceptance window passed, so the spot was released. You can request other shows anytime.",
         link: "/creator/messages?tab=requests",
       }),
     ],

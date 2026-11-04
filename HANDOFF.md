@@ -78,8 +78,21 @@ than trusting notes (0007 was marked "done" but wasn't).
   invites are canceled.)
 - **Artist = Spotify search only** (tour + event create): `ArtistSelector` posts `artist*` fields;
   `artistFromSpotify()` (`services/catalog.ts`) reuses the label's artist (same Spotify link, or
-  same name with no link) else creates it. e2e/CI set `ARTIST_LOOKUP=fake` (search echoes the query,
-  no enrichment) so tests never call Spotify/MusicBrainz/Wikipedia.
+  same name with no link) else creates it. e2e/CI set `EXTERNAL_LOOKUPS=fake` (artist search echoes
+  the query, no enrichment, no Ticketmaster) so tests never call outside services.
+- **Venue + city type-ahead** (show form + event form, `shows/venue-fields.tsx`, `components/suggest-input.tsx`):
+  venues = this label's own (never other labels', secret addresses stay private) + Ticketmaster venue
+  search; picking fills city/state/address. Cities = offline US list (`providers/places/us-cities.json`,
+  GeoNames CC BY 4.0, rebuilt by `scripts/build-us-cities.ts`).
+- **Pull tour dates = Spotify search** (`bulk-import-form.tsx`): picking the artist fetches dates. Spotify has
+  no tour-date API, so dates come from Ticketmaster, matched to the exact artist via the Spotify link on
+  their Ticketmaster page (keyword search fallback). Publishing creates the artist if new.
+- **Decided lists** show "Canceled" (not "Approved") once the booking was canceled. "24 hours" copy now
+  72 / the setting.
+- **Photos:** `copyAvatarToStorage` rejects <2 KB placeholders (CreatorCore's black square).
+  `railway run --service showup -- npm run photos:refresh` fills missing/blank managed-creator photos from
+  TikTok (TikWM key only in Railway). Ran 2026-11-03: Owen, Tonito, Alex, sophiapinkxo fixed; lilothman +
+  lockmurkshizz have TikTok's default blank avatar.
 - **Deleting a tour/show:** live bookings block it; canceled never-accepted bookings are deleted with
   the show; canceled/over shows with hold or payment records are kept off the tour as one-offs
   (`sortShowsForDelete`). Test: `tests/integration/delete-tour.test.ts`.

@@ -47,8 +47,14 @@ export class DemoEventProvider implements EventProvider {
   async searchEvents(artistName: string): Promise<ExternalEvent[]> {
     const events = DEMO_EVENTS[artistName.trim().toLowerCase()] ?? [];
     const today = new Date().toISOString().slice(0, 10);
+    // Sample dates roll forward a year at a time once past, so there are
+    // always upcoming ones to demo (and test) with.
     return events
-      .filter((event) => event.date >= today)
-      .map((event) => ({ ...event, artistName }));
+      .map((event) => {
+        let date = event.date;
+        while (date < today) date = `${Number(date.slice(0, 4)) + 1}${date.slice(4)}`;
+        return { ...event, date, artistName };
+      })
+      .sort((a, b) => (a.date < b.date ? -1 : 1));
   }
 }

@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/pagination";
-import { REQUEST_STATUS_META } from "@/lib/statuses";
+import { requestOutcomeMeta } from "@/lib/statuses";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { Inbox } from "lucide-react";
 
@@ -42,7 +42,7 @@ async function rosterRequests(agencyId: string, open: boolean, offset: number) {
     .select(
       `id, status, ticket_count, includes_plus_one, created_at,
        users:users!creator_id(full_name),
-       bookings(id),
+       bookings(id, status),
        shows!inner(date, artists(name), venues(city)),
        companies(name)`,
     )
@@ -123,7 +123,7 @@ export default async function ManagerMessagesPage({
                 </p>
               </div>
               <div className="flex items-center gap-2">
-                <StatusBadge {...REQUEST_STATUS_META[request.status]} />
+                <StatusBadge {...requestOutcomeMeta(request.status, request.bookings?.status)} />
                 {bookingId ? (
                   <Button asChild size="sm" variant="outline">
                     <Link href={`/manager/bookings/${bookingId}`}>Booking</Link>

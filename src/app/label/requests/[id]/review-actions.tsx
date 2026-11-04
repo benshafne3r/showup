@@ -108,7 +108,7 @@ export function ReviewActions({
           </p>
         ) : null}
         <p className="text-xs text-muted-foreground">
-          Approving reserves the tickets and gives the creator 24 hours to accept. If they don't,
+          Approving reserves the tickets and gives the creator 72 hours to accept. If they don't,
           the spot is automatically released.
         </p>
       </CardContent>

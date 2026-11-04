@@ -6,16 +6,21 @@ import { SpotifyArtistPicker, type PickedArtist } from "./spotify-artist-picker"
 
 /**
  * The artist for the tour + pop-up create forms, picked from Spotify search.
- * Emits the `artist*` fields both actions read; the server reuses the label's
- * artist when they already have it.
+ * Emits the `artist*` fields the create actions read; the server reuses the
+ * label's artist when they already have it.
  */
-export function ArtistSelector() {
+export function ArtistSelector({ onChange }: { onChange?: (artist: PickedArtist) => void }) {
   const [artist, setArtist] = useState<PickedArtist | null>(null);
 
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">Artist</legend>
-      <SpotifyArtistPicker onSelect={setArtist} />
+      <SpotifyArtistPicker
+        onSelect={(picked) => {
+          setArtist(picked);
+          onChange?.(picked);
+        }}
+      />
       {artist ? (
         <div className="flex items-center gap-3 rounded-lg border p-2.5">
           {artist.imageUrl ? (

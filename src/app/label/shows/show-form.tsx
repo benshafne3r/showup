@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
+import { VenueFields } from "./venue-fields";
 import { Plus, Trash2 } from "lucide-react";
 
 type Deliverable = {
@@ -132,24 +133,7 @@ export function ShowForm({
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="venue-name">Venue name</Label>
-            <Input id="venue-name" name="venueName" defaultValue={initial.venueName ?? ""} placeholder="The Echoplex" required />
-          </div>
-          <div className="grid grid-cols-[1fr_90px] gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="venue-city">City</Label>
-              <Input id="venue-city" name="venueCity" defaultValue={initial.venueCity ?? ""} placeholder="Los Angeles" required />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="venue-state">State</Label>
-              <Input id="venue-state" name="venueState" defaultValue={initial.venueState ?? ""} placeholder="CA" />
-            </div>
-          </div>
-          <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="venue-address">Address (optional)</Label>
-            <Input id="venue-address" name="venueAddress" defaultValue={initial.venueAddress ?? ""} placeholder="1154 Glendale Blvd" />
-          </div>
+          <VenueFields idPrefix="venue" initial={initial} />
           <div className="space-y-1.5">
             <Label htmlFor="show-date">Date</Label>
             <Input id="show-date" name="date" type="date" defaultValue={initial.date ?? ""} required />

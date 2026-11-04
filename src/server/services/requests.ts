@@ -202,7 +202,7 @@ export async function approveRequest(input: {
   confirmedTicketCount?: 1 | 2;
   /** Skip the "you're approved" notification (label invites send their own). */
   quiet?: boolean;
-}): Promise<{ ok: true; bookingId: string; acceptBy: string } | { ok: false; error: string }> {
+}): Promise<{ ok: true; bookingId: string; acceptBy: string; acceptHours: number } | { ok: false; error: string }> {
   const db = serviceDb();
   const { data: request } = await db
     .from("show_requests")
@@ -264,7 +264,7 @@ export async function approveRequest(input: {
     companyId: input.companyId,
     metadata: { bookingId, ticketCount: row?.tickets ?? ticketCount, holdCents: row?.hold_cents ?? holdCents },
   });
-  return { ok: true, bookingId, acceptBy: row?.accept_by ?? new Date().toISOString() };
+  return { ok: true, bookingId, acceptBy: row?.accept_by ?? new Date().toISOString(), acceptHours };
 }
 
 export async function rejectRequest(input: {

@@ -73,7 +73,7 @@ type SpotifyApiArtist = {
 export async function searchArtists(query: string, limit = 8): Promise<SpotifyArtist[]> {
   const q = query.trim();
   if (!q) return [];
-  if (serverEnv.artistLookup === "fake") {
+  if (serverEnv.externalLookups === "fake") {
     const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     return [{ spotifyId: `fake-${slug}`, name: q, genre: "", imageUrl: null, spotifyUrl: `https://open.spotify.com/artist/fake-${slug}`, followers: 0 }];
   }

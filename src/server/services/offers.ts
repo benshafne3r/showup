@@ -317,7 +317,7 @@ export async function sendOffers(input: {
   reviewer: { id: string; role: string };
   /** Posted in each invite's conversation (an agency creator's goes to their agency). */
   message?: string;
-}): Promise<{ ok: true; sent: number; skipped: string[] } | { ok: false; error: string }> {
+}): Promise<{ ok: true; sent: number; skipped: string[]; acceptHours: number } | { ok: false; error: string }> {
   const creatorIds = [...new Set(input.creatorIds)];
   const note = input.message?.trim().slice(0, 2000) ?? "";
   if (!creatorIds.length) return { ok: false, error: "Pick at least one creator" };
@@ -428,7 +428,7 @@ export async function sendOffers(input: {
     companyId: input.companyId,
     metadata: { sent, skipped: skipped.length },
   });
-  return { ok: true, sent, skipped };
+  return { ok: true, sent, skipped, acceptHours };
 }
 
 /**

@@ -3,6 +3,8 @@ import "server-only";
 import type { ServiceClient } from "@/server/db/service";
 import { serviceDb } from "@/server/db/service";
 import { geocodeVenue } from "@/server/providers/geocode/nominatim";
+import { searchExternalVenues } from "@/server/providers/events";
+import type { VenueSuggestion } from "@/lib/places";
 
 type VenueRow = {
   id: string;
@@ -79,4 +81,34 @@ export async function venueDetailsForCreator(
     );
   }
   return details;
+}
+
+/**
+ * Venue type-ahead: this label's own venues first, then Ticketmaster's (US).
+ * Other labels' venues never show, so a secret pop-up's address stays theirs.
+ */
+export async function searchVenues(companyId: string, query: string): Promise<VenueSuggestion[]> {
+  const q = query.trim();
+  if (q.length < 2) return [];
+  const pattern = `%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+  const [{ data: own }, external] = await Promise.all([
+    serviceDb()
+      .from("venues")
+      .select("name, city, state, address")
+      .eq("created_by_company", companyId)
+      .ilike("name", pattern)
+      .order("name")
+      .limit(5),
+    searchExternalVenues(q),
+  ]);
+  const seen = new Set<string>();
+  return [
+    ...(own ?? []).map((v) => ({ name: v.name, city: v.city, state: v.state ?? "", address: v.address ?? "" })),
+    ...external,
+  ].filter((v) => {
+    const key = `${v.name}|${v.city}`.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }

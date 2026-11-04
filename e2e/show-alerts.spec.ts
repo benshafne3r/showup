@@ -31,7 +31,7 @@ test("an opted-in creator is alerted when a label posts a show in their city", a
   await page.getByLabel("Search Spotify for an artist").fill("Baby Keem");
   await page.getByRole("button", { name: "Baby Keem", exact: true }).click();
   await page.getByLabel("Venue / Address").fill(venue);
-  await page.getByRole("textbox", { name: "City" }).fill("Los Angeles");
+  await page.getByLabel("City", { exact: true }).fill("Los Angeles");
   await page.getByLabel("Show date").fill("2026-12-20");
   await page.getByLabel("Apply by").fill("2026-12-18");
   await page.getByLabel("Deposit per ticket (USD)").fill("25");

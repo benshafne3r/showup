@@ -25,6 +25,9 @@ import { attachCompanyPaymentMethod, finishCardSetup, startCardSetup } from "@/s
 import { formatCents, parseDollarsToCents } from "@/lib/money";
 import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
 import { enrichArtist } from "@/server/providers/artist-enrich";
+import { searchCities } from "@/server/providers/places";
+import { searchVenues } from "@/server/services/venues";
+import type { CitySuggestion, VenueSuggestion } from "@/lib/places";
 import { toActionError } from "@/server/action-error";
 
 // NOTE: "use server" files may only export async functions; a re-exported type
@@ -126,6 +129,18 @@ export async function searchSpotifyArtistsAction(query: string): Promise<Spotify
 export async function enrichArtistAction(name: string): Promise<{ bio: string; instagram: string }> {
   await requireLabelWithCompany();
   return enrichArtist(name);
+}
+
+/** US cities for the city type-ahead ("Milw" → Milwaukee, WI). */
+export async function suggestCitiesAction(query: string): Promise<CitySuggestion[]> {
+  await requireLabelWithCompany();
+  return searchCities(String(query).slice(0, 80));
+}
+
+/** Venues for the venue type-ahead: the label's own, then Ticketmaster's. */
+export async function suggestVenuesAction(query: string): Promise<VenueSuggestion[]> {
+  const context = await requireLabelWithCompany();
+  return searchVenues(context.companyId, String(query).slice(0, 80));
 }
 
 /** The artist picked from Spotify search (tour + pop-up create forms). */
@@ -385,8 +400,8 @@ export async function saveShowAction(
 
 // ── Bulk import: create + publish a show for every selected tour date ──────
 const bulkImportSchema = z.object({
-  artistId: z.string().uuid(),
-  tourId: z.string().uuid().optional().or(z.literal("")),
+  ...artistFields,
+  tourId: z.string().uuid().optional().or(z.literal("")).or(z.literal("none")),
   dates: z.string(), // JSON array of imported dates
   depositPerTicket: z.string().min(1, "Set the deposit per ticket"),
   creatorPayment: z.string(),
@@ -446,6 +461,11 @@ export async function bulkImportShowsAction(
         ? []
         : [{ platform: data.contentPlatform, quantity: 1, description: "" }];
 
+    const artist = await artistFromForm(data, context.companyId, { id: context.user.id, role: "label" });
+    if (!artist.ok) return { error: artist.error };
+    const artistId = artist.artistId;
+    const tourId = data.tourId && data.tourId !== "none" ? data.tourId : undefined;
+
     const now = Date.now();
     const dayMs = 24 * 60 * 60 * 1000;
     let firstError: string | null = null;
@@ -456,7 +476,7 @@ export async function bulkImportShowsAction(
       .from("shows")
       .select("date, venues(name, city)")
       .eq("company_id", context.companyId)
-      .eq("artist_id", data.artistId);
+      .eq("artist_id", artistId);
     const key = (date: string, venue: string, city: string) =>
       `${date}|${venue.trim().toLowerCase()}|${city.trim().toLowerCase()}`;
     const seen = new Set(
@@ -482,8 +502,8 @@ export async function bulkImportShowsAction(
       const showResult = await upsertShow({
         companyId: context.companyId,
         actor: { id: context.user.id, role: "label" },
-        artistId: data.artistId,
-        tourId: data.tourId || undefined,
+        artistId,
+        tourId,
         venue: { name: ev.venueName, city: ev.venueCity, state: ev.venueState || undefined },
         date: ev.date,
         startTime: ev.startTime || undefined,
@@ -540,6 +560,8 @@ const popupSchema = z.object({
   ...artistFields,
   venueName: z.string().min(1, "Venue name is required").max(160),
   venueCity: z.string().min(1, "City is required").max(80),
+  venueState: z.string().max(40).optional(),
+  venueAddress: z.string().max(200).optional(),
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a date"),
   ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
   depositPerTicket: z.string().min(1, "Set the deposit per ticket"),
@@ -582,7 +604,7 @@ export async function createPopupShowAction(
       actor,
       artistId,
       tourId: undefined,
-      venue: { name: data.venueName, city: data.venueCity },
+      venue: { name: data.venueName, city: data.venueCity, state: data.venueState || undefined, address: data.venueAddress || undefined },
       date: data.date,
       ticketDeliveryMethod: "guest_list",
       imageFile: null,
@@ -701,7 +723,7 @@ export async function sendOffersAction(_prev: ActionState, formData: FormData): 
     if (!result.ok) return { error: result.error };
     revalidatePath(`/label/shows/${showId}`);
     revalidatePath("/label/creators");
-    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. Their team has 24 hours to accept.`;
+    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. Their team has ${result.acceptHours} hours to accept.`;
     return result.skipped.length
       ? { success: `${sent} Skipped: ${result.skipped.join(", ")}.` }
       : { success: sent };
@@ -739,7 +761,7 @@ export async function inviteCreatorsAction(input: {
     if (!result.ok) return { ok: false, error: result.error };
     revalidatePath(`/label/shows/${parsed.data.showId}`);
     revalidatePath("/label/creators");
-    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. They (or their agency) have 24 hours to accept.`;
+    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. They (or their agency) have ${result.acceptHours} hours to accept.`;
     return { ok: true, message: result.skipped.length ? `${sent} Skipped: ${result.skipped.join(", ")}.` : sent };
   } catch (err) {
     const failed = fail(err);
@@ -776,7 +798,7 @@ export async function approveRequestAction(
     });
     if (!result.ok) return { error: result.error };
     revalidatePath("/label/messages");
-    return { success: "Approved. The creator has 24 hours to accept" };
+    return { success: `Approved. The creator has ${result.acceptHours} hours to accept` };
   } catch (err) {
     return fail(err);
   }

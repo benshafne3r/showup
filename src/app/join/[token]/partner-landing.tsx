@@ -75,7 +75,7 @@ const PITCHES: Record<"label" | "manager", Pitch> = {
       {
         icon: Users,
         title: "Pick the right creators",
-        body: "See city, audience size, average views and past work on every request. Approve, waitlist or pass. Unclaimed approvals expire after 24 hours.",
+        body: "See city, audience size, average views and past work on every request. Approve, waitlist or pass. Unclaimed approvals expire after 72 hours.",
       },
       {
         icon: Wallet,

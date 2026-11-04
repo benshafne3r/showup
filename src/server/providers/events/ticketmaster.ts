@@ -1,5 +1,6 @@
 import "server-only";
 
+import type { VenueSuggestion } from "@/lib/places";
 import { EventProviderError, type EventProvider, type ExternalEvent } from "./types";
 
 /**
@@ -12,10 +13,13 @@ export class TicketmasterProvider implements EventProvider {
 
   constructor(private readonly apiKey: string) {}
 
-  async searchEvents(artistName: string): Promise<ExternalEvent[]> {
+  async searchEvents(artistName: string, spotifyUrl?: string): Promise<ExternalEvent[]> {
+    // The exact artist when Ticketmaster lists their Spotify link; otherwise a
+    // name search (filtered by attraction name below).
+    const attractionId = spotifyUrl ? await this.attractionForSpotify(artistName, spotifyUrl) : null;
     const params = new URLSearchParams({
       apikey: this.apiKey,
-      keyword: artistName.trim(),
+      ...(attractionId ? { attractionId } : { keyword: artistName.trim() }),
       classificationName: "music",
       sort: "date,asc",
       size: "50",
@@ -86,4 +90,48 @@ export class TicketmasterProvider implements EventProvider {
       })
       .filter((event): event is ExternalEvent => event !== null);
   }
+
+  /** Ticketmaster's id for the artist whose page links this Spotify artist, if any. */
+  private async attractionForSpotify(artistName: string, spotifyUrl: string): Promise<string | null> {
+    const spotifyId = spotifyUrl.match(/artist\/([A-Za-z0-9]+)/)?.[1];
+    if (!spotifyId) return null;
+    const params = new URLSearchParams({
+      apikey: this.apiKey,
+      keyword: artistName.trim(),
+      classificationName: "music",
+      size: "20",
+    });
+    const response = await fetch(`https://app.ticketmaster.com/discovery/v2/attractions.json?${params}`, {
+      headers: { accept: "application/json" },
+      next: { revalidate: 3600 },
+    });
+    if (!response.ok) return null;
+    const payload = (await response.json()) as {
+      _embedded?: { attractions?: Array<{ id?: string; externalLinks?: { spotify?: Array<{ url?: string }> } }> };
+    };
+    const match = (payload._embedded?.attractions ?? []).find((a) =>
+      a.externalLinks?.spotify?.some((link) => link.url?.includes(`/artist/${spotifyId}`)),
+    );
+    return match?.id ?? null;
+  }
+}
+
+/** Ticketmaster venues (US) matching a name, for the venue type-ahead. */
+export async function searchTicketmasterVenues(apiKey: string, query: string, limit = 5): Promise<VenueSuggestion[]> {
+  const params = new URLSearchParams({ apikey: apiKey, keyword: query.trim(), countryCode: "US", size: String(limit) });
+  const response = await fetch(`https://app.ticketmaster.com/discovery/v2/venues.json?${params}`, {
+    headers: { accept: "application/json" },
+    next: { revalidate: 3600 },
+  });
+  if (!response.ok) throw new EventProviderError(`Ticketmaster returned ${response.status}`, "ticketmaster");
+  const payload = (await response.json()) as {
+    _embedded?: {
+      venues?: Array<{ name?: string; city?: { name?: string }; state?: { stateCode?: string }; address?: { line1?: string } }>;
+    };
+  };
+  return (payload._embedded?.venues ?? []).flatMap((v) =>
+    v.name && v.city?.name
+      ? [{ name: v.name, city: v.city.name, state: v.state?.stateCode ?? "", address: v.address?.line1 ?? "" }]
+      : [],
+  );
 }

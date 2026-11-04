@@ -64,11 +64,12 @@ export const serverEnv = {
   get spotifyClientSecret() {
     return process.env.SPOTIFY_CLIENT_SECRET ?? "";
   },
-  // ARTIST_LOOKUP=fake (e2e/CI): artist search echoes the query back as one
-  // Spotify-shaped result and enrichment returns blanks, so tests never call
-  // Spotify, MusicBrainz or Wikipedia.
-  get artistLookup(): "live" | "fake" {
-    return process.env.ARTIST_LOOKUP === "fake" ? "fake" : "live";
+  // EXTERNAL_LOOKUPS=fake (e2e/CI): artist search echoes the query back as one
+  // Spotify-shaped result, enrichment returns blanks and venue search skips
+  // Ticketmaster, so tests never call Spotify, MusicBrainz, Wikipedia or
+  // Ticketmaster.
+  get externalLookups(): "live" | "fake" {
+    return process.env.EXTERNAL_LOOKUPS === "fake" ? "fake" : "live";
   },
   // TikWM Pro — content verification / view tracking for submitted TikTok
   // posts. Optional: unset → the free endpoint still updates view counts when

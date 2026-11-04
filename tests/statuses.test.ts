@@ -7,6 +7,7 @@ import {
   CONTENT_TRANSITIONS,
   CREATOR_PAYMENT_TRANSITIONS,
   REQUEST_TRANSITIONS,
+  requestOutcomeMeta,
 } from "@/lib/statuses";
 
 describe("request state machine", () => {
@@ -113,5 +114,14 @@ describe("creator payment state machine (double-payout protection)", () => {
   });
   it("canceled payments stay canceled", () => {
     expect(CREATOR_PAYMENT_TRANSITIONS.canceled).toHaveLength(0);
+  });
+});
+
+describe("decided request badge", () => {
+  it("reads Canceled once an approved request's booking is canceled", () => {
+    expect(requestOutcomeMeta("approved", "canceled").label).toBe("Canceled");
+    expect(requestOutcomeMeta("approved", "confirmed").label).toBe("Approved");
+    expect(requestOutcomeMeta("approved", null).label).toBe("Approved");
+    expect(requestOutcomeMeta("expired", "canceled").label).toBe("Expired");
   });
 });

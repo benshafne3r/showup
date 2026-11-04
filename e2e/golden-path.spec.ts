@@ -28,7 +28,7 @@ test("label creates an artist (via a tour) and a show with an opportunity", asyn
   // Tours-first: the artist is created from the Spotify pick with their tour.
   await page.goto("/label/tours");
   await page.getByRole("button", { name: "Create" }).first().click();
-  // Artist search is faked in e2e (ARTIST_LOOKUP=fake): it echoes the query.
+  // Artist search is faked in e2e (EXTERNAL_LOOKUPS=fake): it echoes the query.
   await page.getByLabel("Search Spotify for an artist").fill(ARTIST);
   await page.getByRole("button", { name: ARTIST, exact: true }).click();
   await page.getByLabel("Tour name").fill(`E2E Tour ${runId}`);
@@ -97,7 +97,7 @@ test("label approves the request", async ({ page }) => {
   await signOut(page);
 });
 
-test("creator accepts within 24h: card verified, terms agreed, booking confirmed", async ({ page }) => {
+test("creator accepts in time: card verified, terms agreed, booking confirmed", async ({ page }) => {
   await signIn(page, ACCOUNTS.leo);
   await page.goto("/creator/bookings");
   await page.getByRole("link", { name: new RegExp(ARTIST) }).first().click();

@@ -1,11 +1,10 @@
 "use client";
 
-import { useMemo, useState, useTransition, useActionState } from "react";
+import { useRef, useState, useTransition, useActionState } from "react";
 import { searchArtistEvents } from "../import-actions";
 import { bulkImportShowsAction } from "../actions";
 import type { ActionState } from "../actions";
 import type { ExternalEvent } from "@/server/providers/events/types";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -18,25 +17,28 @@ import {
 } from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { formatShowDate } from "@/lib/dates";
-import { CalendarArrowDown, MapPin } from "lucide-react";
+import { ArtistSelector } from "../tours/artist-selector";
+import type { PickedArtist } from "../tours/spotify-artist-picker";
+import { CalendarArrowDown, Loader2, MapPin } from "lucide-react";
 
-type Artist = { id: string; name: string };
 type Tour = { id: string; name: string; artistId: string };
 
 /**
- * Bulk import: fetch an artist's announced dates, select the ones you want,
- * set the opportunity terms once, and publish a show for every selected date.
+ * Bulk import: search Spotify for the artist, which pulls their announced
+ * dates; select the ones you want, set the opportunity terms once, and
+ * publish a show for every selected date.
  */
 export function BulkImportForm({
-  artists,
   tours,
   contentDeadlineDefaultDays,
 }: {
-  artists: Artist[];
   tours: Tour[];
   contentDeadlineDefaultDays: number;
 }) {
-  const [artistId, setArtistId] = useState(artists[0]?.id ?? "");
+  const [artist, setArtist] = useState<PickedArtist | null>(null);
+  // The label's existing artist for the pick (null = new), for the tour list.
+  const [artistId, setArtistId] = useState<string | null>(null);
+  const fetchedFor = useRef("");
   const [events, setEvents] = useState<ExternalEvent[] | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -44,23 +46,32 @@ export function BulkImportForm({
   const [pending, startTransition] = useTransition();
   const [state, formAction] = useActionState<ActionState, FormData>(bulkImportShowsAction, null);
 
-  const artistTours = useMemo(() => tours.filter((t) => t.artistId === artistId), [tours, artistId]);
+  const artistTours = artistId ? tours.filter((t) => t.artistId === artistId) : [];
 
-  const fetchEvents = () => {
+  const fetchEvents = (picked: PickedArtist) => {
     setFetchError(null);
     setEvents(null);
     setSelected(new Set());
     startTransition(async () => {
-      const result = await searchArtistEvents(artistId);
+      const result = await searchArtistEvents({ name: picked.name, spotifyUrl: picked.spotifyUrl });
       if (!result.ok) {
         setFetchError(result.error);
         return;
       }
       setEvents(result.events);
       setProvider(result.provider);
+      setArtistId(result.artistId);
       // Pre-select everything — the whole point is "pull in all the shows".
       setSelected(new Set(result.events.map((_, i) => i)));
     });
+  };
+
+  // The picker reports twice per pick (Spotify data, then bio); fetch once.
+  const pickArtist = (picked: PickedArtist) => {
+    setArtist(picked);
+    if (picked.spotifyUrl === fetchedFor.current) return;
+    fetchedFor.current = picked.spotifyUrl;
+    fetchEvents(picked);
   };
 
   const toggle = (i: number) =>
@@ -95,43 +106,40 @@ export function BulkImportForm({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="min-w-52 flex-1 space-y-1.5">
-              <Label htmlFor="bulk-artist">Artist</Label>
-              <Select value={artistId} onValueChange={setArtistId}>
-                <SelectTrigger id="bulk-artist" className="w-full">
-                  <SelectValue placeholder="Pick an artist" />
+          <ArtistSelector onChange={pickArtist} />
+          {artistTours.length > 0 ? (
+            <div className="space-y-1.5">
+              <Label htmlFor="bulk-tour">Add to tour (optional)</Label>
+              <Select key={artistId} name="tourId" defaultValue="none">
+                <SelectTrigger id="bulk-tour" className="w-full">
+                  <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {artists.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>{a.name}</SelectItem>
+                  <SelectItem value="none">No tour</SelectItem>
+                  {artistTours.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {artistTours.length > 0 ? (
-              <div className="w-52 space-y-1.5">
-                <Label htmlFor="bulk-tour">Add to tour (optional)</Label>
-                <Select name="tourId" defaultValue="">
-                  <SelectTrigger id="bulk-tour" className="w-full">
-                    <SelectValue placeholder="No tour" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="">No tour</SelectItem>
-                    {artistTours.map((t) => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            ) : null}
-            <Button type="button" variant="secondary" onClick={fetchEvents} disabled={pending || !artistId}>
-              {pending ? "Fetching…" : "Fetch tour dates"}
-            </Button>
-          </div>
-          {fetchError ? <p role="alert" className="text-sm font-medium text-red-400">{fetchError}</p> : null}
+          ) : null}
+          {pending ? (
+            <p className="flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="size-4 animate-spin" aria-hidden /> Looking up tour dates
+            </p>
+          ) : null}
+          {fetchError ? (
+            <p role="alert" className="text-sm font-medium text-red-400">
+              {fetchError}{" "}
+              {artist ? (
+                <button type="button" onClick={() => fetchEvents(artist)} className="underline underline-offset-2">
+                  Try again
+                </button>
+              ) : null}
+            </p>
+          ) : null}
           {events && events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No upcoming dates found for this artist.</p>
+            <p className="text-sm text-muted-foreground">No upcoming dates listed for {artist?.name ?? "this artist"}.</p>
           ) : null}
 
           {events && events.length > 0 ? (
@@ -235,14 +243,13 @@ export function BulkImportForm({
         </CardContent>
       </Card>
 
-      <input type="hidden" name="artistId" value={artistId} />
       <input type="hidden" name="dates" value={JSON.stringify(selectedDates)} />
 
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">{state.error}</p>
       ) : null}
       <div className="flex items-center gap-3">
-        <SubmitButton size="lg" pendingLabel="Publishing…" disabled={selectedDates.length === 0}>
+        <SubmitButton size="lg" pendingLabel="Publishing…" disabled={!artist || selectedDates.length === 0}>
           Publish {selectedDates.length || ""} show{selectedDates.length === 1 ? "" : "s"}
         </SubmitButton>
         <p className="text-xs text-muted-foreground">Each becomes a published opportunity creators can request.</p>

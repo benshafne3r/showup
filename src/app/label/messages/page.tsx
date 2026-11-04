@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/page-header";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ThreadList } from "@/components/messaging/thread-list";
-import { REQUEST_STATUS_META } from "@/lib/statuses";
+import { requestOutcomeMeta } from "@/lib/statuses";
 import { formatShowDate, formatDateTime } from "@/lib/dates";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Pager } from "@/components/pager";
@@ -43,6 +43,7 @@ export default async function LabelMessagesPage({
       .select(
         `id, status, ticket_count, includes_plus_one, message, created_at, creator_id,
          users:users!creator_id(full_name),
+         bookings(status),
          shows!inner(date, artists(name), venues(city))`,
         { count: "exact" },
       )
@@ -108,7 +109,7 @@ export default async function LabelMessagesPage({
                   </p>
                 ) : null}
               </div>
-              <StatusBadge {...REQUEST_STATUS_META[request.status]} />
+              <StatusBadge {...requestOutcomeMeta(request.status, request.bookings?.status)} />
             </Link>
           </li>
         ))}
