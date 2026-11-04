@@ -119,14 +119,7 @@ export default async function DiscoverPage({
           Welcome to ShowUp, {user.fullName.split(" ")[0] || "creator"}! Here are shows near you.
         </div>
       ) : null}
-      <PageHeader
-        title="Discover shows"
-        description={
-          cityFilter && cityFilter !== "all"
-            ? `Complimentary access near ${cityFilter}`
-            : "Complimentary access in every city"
-        }
-      />
+      <PageHeader title="Discover shows" />
       {!profile.new_show_alerts && profile.city ? (
         <form
           action={enableShowAlertsAction}
@@ -146,7 +139,6 @@ export default async function DiscoverPage({
         <EmptyState
           icon={CalendarX2}
           title="No shows match your filters"
-          description="Try another city or clear your search. New opportunities are added all the time."
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

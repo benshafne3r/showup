@@ -107,18 +107,12 @@ export default async function ManagerShowsPage({
     <div className="space-y-6">
       <PageHeader
         title={forCreator ? `Shows for ${forCreator.fullName}` : "Shows"}
-        description={
-          cityFilter !== "all"
-            ? `Open opportunities near ${cityFilter}`
-            : "Open opportunities in every city. Request tickets for anyone on your roster."
-        }
       />
       <DiscoverFilters cities={allCities} activeCity={cityFilter} query={q} />
       {shows.length === 0 ? (
         <EmptyState
           icon={CalendarX2}
           title="No shows match your filters"
-          description="Try another city or clear your search. New opportunities are added all the time."
         />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">

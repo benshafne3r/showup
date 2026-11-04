@@ -87,10 +87,6 @@ export default async function ManagerPaymentsPage({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            When you accept tickets for a creator, a temporary hold for the deposit goes on this card a couple of
-            days before the show. It comes off when they check in, and is only charged if they don&apos;t show up.
-          </p>
           {card ? (
             <p className="font-medium">
               {card.brand} •••• {card.last4}
@@ -123,10 +119,6 @@ export default async function ManagerPaymentsPage({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground">
-            When an artist team approves content from one of your creators, the payment goes to{" "}
-            {ctx.agencyName}&apos;s payout account.
-          </p>
           {params.onboarding === "error" ? (
             <p role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-red-300">
               We couldn&apos;t start payout setup just now. Please try again in a bit.
@@ -169,7 +161,6 @@ export default async function ManagerPaymentsPage({
         {!payments.length ? (
           <EmptyState
             title="No payments yet"
-            description="Payments show up once your creators book paid shows."
           />
         ) : (
           <ul className="space-y-2">

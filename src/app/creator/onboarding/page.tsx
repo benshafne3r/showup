@@ -16,9 +16,6 @@ export default async function CreatorOnboardingPage() {
         <h1 className="text-2xl font-bold tracking-tight">
           Set up your creator profile
         </h1>
-        <p className="text-sm text-muted-foreground">
-          Artist teams review this when you request tickets, so make it count.
-        </p>
       </div>
       <OnboardingForm
         mode="onboarding"

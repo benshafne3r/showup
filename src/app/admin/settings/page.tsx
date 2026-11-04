@@ -15,7 +15,6 @@ export default async function AdminSettingsPage() {
     <div className="mx-auto max-w-2xl space-y-6">
       <PageHeader
         title="Platform settings"
-        description="Changes apply to future opportunities and bookings. Existing terms are snapshotted."
       />
       <SettingsForm
         initial={{

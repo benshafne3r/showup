@@ -39,7 +39,7 @@ export default async function CompanySettingsPage() {
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <PageHeader title="Settings" description="Your company profile and team." />
+      <PageHeader title="Settings" />
 
       <Card>
         <CardHeader>
@@ -143,10 +143,6 @@ export default async function CompanySettingsPage() {
         </CardContent>
       </Card>
 
-      <p className="text-xs text-muted-foreground">
-        Need to change company details or delete the account? Contact platform support. These
-        actions are admin-gated in the MVP.
-      </p>
     </div>
   );
 }

@@ -84,10 +84,6 @@ export function RequestAccessDialog({
                 </Label>
               ) : null}
             </RadioGroup>
-            <p className="text-xs text-muted-foreground">
-              The temporary hold covers every ticket you request. Attend and it's released, so
-              you won't be charged.
-            </p>
           </fieldset>
           <div className="space-y-2">
             <Label htmlFor="request-message">Message or content idea (optional)</Label>

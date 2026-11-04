@@ -25,10 +25,7 @@ export default async function CreatorSettingsPage({
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
-      <PageHeader
-        title="Profile"
-        description={`Signed in as ${user.email}. Your email stays private. Teams only see your display name and socials.`}
-      />
+      <PageHeader title="Profile" />
       {params.joined && agency ? (
         <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
           You joined {agency.name}. Finish your profile below and add a card under Payments.
@@ -46,8 +43,7 @@ export default async function CreatorSettingsPage({
           </CardHeader>
           <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm">
             <p className="text-muted-foreground">
-              Represented by <span className="font-medium text-foreground">{agency.name}</span>.
-              They handle conversations with artist teams and receive your content payouts.
+              Represented by <span className="font-medium text-foreground">{agency.name}</span>
             </p>
             <ConfirmActionButton
               action={leaveAgencyAction}

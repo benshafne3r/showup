@@ -20,7 +20,6 @@ export default async function ImportShowsPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
         title="Import tour dates"
-        description="Pull an artist's dates, pick the ones you want, and publish a show for each with the same terms."
       />
       <BulkImportForm
         tours={(tours ?? []).map((t) => ({ id: t.id, name: t.name, artistId: t.artist_id }))}

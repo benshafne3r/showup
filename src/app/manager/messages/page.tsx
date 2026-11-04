@@ -178,7 +178,6 @@ export default async function ManagerMessagesPage({
             <EmptyState
               icon={Inbox}
               title="No requests yet"
-              description="Request tickets for your roster from the Shows tab, or your creators can request themselves."
             />
             )
           ) : (

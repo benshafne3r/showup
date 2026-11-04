@@ -40,7 +40,6 @@ export default async function RosterPage({
         <EmptyState
           icon={Users}
           title="No creators yet"
-          description="Add a creator from their TikTok link."
         />
       ) : (
         <ul className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">

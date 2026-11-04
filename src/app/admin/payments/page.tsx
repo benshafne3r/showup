@@ -69,7 +69,6 @@ export default async function AdminPaymentsPage({
     <div className="space-y-6">
       <PageHeader
         title="Payments & authorizations"
-        description="Manual overrides are audit-logged and only allowed where the state machine permits."
       />
 
       <Card>

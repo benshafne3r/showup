@@ -66,10 +66,6 @@ export function ImportPanel({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        <p className="text-sm text-muted-foreground">
-          Pull an artist's announced dates and click one to prefill the venue, city, and date
-          below.
-        </p>
         <div className="flex flex-wrap items-end gap-3">
           <div className="min-w-52 flex-1 space-y-1.5">
             <Label htmlFor="import-artist">Artist</Label>

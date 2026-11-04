@@ -22,7 +22,7 @@ export default async function ManagerSettingsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Settings" description="Your management company's details." />
+      <PageHeader title="Settings" />
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Company profile</CardTitle>
@@ -52,9 +52,6 @@ export default async function ManagerSettingsPage() {
               </li>
             ))}
           </ul>
-          <p className="text-xs text-muted-foreground">
-            Need another teammate on your account? Contact ShowUp support and we&apos;ll add them.
-          </p>
         </CardContent>
       </Card>
     </div>

@@ -62,11 +62,10 @@ export default async function AdminDisputesPage({
     <div className="space-y-6">
       <PageHeader
         title="Disputes"
-        description="Money movement on a disputed booking is frozen until you resolve it."
       />
 
       {withEvidence.length === 0 ? (
-        <EmptyState icon={Scale} title="No open disputes" description="All clear." />
+        <EmptyState icon={Scale} title="No open disputes" />
       ) : (
         withEvidence.map((dispute) => {
           const booking = dispute.bookings;

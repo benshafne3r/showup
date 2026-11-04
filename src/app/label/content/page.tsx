@@ -32,13 +32,11 @@ export default async function ContentQueuePage() {
     <div className="space-y-6">
       <PageHeader
         title="Content review"
-        description="Approve deliverables to release creator payments."
       />
       {!submissions?.length ? (
         <EmptyState
           icon={Film}
           title="Queue is clear"
-          description="Submitted posts waiting for review will appear here."
         />
       ) : (
         <ul className="space-y-2">

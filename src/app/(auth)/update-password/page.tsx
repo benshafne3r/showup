@@ -17,7 +17,6 @@ export default async function UpdatePasswordPage() {
     <div className="space-y-6 rounded-2xl border bg-card/70 p-8 backdrop-blur">
       <div className="space-y-1">
         <h1 className="text-xl font-bold">Set a new password</h1>
-        <p className="text-sm text-muted-foreground">Choose a new password for your account.</p>
       </div>
       <UpdatePasswordForm />
     </div>

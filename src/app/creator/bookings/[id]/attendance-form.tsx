@@ -43,7 +43,7 @@ export function AttendanceForm({
           aria-describedby="proof-hint"
         />
         <p id="proof-hint" className="text-xs text-muted-foreground">
-          Up to 3 images, 10 MB each. A stage shot or venue selfie works great.
+          Up to 3 images, 10 MB each.
         </p>
       </div>
       <div className="space-y-1.5">

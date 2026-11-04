@@ -101,12 +101,11 @@ export default async function BookingsPage({
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Bookings" description="Upcoming shows and your full history." />
+      <PageHeader title="Bookings" />
       {!activeTotal && !historyTotal ? (
         <EmptyState
           icon={Ticket}
           title="No bookings yet"
-          description="When a team approves your request, your booking shows up here."
           action={
             <Button asChild>
               <Link href="/creator">Discover shows</Link>

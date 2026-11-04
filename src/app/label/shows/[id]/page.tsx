@@ -186,9 +186,6 @@ export default async function ShowDashboardPage({
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Pick creators</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Check the creators you want at this show. Creators with an agency are handled by their agency.
-            </p>
           </CardHeader>
           <CardContent>
             <PickCreators
@@ -251,11 +248,6 @@ export default async function ShowDashboardPage({
             ) : null}
           </CardHeader>
           <CardContent className="space-y-3">
-            {!showDay && markable.length > 0 ? (
-              <p className="text-xs text-muted-foreground">
-                On show day you can mark creators attended here in one tap (or they check in by location).
-              </p>
-            ) : null}
             {bookings?.length ? (
               <ul className="divide-y">
                 {bookings.map((booking) => (

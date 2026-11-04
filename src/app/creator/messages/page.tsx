@@ -54,7 +54,7 @@ export default async function CreatorMessagesPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Messages" description="Your requests and conversations." />
+      <PageHeader title="Messages" />
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="requests">Requests ({requestTotal ?? 0})</TabsTrigger>
@@ -71,7 +71,6 @@ export default async function CreatorMessagesPage({
             <EmptyState
               icon={Inbox}
               title="No requests yet"
-              description="Find a show you love and request free access."
               action={
                 <Button asChild>
                   <Link href="/creator">Discover shows</Link>
@@ -143,7 +142,6 @@ export default async function CreatorMessagesPage({
             <EmptyState
               icon={Inbox}
               title={`${agency.name} handles your conversations`}
-              description="Artist teams message your management directly about your requests and bookings. You'll still get updates here about approvals, tickets and holds."
             />
           ) : (
             <>

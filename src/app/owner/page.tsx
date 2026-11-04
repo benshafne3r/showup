@@ -156,7 +156,6 @@ export default async function OwnerDashboardPage({
       ) : null}
       <PageHeader
         title="Owner dashboard"
-        description="Private to you. Live numbers, refreshed every time you open this page. Use View as to see the app exactly as someone else does (read-only)."
       />
 
       <Card>

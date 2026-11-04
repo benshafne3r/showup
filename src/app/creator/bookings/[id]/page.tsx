@@ -249,10 +249,7 @@ export default async function CreatorBookingPage({
                   {isShowDay(show.date) ? <AttendanceForm bookingId={booking.id} resubmit /> : null}
                 </div>
               ) : ["confirmed"].includes(booking.status) ? (
-                <p className="text-muted-foreground">
-                  Check-in opens on show day. At the venue, tap &ldquo;I&apos;m here&rdquo; and your{" "}
-                  {formatCents(booking.authorization_amount_cents)} hold is released automatically.
-                </p>
+                <p className="text-muted-foreground">Check-in opens on show day.</p>
               ) : (
                 <p className="text-muted-foreground">No attendance activity.</p>
               )}

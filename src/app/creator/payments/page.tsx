@@ -118,10 +118,7 @@ export default async function CreatorPaymentsPage({
               ))}
             </ul>
           ) : (
-            <p className="text-muted-foreground">
-              No card on file yet. You'll add one when you accept your first booking, or add it
-              now.
-            </p>
+            <p className="text-muted-foreground">No card on file yet.</p>
           )}
           {serverEnv.paymentProvider === "stripe" && publicEnv.stripePublishableKey ? (
             <StripeCardForm hasCard={!!methods?.length} start={startCardSetupAction} finish={finishCardSetupAction} />
@@ -193,7 +190,6 @@ export default async function CreatorPaymentsPage({
           <EmptyState
             icon={Landmark}
             title="No holds yet"
-            description="Holds appear when you confirm a booking. Attending a show releases its hold."
           />
         ) : (
           <ul className="space-y-2">
@@ -229,7 +225,6 @@ export default async function CreatorPaymentsPage({
         {!payments?.length ? (
           <EmptyState
             title="No payments yet"
-            description="Complete content deliverables on a booking to earn creator payments."
           />
         ) : (
           <ul className="space-y-2">

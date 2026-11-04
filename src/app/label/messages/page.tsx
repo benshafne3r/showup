@@ -118,7 +118,7 @@ export default async function LabelMessagesPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Messages" description="Creator requests and conversations." />
+      <PageHeader title="Messages" />
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="requests">Requests ({totals.pending})</TabsTrigger>
@@ -130,7 +130,6 @@ export default async function LabelMessagesPage({
             <EmptyState
               icon={Inbox}
               title="No requests yet"
-              description="Publish a show opportunity and creator requests will land here."
             />
           ) : (
             <Tabs defaultValue={defaultSub}>

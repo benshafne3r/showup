@@ -99,9 +99,6 @@ function SupportForm({ onDone }: { onDone: () => void }) {
           required
           placeholder="What were you trying to do, and what went wrong?"
         />
-        <p className="text-xs text-muted-foreground">
-          We&apos;ll see which page you were on, so no need to describe where you are.
-        </p>
       </div>
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">

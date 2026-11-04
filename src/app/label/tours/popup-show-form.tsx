@@ -31,16 +31,10 @@ export function PopupShowForm() {
 
       <label
         htmlFor="pop-hide"
-        className="flex cursor-pointer items-start gap-2.5 rounded-lg border p-3"
+        className="flex cursor-pointer items-center gap-2.5 rounded-lg border p-3"
       >
-        <Checkbox id="pop-hide" name="hideLocation" value="on" className="mt-0.5" />
-        <span>
-          <span className="block text-sm font-medium">Hide exact location until approved</span>
-          <span className="mt-0.5 block text-xs text-muted-foreground">
-            Creators see only the city. The venue/address is revealed once you approve
-            them. Good for secret pop-ups.
-          </span>
-        </span>
+        <Checkbox id="pop-hide" name="hideLocation" value="on" />
+        <span className="text-sm font-medium">Hide exact location until approved</span>
       </label>
 
       <div className="grid gap-3 sm:grid-cols-2">

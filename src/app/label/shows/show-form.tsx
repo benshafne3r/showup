@@ -187,10 +187,9 @@ export function ShowForm({
                 required
                 aria-describedby="deposit-hint"
               />
-              <p id="deposit-hint" className="text-xs text-muted-foreground" role="status">
-                A temporary hold on the creator&apos;s card for each ticket, released when they attend.
+              <p id="deposit-hint" className="text-xs text-muted-foreground tabular-nums" role="status">
                 {holdPreview && deposit
-                  ? ` Hold: ${formatCents(holdPreview.one)} for 1 ticket${plusOne ? `, ${formatCents(holdPreview.two)} with a +1` : ""}.`
+                  ? `Hold: ${formatCents(holdPreview.one)} for 1 ticket${plusOne ? `, ${formatCents(holdPreview.two)} with a +1` : ""}`
                   : ""}
               </p>
             </div>

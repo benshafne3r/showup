@@ -14,9 +14,6 @@ export default async function ForgotPasswordPage({
     <div className="space-y-6 rounded-2xl border bg-card/70 p-8 backdrop-blur">
       <div className="space-y-1">
         <h1 className="text-xl font-bold">Reset your password</h1>
-        <p className="text-sm text-muted-foreground">
-          Enter your email and we&rsquo;ll send you a link to set a new password.
-        </p>
       </div>
       {error === "expired" ? (
         <p role="alert" className="text-sm font-medium text-red-400">

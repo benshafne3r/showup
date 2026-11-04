@@ -47,7 +47,7 @@ export function ThreadView({
         ) : null}
         {messages.length === 0 ? (
           <p className="py-10 text-center text-sm text-muted-foreground">
-            No messages yet. Say hi and talk logistics.
+            No messages yet.
           </p>
         ) : (
           messages.map((message) =>

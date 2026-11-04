@@ -252,7 +252,6 @@ export function BulkImportForm({
         <SubmitButton size="lg" pendingLabel="Publishing…" disabled={!artist || selectedDates.length === 0}>
           Publish {selectedDates.length || ""} show{selectedDates.length === 1 ? "" : "s"}
         </SubmitButton>
-        <p className="text-xs text-muted-foreground">Each becomes a published opportunity creators can request.</p>
       </div>
     </form>
   );

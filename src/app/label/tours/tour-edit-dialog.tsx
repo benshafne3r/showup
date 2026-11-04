@@ -176,8 +176,7 @@ export function TourEditDialog({
                 aria-describedby="te-deposit-hint"
               />
               <p id="te-deposit-hint" className="text-xs text-muted-foreground">
-                {deposit.summary} Applies to every upcoming date; to change one date, open it and
-                choose Edit. Confirmed bookings keep the deposit they agreed to.
+                {deposit.summary}
               </p>
             </div>
           </fieldset>

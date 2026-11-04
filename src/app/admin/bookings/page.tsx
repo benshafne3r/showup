@@ -35,7 +35,7 @@ export default async function AdminBookingsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Bookings" description="Every booking across the platform." />
+      <PageHeader title="Bookings" />
       <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[900px] text-sm">
           <thead>

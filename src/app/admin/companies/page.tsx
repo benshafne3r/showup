@@ -30,7 +30,7 @@ export default async function AdminCompaniesPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Companies" description="Labels, managers, and agencies on the platform." />
+      <PageHeader title="Companies" />
       <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[760px] text-sm">
           <thead>

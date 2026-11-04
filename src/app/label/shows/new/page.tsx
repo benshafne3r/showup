@@ -31,7 +31,6 @@ export default async function NewShowPage({
       <EmptyState
         icon={Route}
         title="Create a tour first"
-        description="Shows belong to an artist's tour. Start a tour (you can add the artist there), then add dates to it."
         action={
           <Button asChild>
             <Link href="/label/tours">Go to tours</Link>
@@ -48,7 +47,6 @@ export default async function NewShowPage({
     <div className="mx-auto max-w-3xl space-y-6">
       <PageHeader
         title="Create a show"
-        description="Import a tour date to prefill the details, or fill it in by hand. Publishing makes the opportunity visible to creators immediately."
       />
       <ImportableShowForm
         artists={artists}

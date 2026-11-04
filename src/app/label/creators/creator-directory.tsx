@@ -246,7 +246,7 @@ export function CreatorDirectory({
         </ul>
       ) : (
         <p className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-          No creators match. Try another city or search.
+          No creators match.
         </p>
       )}
       {complete ? (

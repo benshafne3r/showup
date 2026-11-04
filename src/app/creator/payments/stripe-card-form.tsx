@@ -99,9 +99,7 @@ function CardFields({ start, finish, onCancel }: { start: StartSetup; finish: Fi
           Test mode: card 4242 4242 4242 4242 (or 4000 0025 0000 3155 to see the bank check), any future
           expiry, CVC and ZIP.
         </p>
-      ) : (
-        <p className="text-xs text-muted-foreground">Your bank may ask you to confirm the card. That&apos;s a one-time check.</p>
-      )}
+      ) : null}
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">
           {state.error}

@@ -79,11 +79,9 @@ export function PickCreators({
         <SubmitButton disabled={picked.size === 0 || picked.size > ticketsLeft} pendingLabel="Sending…">
           {picked.size ? `Invite ${picked.size} creator${picked.size === 1 ? "" : "s"}` : "Invite creators"}
         </SubmitButton>
-        <p className="text-xs text-muted-foreground">
-          {picked.size > ticketsLeft
-            ? `Only ${ticketsLeft} ticket${ticketsLeft === 1 ? "" : "s"} left.`
-            : "One ticket each. Creators with an agency are answered by their agency, and the hold goes on the agency's card."}
-        </p>
+        {picked.size > ticketsLeft ? (
+          <p className="text-xs text-amber-300">{`Only ${ticketsLeft} ticket${ticketsLeft === 1 ? "" : "s"} left.`}</p>
+        ) : null}
       </div>
       {state && "error" in state ? (
         <p role="alert" className="text-sm font-medium text-red-400">

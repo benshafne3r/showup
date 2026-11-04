@@ -65,10 +65,6 @@ export function LocationCheckIn({ bookingId }: { bookingId: string }) {
     <div className="space-y-3 rounded-lg border border-primary/30 bg-primary/5 p-4">
       <div>
         <p className="font-medium">At the venue?</p>
-        <p className="text-xs text-muted-foreground">
-          Tap below and we&apos;ll confirm you&apos;re there using your phone&apos;s location. Your hold is
-          released right away, no photo needed.
-        </p>
       </div>
       <Button type="button" size="lg" className="w-full" onClick={checkIn} disabled={busy || state.kind === "done"}>
         {busy ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <MapPin className="size-4" aria-hidden />}

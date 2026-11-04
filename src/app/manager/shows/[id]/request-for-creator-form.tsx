@@ -78,9 +78,6 @@ export function RequestForCreatorForm({
             <span className="text-xs text-muted-foreground">hold {formatCents(holdTwoCents)}</span>
           </label>
         ) : null}
-        <p className="text-xs text-muted-foreground">
-          The hold goes on the creator&apos;s own card when they accept the booking.
-        </p>
       </fieldset>
       <div className="space-y-2">
         <Label htmlFor="request-message">Pitch for the artist team (optional)</Label>

@@ -116,7 +116,7 @@ export function requestOutcomeMeta(status: RequestStatus, bookingStatus?: Bookin
 }
 
 export const BOOKING_STATUS_META: Record<BookingStatus, { label: string; tone: Tone }> = {
-  awaiting_acceptance: { label: "Awaiting your acceptance", tone: "warning" },
+  awaiting_acceptance: { label: "Waiting to accept", tone: "warning" },
   awaiting_payment_method: { label: "Payment method needed", tone: "warning" },
   confirmed: { label: "Confirmed", tone: "success" },
   authorization_failed: { label: "Card hold failed", tone: "danger" },

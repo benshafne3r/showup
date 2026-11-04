@@ -38,7 +38,7 @@ export default async function AdminShowsPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Shows" description="Every show across every company." />
+      <PageHeader title="Shows" />
       <div className="hidden overflow-x-auto rounded-xl border md:block">
         <table className="w-full min-w-[820px] text-sm">
           <thead>

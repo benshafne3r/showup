@@ -44,14 +44,10 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
   const opp = show.show_opportunities;
   const deposit = opp ? depositPerTicketCents(opp.stated_ticket_value_cents, opp.deposit_percentage) : null;
 
-  const bookedNote =
-    opp && opp.published_at
-      ? "Heads up: edits never change already-confirmed bookings. Their terms were snapshotted at approval."
-      : undefined;
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <PageHeader title="Edit show" description={bookedNote} />
+      <PageHeader title="Edit show" />
       <ShowForm
         artists={artists ?? []}
         tours={(tours ?? []).map((t) => ({ id: t.id, name: t.name, artistId: t.artist_id }))}

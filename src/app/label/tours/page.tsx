@@ -218,7 +218,6 @@ export default async function ToursPage({
       ) : null}
       <PageHeader
         title="Shows"
-        description="Every tour and one-off show. Click a date to see its requests, bookings and creators."
         action={
           <div className="flex flex-wrap items-center gap-2">
             <Button asChild variant="outline">
@@ -234,7 +233,6 @@ export default async function ToursPage({
         <EmptyState
           icon={Route}
           title="No shows yet"
-          description="Create a tour (add the artist in the same step, then its dates) or a one-off event."
           action={<CreateDialog />}
         />
       ) : (
@@ -312,7 +310,7 @@ export default async function ToursPage({
                       </ul>
                     ) : (
                       <p className="mt-3 text-sm text-muted-foreground">
-                        No dates on this tour yet. Use “Add a date”.
+                        No dates yet.
                       </p>
                     )}
                   </ShowCard>
@@ -354,11 +352,6 @@ export default async function ToursPage({
             <EmptyState
               icon={Route}
               title={view === "past" ? "No past shows yet" : "No upcoming shows"}
-              description={
-                view === "past"
-                  ? "Shows move here once their date has passed or they're canceled."
-                  : "Every date has passed. Add a date to a tour or create a new show."
-              }
               action={view === "active" ? <CreateDialog /> : undefined}
             />
           )}

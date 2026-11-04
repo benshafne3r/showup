@@ -36,7 +36,6 @@ export default async function AuditLogsPage({
     <div className="space-y-6">
       <PageHeader
         title="Audit logs"
-        description="Append-only ledger of every sensitive action."
       />
       <form method="get" className="flex flex-wrap gap-2">
         <input

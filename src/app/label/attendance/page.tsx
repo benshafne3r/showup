@@ -27,13 +27,11 @@ export default async function AttendanceQueuePage() {
     <div className="space-y-6">
       <PageHeader
         title="Attendance review"
-        description="Verify check-ins to release creator holds."
       />
       {!submissions?.length ? (
         <EmptyState
           icon={ClipboardCheck}
           title="Queue is clear"
-          description="Creator check-ins waiting for verification will appear here."
         />
       ) : (
         <ul className="space-y-2">
