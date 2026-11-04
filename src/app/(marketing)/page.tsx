@@ -6,8 +6,6 @@ import { Button } from "@/components/ui/button";
 import { formatCentsCompact } from "@/lib/money";
 import { ArrowRight, BadgeCheck, Check, Plus } from "lucide-react";
 
-const DEMO_IMAGES = `${publicEnv.supabaseUrl}/storage/v1/object/public/artist-images/demo`;
-
 /** Labels reach out by email rather than self-serve sign-up. */
 const LABEL_CONTACT = "mailto:benshafner@gmail.com?subject=Join%20ShowUp%20as%20a%20label";
 
@@ -122,8 +120,9 @@ export default function LandingPage() {
           <div className="grid gap-4 p-5 md:grid-cols-[1.1fr_0.9fr] md:p-6">
             {[
               {
-                img: `${DEMO_IMAGES}/baby-keem.jpg`,
-                artist: "Baby Keem",
+                // Photo: Unsplash (Unsplash License), unsplash.com/photos/kvg5Gz8EDpY
+                img: "/sample-show.jpg",
+                artist: "Artist name",
                 meta: "The Echoplex · Los Angeles",
                 pay: 15000,
               },
@@ -132,7 +131,7 @@ export default function LandingPage() {
                 <div className="relative aspect-[16/10]">
                   <Image
                     src={card.img}
-                    alt={`${card.artist} artist image`}
+                    alt="Performer on stage"
                     fill
                     sizes="(max-width: 768px) 100vw, 320px"
                     className="object-cover"
@@ -241,7 +240,7 @@ export default function LandingPage() {
           </div>
           <div className="rounded-2xl border bg-background p-5 shadow-xl">
             <p className="border-b pb-3 text-xs font-semibold tracking-widest text-muted-foreground uppercase">
-              Requests · Baby Keem · Los Angeles
+              Requests · Artist name · Los Angeles
             </p>
             <ul className="divide-y text-sm">
               {[
