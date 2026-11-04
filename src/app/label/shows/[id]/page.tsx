@@ -6,6 +6,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { CreatorAvatar } from "@/components/creator-avatar";
 import {
   ATTENDANCE_STATUS_META,
   BOOKING_STATUS_META,
@@ -54,18 +55,24 @@ export default async function ShowDashboardPage({
 
   const opp = show.show_opportunities;
 
-  const [{ data: requests }, { data: bookings }] = await Promise.all([
-    db
-      .from("show_requests")
-      .select("id, status, ticket_count, created_at, users:users!creator_id(full_name)")
-      .eq("show_id", id)
-      .order("created_at", { ascending: false }),
-    db
-      .from("bookings")
-      .select("id, status, ticket_count, attendance_state, content_state, users:users!creator_id(full_name)")
-      .eq("show_id", id)
-      .order("created_at", { ascending: false }),
-  ]);
+  // One row per creator: their request, and the booking it became once approved.
+  const { data: requests } = await db
+    .from("show_requests")
+    .select(
+      "id, status, ticket_count, created_at, users:users!creator_id(full_name, avatar_url), bookings(id, status, attendance_state)",
+    )
+    .eq("show_id", id)
+    .order("created_at", { ascending: false });
+  const bookings = (requests ?? []).flatMap((r) => (r.bookings ? [r.bookings] : []));
+  // Needs you first, then in progress, done, and closed.
+  const rank = (r: NonNullable<typeof requests>[number]) => {
+    const b = r.bookings;
+    if (!b) return r.status === "pending" || r.status === "waitlisted" ? 0 : 3;
+    if (b.status === "canceled") return 3;
+    if (["no_show_review", "disputed"].includes(b.status) || b.attendance_state === "submitted") return 0;
+    return b.status === "completed" ? 2 : 1;
+  };
+  const creators = [...(requests ?? [])].sort((a, b) => rank(a) - rank(b));
 
   const canInvite =
     !!opp?.published_at && show.status === "published" && show.date >= new Date().toISOString().slice(0, 10);
@@ -77,16 +84,16 @@ export default async function ShowDashboardPage({
       : null;
 
   const showDay = isShowDay(show.date);
-  const markable = (bookings ?? []).filter(
+  const markable = bookings.filter(
     (b) =>
       ["confirmed", "authorization_failed", "no_show_review"].includes(b.status) &&
       b.attendance_state !== "approved",
   );
 
-  const attendedCount = (bookings ?? []).filter((b) =>
+  const attendedCount = bookings.filter((b) =>
     ["attended", "completed"].includes(b.status),
   ).length;
-  const confirmedCount = (bookings ?? []).filter((b) =>
+  const confirmedCount = bookings.filter((b) =>
     ["confirmed", "attended", "completed", "no_show_review", "disputed"].includes(b.status),
   ).length;
 
@@ -111,7 +118,7 @@ export default async function ShowDashboardPage({
             {["draft", "published", "postponed"].includes(show.status) ? (
               <CancelShowDialog showId={show.id} />
             ) : null}
-            {(bookings ?? []).length === 0 ? (
+            {bookings.length === 0 ? (
               <DeleteShowButton
                 showId={show.id}
                 showLabel={`${show.artists?.name ?? "this show"} on ${formatShowDateLong(show.date)}`}
@@ -123,7 +130,7 @@ export default async function ShowDashboardPage({
       />
 
       {opp ? (
-        <div className="grid gap-4 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 sm:gap-4">
           <Card>
             <CardContent className="pt-6">
               <p className="text-2xl font-bold">
@@ -202,77 +209,60 @@ export default async function ShowDashboardPage({
         </Card>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Requests</CardTitle>
-          </CardHeader>
-          <CardContent>
-            {requests?.length ? (
-              <ul className="divide-y">
-                {requests.map((request) => (
-                  <li key={request.id}>
+      <Card>
+        <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
+          <CardTitle className="text-base">
+            Creators <span className="font-normal text-muted-foreground tabular-nums">{creators.length}</span>
+          </CardTitle>
+          {showDay && markable.length > 0 ? (
+            <ConfirmActionButton
+              action={markAllAttendedAction}
+              fields={{ showId: show.id }}
+              tone="default"
+              triggerLabel={`Mark everyone attended (${markable.length})`}
+              title={`Mark all ${markable.length} creator${markable.length === 1 ? "" : "s"} attended?`}
+              description="Their attendance is confirmed and every hold for this show is released right away. Do this once you know they were there."
+              confirmLabel="Mark attended"
+              cancelLabel="Not yet"
+            />
+          ) : null}
+        </CardHeader>
+        <CardContent>
+          {creators.length ? (
+            <ul className="divide-y">
+              {creators.map((request) => {
+                const booking = request.bookings;
+                const name = request.users?.full_name ?? "Creator";
+                return (
+                  <li key={request.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
                     <Link
-                      href={`/label/requests/${request.id}`}
-                      className="flex items-center justify-between gap-2 py-2.5 text-sm hover:bg-muted/40"
+                      href={booking ? `/label/bookings/${booking.id}` : `/label/requests/${request.id}`}
+                      className="flex min-w-0 items-center gap-3 hover:underline"
                     >
-                      <span>
-                        {request.users?.full_name ?? "Creator"}
-                        <span className="text-muted-foreground"> · {request.ticket_count} ticket{request.ticket_count > 1 ? "s" : ""}</span>
+                      <CreatorAvatar name={name} src={request.users?.avatar_url ?? null} size={28} />
+                      <span className="truncate font-medium">{name}</span>
+                      <span className="shrink-0 text-muted-foreground tabular-nums">
+                        {request.ticket_count} ticket{request.ticket_count > 1 ? "s" : ""}
                       </span>
-                      <StatusBadge {...REQUEST_STATUS_META[request.status]} />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">No requests yet.</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader className="flex-row flex-wrap items-center justify-between gap-2 space-y-0">
-            <CardTitle className="text-base">Bookings &amp; attendance</CardTitle>
-            {showDay && markable.length > 0 ? (
-              <ConfirmActionButton
-                action={markAllAttendedAction}
-                fields={{ showId: show.id }}
-                tone="default"
-                triggerLabel={`Mark everyone attended (${markable.length})`}
-                title={`Mark all ${markable.length} creator${markable.length === 1 ? "" : "s"} attended?`}
-                description="Their attendance is confirmed and every hold for this show is released right away. Do this once you know they were there."
-                confirmLabel="Mark attended"
-                cancelLabel="Not yet"
-              />
-            ) : null}
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {bookings?.length ? (
-              <ul className="divide-y">
-                {bookings.map((booking) => (
-                  <li key={booking.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm">
-                    <Link href={`/label/bookings/${booking.id}`} className="font-medium hover:underline">
-                      {booking.users?.full_name ?? "Creator"}
                     </Link>
                     <div className="flex flex-wrap items-center gap-2">
-                      {booking.attendance_state !== "not_started" ? (
+                      {booking && ["submitted", "rejected", "disputed"].includes(booking.attendance_state) ? (
                         <StatusBadge {...ATTENDANCE_STATUS_META[booking.attendance_state]} />
                       ) : null}
-                      <StatusBadge {...BOOKING_STATUS_META[booking.status]} />
-                      {showDay && markable.some((b) => b.id === booking.id) ? (
-                        <MarkAttendedButton bookingId={booking.id} creatorName={booking.users?.full_name ?? undefined} />
+                      <StatusBadge {...(booking ? BOOKING_STATUS_META[booking.status] : REQUEST_STATUS_META[request.status])} />
+                      {booking && showDay && markable.some((b) => b.id === booking.id) ? (
+                        <MarkAttendedButton bookingId={booking.id} creatorName={name} />
                       ) : null}
                     </div>
                   </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-sm text-muted-foreground">No bookings yet.</p>
-            )}
-          </CardContent>
-        </Card>
-      </div>
+                );
+              })}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">No creators yet.</p>
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 }

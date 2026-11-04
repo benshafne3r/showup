@@ -11,7 +11,8 @@ const DEMO_IMAGES = `${publicEnv.supabaseUrl}/storage/v1/object/public/artist-im
 /** Labels reach out by email rather than self-serve sign-up. */
 const LABEL_CONTACT = "mailto:benshafner@gmail.com?subject=Join%20ShowUp%20as%20a%20label";
 
-/** FanMoments-style fading name wall — real Columbia roster, loud to ghosted. */
+/** FanMoments-style fading name wall — real Columbia roster, loud to ghosted. Hidden for now. */
+const SHOW_ARTIST_WALL = false;
 const ARTIST_WALL: Array<{ names: string[]; className: string }> = [
   { names: ["Baby Keem", "Harry Styles"], className: "text-4xl md:text-6xl opacity-100" },
   { names: ["Rosalía", "The Kid LAROI"], className: "text-3xl md:text-5xl opacity-75" },
@@ -78,26 +79,28 @@ export default function LandingPage() {
       </section>
 
       {/* ── Artist name wall (fanmoments) ───────────────────────────────── */}
-      <section className="mx-auto w-full max-w-6xl px-4 py-24">
-        <p className="text-center text-xs font-semibold tracking-[0.25em] text-muted-foreground uppercase">
-          Creators cover shows from artists like
-        </p>
-        <div className="mt-10 space-y-3 text-center">
-          {ARTIST_WALL.map((row, index) => (
-            <p
-              key={index}
-              className={`font-sans font-extrabold tracking-tight uppercase ${row.className}`}
-            >
-              {row.names.map((name, i) => (
-                <span key={name} className="whitespace-nowrap">
-                  {i > 0 ? <span aria-hidden className="mx-3 inline-block h-[3px] w-8 bg-current align-middle opacity-60 md:mx-5 md:w-12" /> : null}
-                  {name}
-                </span>
-              ))}
-            </p>
-          ))}
-        </div>
-      </section>
+      {SHOW_ARTIST_WALL ? (
+        <section className="mx-auto w-full max-w-6xl px-4 py-24">
+          <p className="text-center text-xs font-semibold tracking-[0.25em] text-muted-foreground uppercase">
+            Creators cover shows from artists like
+          </p>
+          <div className="mt-10 space-y-3 text-center">
+            {ARTIST_WALL.map((row, index) => (
+              <p
+                key={index}
+                className={`font-sans font-extrabold tracking-tight uppercase ${row.className}`}
+              >
+                {row.names.map((name, i) => (
+                  <span key={name} className="whitespace-nowrap">
+                    {i > 0 ? <span aria-hidden className="mx-3 inline-block h-[3px] w-8 bg-current align-middle opacity-60 md:mx-5 md:w-12" /> : null}
+                    {name}
+                  </span>
+                ))}
+              </p>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {/* ── Big statement + product mockup (fanmoments) ─────────────────── */}
       <section className="mx-auto w-full max-w-6xl px-4 py-24">
