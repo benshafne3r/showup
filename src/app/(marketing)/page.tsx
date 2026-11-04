@@ -44,14 +44,15 @@ export default function LandingPage() {
     <>
       {/* ── Hero: full-bleed photo, giant centered headline (indify) ───── */}
       <section className="relative flex min-h-[86vh] items-center justify-center overflow-hidden">
+        {/* Photo: Josh Olalde on Unsplash (Unsplash License). */}
         <Image
-          src={`${DEMO_IMAGES}/baby-keem.jpg`}
+          src="/hero-performer.jpg"
           alt=""
           aria-hidden
           fill
           priority
           sizes="100vw"
-          className="object-cover object-[center_35%]"
+          className="object-cover object-[center_22%]"
         />
         <div className="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-background" />
         <div className="relative z-10 mx-auto flex max-w-4xl flex-col items-center gap-6 px-4 py-24 text-center">

@@ -93,12 +93,16 @@ than trusting notes (0007 was marked "done" but wasn't).
   `railway run --service showup -- npm run photos:refresh` fills missing/blank managed-creator photos from
   TikTok (TikWM key only in Railway). Ran 2026-11-03: Owen, Tonito, Alex, sophiapinkxo fixed; lilothman +
   lockmurkshizz have TikTok's default blank avatar.
+- **Show page:** one "Creators" list (request + its booking, one status each) replaced Requests +
+  Bookings & attendance. The Casino Tour 2026 deleted on prod 2026-11-04 (audit-logged).
 - **Deleting a tour/show:** live bookings block it; canceled never-accepted bookings are deleted with
   the show; canceled/over shows with hold or payment records are kept off the tour as one-offs
   (`sortShowsForDelete`). Test: `tests/integration/delete-tour.test.ts`.
 
 ## Ella Langley removed (2026-11-02, Ben)
-Landing page: hero is now `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:
+Landing page (2026-11-03): hero is `public/hero-performer.jpg` (Josh Olalde on Unsplash, Unsplash
+License, not a real roster artist); "artists like" name wall hidden (`SHOW_ARTIST_WALL`). Before that the
+hero was `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:
 the demo "Ella Langely Tour" and its 14 dates deleted; Ben's 2 test shows (Oct 9 + Oct 13 LA, with
 his canceled test bookings + test holds incl. the real $1) kept as canceled records off the tour, so
 the Ella artist row stays. Local seed/e2e still use Ella Langley as demo data (local only).
