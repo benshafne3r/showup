@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-11-03_
+_Last updated: 2026-11-04_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -101,7 +101,8 @@ than trusting notes (0007 was marked "done" but wasn't).
 
 ## Ella Langley removed (2026-11-02, Ben)
 Landing page (2026-11-03): hero is `public/hero-performer.jpg` (Josh Olalde on Unsplash, Unsplash
-License, not a real roster artist); "artists like" name wall hidden (`SHOW_ARTIST_WALL`). Before that the
+License, not a real roster artist); "artists like" name wall hidden (`SHOW_ARTIST_WALL`). The sample
+card below it uses `public/sample-show.jpg` (Unsplash kvg5Gz8EDpY) and says "Artist name" (2026-11-04). Before that the
 hero was `demo/baby-keem.jpg`; Ella card + name-wall entry removed. Prod data:
 the demo "Ella Langely Tour" and its 14 dates deleted; Ben's 2 test shows (Oct 9 + Oct 13 LA, with
 his canceled test bookings + test holds incl. the real $1) kept as canceled records off the tour, so
