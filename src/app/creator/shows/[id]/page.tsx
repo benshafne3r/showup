@@ -39,7 +39,7 @@ export default async function ShowDetailPage({
   const { data: show } = await db
     .from("shows")
     .select(
-      `id, date, doors_time, start_time, status, image_url, ticket_delivery_method,
+      `id, date, doors_time, start_time, status, postponed_from, image_url, ticket_delivery_method,
        hide_venue_until_approved,
        artists!inner(name, genre, bio, image_url, instagram_handle),
        venues!inner(city),
@@ -105,7 +105,7 @@ export default async function ShowDetailPage({
               {show.artists.name}
             </h1>
           </div>
-          {show.status === "postponed" ? (
+          {show.postponed_from || show.status === "postponed" ? (
             <Badge className="border-transparent bg-amber-500 text-amber-950">Postponed: new date below</Badge>
           ) : null}
         </div>

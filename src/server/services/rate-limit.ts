@@ -18,12 +18,28 @@ const LIMITS: Record<string, { windowSeconds: number; max: number }> = {
   "support.message": { windowSeconds: 3600, max: 5 },
   "payment_method.attach": { windowSeconds: 3600, max: 10 },
   "upload.file": { windowSeconds: 3600, max: 60 },
+  // Type-ahead lookups (Spotify search, venue suggestions, artist details).
+  "lookup.search": { windowSeconds: 60, max: 120 },
+  "lookup.tour_dates": { windowSeconds: 3600, max: 60 },
+  // Shared across all labels: Ticketmaster's key allows 5,000 calls a day.
+  "ticketmaster.daily": { windowSeconds: 86_400, max: 4_000 },
 };
 
 /**
  * Fixed-window rate limiter backed by Postgres. Key by action + subject
  * (user id or normalized identifier). Throws RateLimitError when exceeded.
  */
+/** enforceRateLimit as a yes/no, for lookups that should quietly come back empty. */
+export async function withinRateLimit(action: keyof typeof LIMITS, subject: string): Promise<boolean> {
+  try {
+    await enforceRateLimit(action, subject);
+    return true;
+  } catch (err) {
+    if (err instanceof RateLimitError) return false;
+    throw err;
+  }
+}
+
 export async function enforceRateLimit(action: keyof typeof LIMITS, subject: string): Promise<void> {
   const limit = LIMITS[action];
   if (!limit) return;

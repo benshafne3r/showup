@@ -27,6 +27,7 @@ import { searchArtists, type SpotifyArtist } from "@/server/providers/spotify";
 import { enrichArtist } from "@/server/providers/artist-enrich";
 import { searchCities } from "@/server/providers/places";
 import { searchVenues } from "@/server/services/venues";
+import { withinRateLimit } from "@/server/services/rate-limit";
 import type { CitySuggestion, VenueSuggestion } from "@/lib/places";
 import { toActionError } from "@/server/action-error";
 
@@ -118,7 +119,8 @@ export async function changeMemberRoleAction(formData: FormData): Promise<void> 
 
 /** Type-ahead search of Spotify's artist catalog (label users only). */
 export async function searchSpotifyArtistsAction(query: string): Promise<SpotifyArtist[]> {
-  await requireLabelWithCompany();
+  const context = await requireLabelWithCompany();
+  if (!(await withinRateLimit("lookup.search", context.user.id))) return [];
   return searchArtists(query);
 }
 
@@ -127,7 +129,8 @@ export async function searchSpotifyArtistsAction(query: string): Promise<Spotify
  * since Spotify has neither). Blanks on miss — never throws.
  */
 export async function enrichArtistAction(name: string): Promise<{ bio: string; instagram: string }> {
-  await requireLabelWithCompany();
+  const context = await requireLabelWithCompany();
+  if (!(await withinRateLimit("lookup.search", context.user.id))) return { bio: "", instagram: "" };
   return enrichArtist(name);
 }
 
@@ -140,6 +143,7 @@ export async function suggestCitiesAction(query: string): Promise<CitySuggestion
 /** Venues for the venue type-ahead: the label's own, then Ticketmaster's. */
 export async function suggestVenuesAction(query: string): Promise<VenueSuggestion[]> {
   const context = await requireLabelWithCompany();
+  if (!(await withinRateLimit("lookup.search", context.user.id))) return [];
   return searchVenues(context.companyId, String(query).slice(0, 80));
 }
 

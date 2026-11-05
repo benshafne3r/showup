@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { ACCOUNTS, signIn } from "./helpers";
+import { ACCOUNTS, signIn, todayISO } from "./helpers";
 import type { Database } from "../src/lib/database.types";
 
 config({ path: ".env.local" });
@@ -14,7 +14,7 @@ config({ path: ".env.local" });
 const db = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
   auth: { persistSession: false },
 });
-const today = new Date().toISOString().slice(0, 10);
+const today = todayISO();
 
 /** The seeded Illinois State Fairgrounds show, moved to today. */
 async function showToday() {

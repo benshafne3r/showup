@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { drainJobs } from "@/server/jobs/queue";
 import { db } from "./fixtures";
+import { showToday } from "@/lib/dates";
 
 /**
  * Scheduling guarantees: overlapping scheduler runs don't duplicate work,
@@ -17,7 +18,7 @@ async function bookingsForTomorrow(n: number) {
   const companyId = member!.company_id;
   const { data: artist } = await db.from("artists").select("id").eq("company_id", companyId).limit(1).single();
   const { data: venue } = await db.from("venues").select("id").limit(1).single();
-  const tomorrow = new Date(Date.now() + 86_400_000).toISOString().slice(0, 10);
+  const tomorrow = showToday(new Date(Date.now() + 86_400_000)); // the US day, like the scheduler
 
   const showIds = Array.from({ length: n }, () => randomUUID());
   const oppIds = Array.from({ length: n }, () => randomUUID());

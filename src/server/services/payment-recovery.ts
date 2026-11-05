@@ -285,7 +285,7 @@ export async function recoverPayout(id: string): Promise<boolean> {
     );
     return true;
   }
-  const destination = await payoutDestinationFor(rec.creator_id);
+  const destination = await payoutDestinationFor(rec.booking_id);
   const seen = await paymentProvider().lookupTransfer({ paymentRecordId: rec.id, attemptKey: key });
   if (seen.found) {
     await finishPayout(rec, op.id, { ok: true, providerTransferId: seen.transferId }, SYSTEM, destination.agency);

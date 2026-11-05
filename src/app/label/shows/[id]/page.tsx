@@ -12,7 +12,7 @@ import {
   BOOKING_STATUS_META,
   REQUEST_STATUS_META,
 } from "@/lib/statuses";
-import { formatShowDateLong, isShowDay } from "@/lib/dates";
+import { formatShowDateLong, isShowDay, showDatePassed } from "@/lib/dates";
 import { ConfirmActionButton } from "@/components/confirm-action-button";
 import { MarkAttendedButton } from "../../mark-attended-button";
 import { markAllAttendedAction } from "../../actions";
@@ -75,7 +75,7 @@ export default async function ShowDashboardPage({
   const creators = [...(requests ?? [])].sort((a, b) => rank(a) - rank(b));
 
   const canInvite =
-    !!opp?.published_at && show.status === "published" && show.date >= new Date().toISOString().slice(0, 10);
+    !!opp?.published_at && show.status === "published" && !showDatePassed(show.date);
   const limit = growingLimit(query.limit, SUGGESTION_PAGE, 600);
   const suggestions = canInvite ? await suggestCreatorsForShow({ companyId: context.companyId, showId: show.id, limit }) : null;
   const moreHref =

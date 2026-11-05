@@ -57,6 +57,30 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Codex review #2 (2026-11-04)
+Ran a read-only whole-codebase Codex audit (`codex-companion.mjs task --model gpt-6-sol --effort high`;
+Ben's `~/.codex/config.toml` default `gpt-6.1-sol` is rejected on his ChatGPT login). 11 findings, all
+checked against the code. **Fixed:** #5 venues matched/edited across labels (`findOrCreateVenue` now
+scoped to `created_by_company`, ilike-escaped); #8 show could join another label's tour (tour must
+match company + artist); #9 edits to canceled/completed shows (rejected before any write); #10 a date
+change left a show stuck as `postponed` (stays `published`, `postponed_from` drives the creator badge;
+`approve_request_tx` only opens `published`); #6 approvals/acceptance for past shows (app-level guards
+in `approveRequest`, `acceptBooking`; accept also refuses canceled shows); #3 `cancelShow` ignored
+failed booking cancels (now reported; running cancel again on a canceled show retries); #2 reject
+during an in-flight approval charge (refused while `funding_status='charging'`; a lost race keeps the
+charge as the booking's prepayment and audits `content.approve_superseded`); #11 lookup rate limits
+(`lookup.search` 120/min, `lookup.tour_dates` 60/h per user, shared `ticketmaster.daily` 4,000).
+Tests: `tests/integration/show-guards.test.ts`, `payout-destination.test.ts`, `tests/dates.test.ts`.
+**Decided by Ben (2026-11-04), done the same day:** #4 a booking's content payment goes to the
+agency whose card held its deposit (`bookings.hold_agency_id`), even after the creator leaves that
+roster (`payoutDestinationFor(bookingId)` in `connect.ts`; that agency keeps manager booking-page
+access); bookings without a hold agency still follow the creator's current roster. #7 "today" for
+show dates is the **US day** = date in Hawaii (UTC-10), turning over at 3 am PT / 6 am ET:
+`showToday()` / `isShowDay()` / `showDatePassed()` in `src/lib/dates.ts`, and `public.show_today()`
+in migration **0030** (Discover, open cities, owner stats, "show is tomorrow" reminders). Tests and
+e2e use the same US date (`todayISO()` in `e2e/helpers.ts`). `showIsOver` (32 h) unchanged.
+**Left as is (Ben):** #1 location check-in trusts the phone's coordinates; accepted risk.
+
 ## Agency "Add creator" from TikTok + invites moved to Messages (2026-11-03, Ben)
 - **Add creator** (manager Roster header): paste a TikTok link/@handle → `findRosterCandidate`
   (`services/agencies.ts`) looks them up via TikWM Pro `/user/info` (`lookupTikTokUser` in

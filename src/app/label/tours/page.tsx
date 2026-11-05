@@ -11,7 +11,7 @@ import { TourEditDialog } from "./tour-edit-dialog";
 import { DeleteTourButton } from "./delete-tour-button";
 import { ShareButton } from "./share-button";
 import { DeleteShowButton } from "../shows/delete-show-button";
-import { formatShowDate } from "@/lib/dates";
+import { formatShowDate, showToday } from "@/lib/dates";
 import { depositPerTicketCents, formatCents } from "@/lib/money";
 import { cn } from "@/lib/utils";
 import { CalendarArrowDown, CalendarPlus, Pencil, Route } from "lucide-react";
@@ -142,7 +142,7 @@ export default async function ToursPage({
   const context = await requireLabelPage();
   const { welcome, imported, view: rawView } = await searchParams;
   const view: View = rawView === "past" || rawView === "all" ? rawView : "active";
-  const today = new Date().toISOString().slice(0, 10);
+  const today = showToday();
   const db = serviceDb();
   // One-off events (no tour) live under the tours, so everything is in one place.
   const { data: events } = await db

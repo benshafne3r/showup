@@ -7,7 +7,7 @@ import { agencyForCreator } from "./agencies";
 import { getPlatformSettings } from "./settings";
 import { enforceRateLimit } from "./rate-limit";
 import { authorizationAmountCents, formatCents } from "@/lib/money";
-import { formatShowDateLong } from "@/lib/dates";
+import { formatShowDateLong, showDatePassed } from "@/lib/dates";
 import { acceptanceHours } from "@/lib/holds";
 import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
 import { deliverJob, keysOf, notifyAgencyJob, notifyCompanyJob, notifyJob } from "@/server/jobs/outbox";
@@ -192,7 +192,7 @@ export async function withdrawRequest(
 
 /**
  * Approve a request: claim it, reserve inventory, create the booking with a
- * terms snapshot and the 24h acceptance deadline. `confirmedTicketCount`
+ * terms snapshot and the acceptance deadline (acceptanceHours). `confirmedTicketCount`
  * lets the label approve a +1 request as a single ticket.
  */
 export async function approveRequest(input: {
@@ -211,6 +211,10 @@ export async function approveRequest(input: {
     .eq("company_id", input.companyId)
     .maybeSingle();
   if (!request) return { ok: false, error: "Request not found" };
+  const showDate = request.show_opportunities?.shows?.date;
+  if (showDate && showDatePassed(showDate)) {
+    return { ok: false, error: "This show has already happened" };
+  }
 
   const settings = await getPlatformSettings();
   const bookingId = randomUUID();

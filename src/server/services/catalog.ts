@@ -210,6 +210,9 @@ export async function upsertTour(input: {
   return { ok: true, tourId: data.id };
 }
 
+/** An exact, case-insensitive ilike match (no % or _ wildcards from user input). */
+const escapeLike = (text: string) => text.replace(/[\\%_]/g, (c) => `\\${c}`);
+
 async function findOrCreateVenue(input: {
   companyId: string;
   name: string;
@@ -219,12 +222,18 @@ async function findOrCreateVenue(input: {
   capacity?: number;
 }): Promise<string> {
   const db = serviceDb();
-  const { data: existing } = await db
+  // Venues belong to the label that added them: another label's row (its
+  // address, its check-in pin) is never matched or edited.
+  const { data: matches, error: findErr } = await db
     .from("venues")
     .select("id, address")
-    .ilike("name", input.name)
-    .ilike("city", input.city)
-    .maybeSingle();
+    .eq("created_by_company", input.companyId)
+    .ilike("name", escapeLike(input.name))
+    .ilike("city", escapeLike(input.city))
+    .order("created_at", { ascending: true })
+    .limit(1);
+  if (findErr) throw new Error(`find venue: ${findErr.message}`);
+  const existing = matches[0];
   if (existing) {
     // A newly supplied street address replaces the old one and re-triggers
     // geocoding (the venue's pin drives location check-in).
@@ -280,6 +289,32 @@ export async function upsertShow(input: {
     .maybeSingle();
   if (!artist) return { ok: false, error: "Artist not found in your company" };
 
+  if (input.tourId) {
+    const { data: tour } = await db
+      .from("tours")
+      .select("id")
+      .eq("id", input.tourId)
+      .eq("company_id", input.companyId)
+      .eq("artist_id", input.artistId)
+      .maybeSingle();
+    if (!tour) return { ok: false, error: "Tour not found for this artist" };
+  }
+
+  let existing: { id: string; date: string; status: string } | null = null;
+  if (input.showId) {
+    const { data } = await db
+      .from("shows")
+      .select("id, date, status")
+      .eq("id", input.showId)
+      .eq("company_id", input.companyId)
+      .maybeSingle();
+    if (!data) return { ok: false, error: "Show not found" };
+    if (data.status === "canceled" || data.status === "completed") {
+      return { ok: false, error: "This show can no longer be edited" };
+    }
+    existing = data;
+  }
+
   const venueId = await findOrCreateVenue({ companyId: input.companyId, ...input.venue });
 
   let imageUrl: string | undefined;
@@ -305,20 +340,16 @@ export async function upsertShow(input: {
       : {}),
   };
 
-  if (input.showId) {
-    const { data: existing } = await db
-      .from("shows")
-      .select("id, date, status")
-      .eq("id", input.showId)
-      .eq("company_id", input.companyId)
-      .maybeSingle();
-    if (!existing) return { ok: false, error: "Show not found" };
-
+  if (existing) {
     const dateChanged = existing.date !== input.date && existing.status === "published";
-    const { error } = await db.from("shows").update(values).eq("id", input.showId);
+    const { error } = await db
+      .from("shows")
+      .update(values)
+      .eq("id", existing.id)
+      .in("status", ["draft", "published", "postponed"]);
     if (error) return { ok: false, error: error.message };
-    if (dateChanged) await postponeShowInternal(input.showId, existing.date, input.actor);
-    return { ok: true, showId: input.showId };
+    if (dateChanged) await postponeShowInternal(existing.id, existing.date, input.actor);
+    return { ok: true, showId: existing.id };
   }
 
   const { data, error } = await db
@@ -341,7 +372,8 @@ export async function upsertShow(input: {
 
 /**
  * Cancel a show: cancels all active bookings (releasing holds), cancels
- * scheduled authorizations, notifies everyone, audits the action.
+ * scheduled authorizations, notifies everyone, audits the action. Running it
+ * again on a canceled show retries any booking a first run didn't finish.
  */
 export async function cancelShow(input: {
   showId: string;
@@ -362,7 +394,17 @@ export async function cancelShow(input: {
     .in("status", ["draft", "published", "postponed"])
     .select("id, artists(name)")
     .maybeSingle();
-  if (!show) return { ok: false, error: "Show cannot be canceled in its current state" };
+  const { data: alreadyCanceled } = show
+    ? { data: null }
+    : await db
+        .from("shows")
+        .select("id, artists(name)")
+        .eq("id", input.showId)
+        .eq("company_id", input.companyId)
+        .eq("status", "canceled")
+        .maybeSingle();
+  const target = show ?? alreadyCanceled;
+  if (!target) return { ok: false, error: "Show cannot be canceled in its current state" };
 
   const { data: bookings } = await db
     .from("bookings")
@@ -378,17 +420,23 @@ export async function cancelShow(input: {
     ]);
 
   let canceled = 0;
+  let failed = 0;
   for (const booking of bookings ?? []) {
     const result = await cancelBooking({
       bookingId: booking.id,
       actor: input.actor,
       reason: `Show canceled: ${input.reason}`,
-    });
-    if (result.ok) canceled++;
+    }).catch((err: unknown) => ({ ok: false as const, error: err instanceof Error ? err.message : String(err) }));
+    if (!result.ok) {
+      failed++;
+      console.error(`cancelShow ${input.showId}: booking ${booking.id} not canceled:`, result.error);
+      continue;
+    }
+    canceled++;
     await notify({
       userId: booking.creator_id,
       type: "show_canceled",
-      title: `${show.artists?.name ?? "A show"} was canceled`,
+      title: `${target.artists?.name ?? "A show"} was canceled`,
       body: "Your booking has been canceled and any temporary hold released. You will not be charged.",
       link: `/creator/bookings/${booking.id}`,
     });
@@ -408,8 +456,14 @@ export async function cancelShow(input: {
     entityType: "show",
     entityId: input.showId,
     companyId: input.companyId,
-    metadata: { reason: input.reason, canceledBookings: canceled },
+    metadata: { reason: input.reason, canceledBookings: canceled, failedBookings: failed },
   });
+  if (failed) {
+    return {
+      ok: false,
+      error: `Show canceled, but ${failed} booking${failed === 1 ? "" : "s"} couldn't be released. Cancel the show again to retry.`,
+    };
+  }
   return { ok: true, canceledBookings: canceled };
 }
 
@@ -427,7 +481,9 @@ async function postponeShowInternal(
     .single();
   if (!show) return;
 
-  await db.from("shows").update({ status: "postponed", postponed_from: oldDate }).eq("id", showId);
+  // Stays published (still taking requests and invites); postponed_from is
+  // what tells creators the date moved.
+  await db.from("shows").update({ postponed_from: oldDate }).eq("id", showId);
 
   const settings = await getPlatformSettings();
   const newScheduled = new Date(`${show.date}T00:00:00`);

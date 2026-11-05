@@ -5,6 +5,7 @@ import { serviceDb } from "@/server/db/service";
 import { geocodeVenue } from "@/server/providers/geocode/nominatim";
 import { searchExternalVenues } from "@/server/providers/events";
 import type { VenueSuggestion } from "@/lib/places";
+import { withinRateLimit } from "./rate-limit";
 
 type VenueRow = {
   id: string;
@@ -99,7 +100,7 @@ export async function searchVenues(companyId: string, query: string): Promise<Ve
       .ilike("name", pattern)
       .order("name")
       .limit(5),
-    searchExternalVenues(q),
+    withinRateLimit("ticketmaster.daily", "all").then((ok) => (ok ? searchExternalVenues(q) : [])),
   ]);
   const seen = new Set<string>();
   return [

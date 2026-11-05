@@ -54,9 +54,9 @@ export function pngFixture(name = "proof.png", sizeBytes = 0) {
   return { name, mimeType: "image/png", buffer };
 }
 
-/** Today's date (UTC), matching the app's own notion of "today". */
+/** Today's show date (US time, Hawaii), matching the app's showToday(). */
 export function todayISO(): string {
-  return new Date().toISOString().slice(0, 10);
+  return new Date(Date.now() - 10 * 3_600_000).toISOString().slice(0, 10);
 }
 
 /**

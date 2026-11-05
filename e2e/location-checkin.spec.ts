@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createClient } from "@supabase/supabase-js";
 import { config } from "dotenv";
-import { ACCOUNTS, signIn } from "./helpers";
+import { ACCOUNTS, signIn, todayISO } from "./helpers";
 
 config({ path: ".env.local" });
 
@@ -29,7 +29,7 @@ test("a creator at the venue checks in by location and the hold is released", as
     .single();
 
   // Make today show day, and give the venue its pin (geocoding is off in tests).
-  const today = new Date().toISOString().slice(0, 10);
+  const today = todayISO();
   await db.from("shows").update({ date: today }).eq("id", show!.id);
   await db.from("venues").update({ latitude: GREEK_THEATRE.latitude, longitude: GREEK_THEATRE.longitude }).eq("id", venue!.id);
 

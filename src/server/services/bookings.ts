@@ -10,7 +10,7 @@ import {
   placeAuthorization,
 } from "./payments";
 import { getPlatformSettings } from "./settings";
-import { formatShowDate } from "@/lib/dates";
+import { formatShowDate, showDatePassed } from "@/lib/dates";
 import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
 import { keysOf, notifyCompanyJob, notifyJob, releaseHoldsJob } from "@/server/jobs/outbox";
 
@@ -48,11 +48,15 @@ export async function acceptBooking(input: {
   const db = serviceDb();
   const { data: booking } = await db
     .from("bookings")
-    .select("id, status, creator_id, company_id, acceptance_deadline_at, shows(date, artists(name)), users:users!creator_id(full_name)")
+    .select("id, status, creator_id, company_id, acceptance_deadline_at, shows(date, status, artists(name)), users:users!creator_id(full_name)")
     .eq("id", input.bookingId)
     .eq("creator_id", input.creatorId)
     .single();
   if (!booking) return { ok: false, error: "Booking not found" };
+  if (booking.shows?.status === "canceled") return { ok: false, error: "This show was canceled" };
+  if (booking.shows && showDatePassed(booking.shows.date)) {
+    return { ok: false, error: "This show has already happened" };
+  }
 
   if (new Date(booking.acceptance_deadline_at) < new Date() &&
       ["awaiting_acceptance", "awaiting_payment_method"].includes(booking.status)) {

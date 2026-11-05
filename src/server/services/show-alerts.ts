@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { serviceDb } from "@/server/db/service";
 import { deliver } from "./notifications";
 import { cityKey } from "@/lib/cities";
-import { formatShowDate } from "@/lib/dates";
+import { formatShowDate, showToday } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import type { Json } from "@/lib/database.types";
 
@@ -34,7 +34,7 @@ export async function fanOutCityAlerts(): Promise<{ shows: number; alerts: numbe
   if (error) throw new Error(`load new opportunities: ${error.message}`);
   if (!due?.length) return { shows: 0, alerts: 0 };
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = showToday();
   const now = new Date();
   const open = due.filter(
     (o) => o.shows.status === "published" && o.shows.date >= today && new Date(o.application_deadline) > now && o.shows.venues?.city,
@@ -91,7 +91,7 @@ export async function sendCityAlertEmail(p: { userId: string; opportunityIds: st
     .select("id, creator_payment_cents, application_deadline, shows!inner(id, date, status, hide_venue_until_approved, artists(name), venues(name))")
     .in("id", p.opportunityIds);
   if (error) throw new Error(`load alert shows: ${error.message}`);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = showToday();
   const shows = (opps ?? [])
     .filter((o) => o.shows.status === "published" && o.shows.date >= today && new Date(o.application_deadline) > new Date())
     .sort((a, b) => (a.shows.date < b.shows.date ? -1 : 1));

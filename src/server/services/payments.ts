@@ -867,7 +867,7 @@ export async function payoutCreatorPayment(
   // A managed creator is paid through their management company's account. In
   // Stripe mode we can only transfer to an account with active transfers, so
   // resolve it before claiming and fail cleanly if setup isn't finished.
-  const destination = await payoutDestinationFor(record.creator_id);
+  const destination = await payoutDestinationFor(bookingId);
   if (serverEnv.paymentProvider === "stripe" && !destination.accountId) {
     const reason = destination.agency
       ? `${destination.agency.name} (the creator's management) hasn't finished payout setup`

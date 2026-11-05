@@ -5,7 +5,7 @@ import { audit } from "./audit";
 import { notify, notifyCompany } from "./notifications";
 import { cancelAuthorizationForBooking, captureAuthorization } from "./payments";
 import { uploadFile } from "./uploads";
-import { formatShowDate, isShowDay, showIsOver } from "@/lib/dates";
+import { formatShowDate, isShowDay, showIsOver, showToday } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { hoursLeft } from "@/lib/holds";
 import type { Database } from "@/lib/database.types";
@@ -119,7 +119,7 @@ export async function checkInWithLocation(input: {
     return { ok: false, error: "You've already checked in" };
   }
   const showDate = booking.shows.date;
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = showToday(new Date(Date.now() - 86_400_000));
   if (!isShowDay(showDate) || showDate < yesterday) {
     return { ok: false, error: "Location check-in works on the day of the show" };
   }

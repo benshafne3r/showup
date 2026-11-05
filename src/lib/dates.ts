@@ -42,12 +42,23 @@ export function showIsOver(showDate: string, now = new Date()): boolean {
 }
 
 /**
- * Show-day check for attendance check-in. Uses the UTC date, like every other
- * "today" in the app (Discover, deadlines), so dev machines in other time
- * zones behave like production (which runs in UTC). Evening US shows are
- * already the next UTC day, so this never closes check-in early.
+ * Today's date for show dates (which are venue-local dates): the date in
+ * Hawaii (UTC-10, no daylight saving), the last US time zone to reach
+ * midnight. The day turns over at 3 am Pacific / 6 am Eastern, so a show
+ * never counts as "today" before its date anywhere in the US, and tonight's
+ * show is still today until after it ends. Same rule as `public.show_today()`
+ * in the database.
  */
-export function isShowDay(showDate: string): boolean {
-  const today = new Date().toISOString().slice(0, 10);
-  return showDate <= today;
+export function showToday(now = new Date()): string {
+  return new Date(now.getTime() - 10 * 3_600_000).toISOString().slice(0, 10);
+}
+
+/** On or after the show's date (attendance check-in opens). */
+export function isShowDay(showDate: string, now = new Date()): boolean {
+  return showDate <= showToday(now);
+}
+
+/** The show's date has gone by (no more invites, approvals or acceptances). */
+export function showDatePassed(showDate: string, now = new Date()): boolean {
+  return showDate < showToday(now);
 }

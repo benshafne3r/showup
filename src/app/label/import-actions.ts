@@ -3,6 +3,7 @@
 import { z } from "zod";
 import { requireLabelWithCompany, AuthError } from "@/server/auth/guards";
 import { findCompanyArtist } from "@/server/services/catalog";
+import { enforceRateLimit, RateLimitError } from "@/server/services/rate-limit";
 import { eventProvider } from "@/server/providers/events";
 import { EventProviderError, type ExternalEvent } from "@/server/providers/events/types";
 
@@ -22,6 +23,8 @@ export async function searchArtistEvents(artist: { name: string; spotifyUrl?: st
   try {
     const context = await requireLabelWithCompany();
     const { name, spotifyUrl = "" } = artistSchema.parse(artist);
+    await enforceRateLimit("lookup.tour_dates", context.user.id);
+    await enforceRateLimit("ticketmaster.daily", "all");
     const provider = eventProvider();
     const [events, existing] = await Promise.all([
       provider.searchEvents(name, spotifyUrl || undefined),
@@ -31,6 +34,7 @@ export async function searchArtistEvents(artist: { name: string; spotifyUrl?: st
   } catch (err) {
     if (err instanceof AuthError) return { ok: false, error: err.message };
     if (err instanceof EventProviderError) return { ok: false, error: err.message };
+    if (err instanceof RateLimitError) return { ok: false, error: "Too many lookups. Try again in a little while." };
     return { ok: false, error: "Couldn't reach the tour-date provider. Try again." };
   }
 }

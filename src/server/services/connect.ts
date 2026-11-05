@@ -254,21 +254,37 @@ export async function syncPayoutStatusByAccount(accountId: string): Promise<void
 }
 
 /**
- * Where a creator's content payment goes: their management company's account
- * when represented, otherwise their own. `accountId` is null until that payee
+ * Where a booking's content payment goes. The agency whose card held the
+ * deposit is paid for that booking even if the creator has left its roster
+ * since (Ben, 2026-11-04). Otherwise it's the creator's management company
+ * when represented, else the creator. `accountId` is null until that payee
  * has finished payout onboarding — `payoutCreatorPayment` gates on it.
  */
-export async function payoutDestinationFor(creatorId: string): Promise<{
+export async function payoutDestinationFor(bookingId: string): Promise<{
   accountId: string | null;
   agency: { id: string; name: string } | null;
 }> {
-  const { data: managed } = await serviceDb()
-    .from("agency_creators")
-    .select("agency_id, agencies(name)")
-    .eq("creator_id", creatorId)
-    .maybeSingle();
-  const agency = managed ? { id: managed.agency_id, name: managed.agencies?.name ?? "Management" } : null;
-  const payee: Payee = agency ? { kind: "agency", agencyId: agency.id } : { kind: "creator", userId: creatorId };
+  const db = serviceDb();
+  const { data: booking, error } = await db
+    .from("bookings")
+    .select("creator_id, hold_agency_id")
+    .eq("id", bookingId)
+    .single();
+  if (error) throw new Error(`load booking payee: ${error.message}`);
+
+  let agency: { id: string; name: string } | null = null;
+  if (booking.hold_agency_id) {
+    const { data: holder } = await db.from("agencies").select("id, name").eq("id", booking.hold_agency_id).maybeSingle();
+    agency = holder;
+  } else {
+    const { data: managed } = await db
+      .from("agency_creators")
+      .select("agency_id, agencies(name)")
+      .eq("creator_id", booking.creator_id)
+      .maybeSingle();
+    agency = managed ? { id: managed.agency_id, name: managed.agencies?.name ?? "Management" } : null;
+  }
+  const payee: Payee = agency ? { kind: "agency", agencyId: agency.id } : { kind: "creator", userId: booking.creator_id };
   const current = await readPayee(payee);
   const accountId =
     current?.stripe_account_id && current.stripe_payouts_enabled ? current.stripe_account_id : null;

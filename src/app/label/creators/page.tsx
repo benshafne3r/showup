@@ -6,7 +6,7 @@ import { CreatorDirectory } from "./creator-directory";
 import { PageHeader } from "@/components/page-header";
 import { cityKey } from "@/lib/cities";
 import { growingLimit } from "@/lib/pagination";
-import { formatShowDate } from "@/lib/dates";
+import { formatShowDate, showToday } from "@/lib/dates";
 
 export const metadata: Metadata = { title: "Creators" };
 export const dynamic = "force-dynamic";
@@ -26,7 +26,7 @@ export default async function CreatorsPage({
   const city = params.city && params.city !== "all" ? params.city.slice(0, 120) : "";
   const query = (params.q ?? "").slice(0, 80);
   const limit = growingLimit(params.limit, SUGGESTION_PAGE, 600);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = showToday();
   const db = serviceDb();
 
   const [{ data: rows }, cities, all] = await Promise.all([

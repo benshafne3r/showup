@@ -106,6 +106,17 @@ export async function reviewContent(input: {
     const funded = await fundCreatorPayment(input.bookingId, input.reviewer);
     if (!funded.ok) return funded;
     chargedCents = funded.chargedCents;
+  } else {
+    // Don't decide against content while an approval is charging the label's
+    // card for it, or that charge would be left with nothing approved.
+    const { data: payment } = await db
+      .from("creator_payment_records")
+      .select("funding_status")
+      .eq("booking_id", input.bookingId)
+      .maybeSingle();
+    if (payment?.funding_status === "charging") {
+      return { ok: false, error: "This content is being approved right now. Refresh in a moment." };
+    }
   }
 
   const { data: submission } = await db
@@ -122,7 +133,24 @@ export async function reviewContent(input: {
     .in("status", ["submitted", "disputed"])
     .select("id, creator_id")
     .maybeSingle();
-  if (!submission) return { ok: false, error: "No reviewable content submission found" };
+  if (!submission) {
+    if (chargedCents > 0) {
+      // Someone else decided first. The charge stays on this booking's payment
+      // (funding is 'charged'), so the next approval uses it instead of charging again.
+      console.error(`reviewContent: booking ${input.bookingId} charged ${chargedCents} but another review won`);
+      await audit({
+        actorId: input.reviewer.id,
+        actorRole: input.reviewer.role,
+        action: "content.approve_superseded",
+        entityType: "content_submission",
+        entityId: input.submissionId,
+        companyId: input.companyId,
+        metadata: { bookingId: input.bookingId, chargedCents },
+      });
+      return { ok: false, error: "Someone on your team reviewed this content at the same time. Refresh to see the latest." };
+    }
+    return { ok: false, error: "No reviewable content submission found" };
+  }
 
   const { data: booking } = await db
     .from("bookings")

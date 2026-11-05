@@ -37,7 +37,7 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
   const { data: booking } = await db
     .from("bookings")
     .select(
-      `id, status, request_id, creator_id, authorization_amount_cents, creator_payment_cents,
+      `id, status, request_id, creator_id, hold_agency_id, authorization_amount_cents, creator_payment_cents,
        ticket_count, includes_plus_one, content_required, content_deadline_at,
        acceptance_deadline_at, accepted_at, ticket_instructions, cancel_reason,
        shows!inner(date, artists(name), venues(name, city, address)),
@@ -50,7 +50,10 @@ export default async function ManagerBookingPage({ params }: { params: Promise<{
     )
     .eq("id", id)
     .maybeSingle();
-  if (!booking || !(await isOnRoster(ctx.agencyId, booking.creator_id))) notFound();
+  // The agency that held the deposit keeps access after the creator leaves its roster.
+  if (!booking || (booking.hold_agency_id !== ctx.agencyId && !(await isOnRoster(ctx.agencyId, booking.creator_id)))) {
+    notFound();
+  }
 
   const { data: thread } = await db
     .from("message_threads")

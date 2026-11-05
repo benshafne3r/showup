@@ -10,7 +10,7 @@ import { audit } from "./audit";
 import { cityKey } from "@/lib/cities";
 import { showStateKey } from "@/lib/us-states";
 import { locationLabel } from "@/lib/roster";
-import { formatDateTime, formatShowDate } from "@/lib/dates";
+import { formatDateTime, formatShowDate, showDatePassed, showToday } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { acceptanceHours } from "@/lib/holds";
 import { log } from "@/server/log";
@@ -109,7 +109,7 @@ export async function creatorDirectoryAll(companyId: string): Promise<{
   complete: boolean;
 }> {
   const db = serviceDb();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = showToday();
   const [{ data: profiles, count, error }, { data: requests }] = await Promise.all([
     db
       .from("creator_profiles")
@@ -167,7 +167,7 @@ export async function creatorDirectory(input: {
   });
   if (error) throw new Error(`creator directory: ${error.message}`);
   const ids = (data ?? []).map((r) => r.user_id);
-  const today = new Date().toISOString().slice(0, 10);
+  const today = showToday();
   const [cards, { data: requests }] = await Promise.all([
     creatorCards(ids, null),
     ids.length
@@ -335,7 +335,7 @@ export async function sendOffers(input: {
   const opp = show?.show_opportunities;
   if (!show || !opp) return { ok: false, error: "Show not found" };
   if (show.status !== "published") return { ok: false, error: "Publish the show before inviting creators" };
-  if (show.date < new Date().toISOString().slice(0, 10)) return { ok: false, error: "This show has already happened" };
+  if (showDatePassed(show.date)) return { ok: false, error: "This show has already happened" };
   const left = opp.tickets_total - opp.tickets_claimed;
   if (creatorIds.length > left) {
     return { ok: false, error: `Only ${left} ticket${left === 1 ? "" : "s"} left for this show` };
