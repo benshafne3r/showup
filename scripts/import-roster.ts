@@ -3,6 +3,9 @@
  * managed profiles: creators with no login, run entirely by the agency.
  *
  *   npm run roster:import -- --agency "Spark House" --url https://sparkhouse.creatorcore.co/roster/spark-house-group [--prod] [--dry-run]
+ *     [--skip handle1,handle2]       leave these creators alone (e.g. already added by hand)
+ *     [--locations cities.json]      {"handle": {"city": "Austin", "region": "TX", "country": "US"}}, used
+ *                                    when the page has no city for that creator
  *
  * Reads the page in a headless browser, then for each creator: creates (or
  * updates) the profile, copies their TikTok photo into our storage, saves
@@ -10,6 +13,7 @@
  * Matched by TikTok handle, so re-running updates instead of duplicating.
  * Rates on the page are deliberately ignored.
  */
+import { readFileSync } from "node:fs";
 import { config } from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 import { chromium } from "@playwright/test";
@@ -39,6 +43,18 @@ if (!url || !serviceKey) {
   process.exit(1);
 }
 const db = createClient<Database>(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+
+const skip = new Set((flag("skip") ?? "").split(",").map((h) => h.trim().replace(/^@/, "").toLowerCase()).filter(Boolean));
+type Place = { city?: string; region?: string; country?: string };
+const locationsFile = flag("locations");
+const places: Record<string, Place> = locationsFile
+  ? Object.fromEntries(
+      Object.entries(JSON.parse(readFileSync(locationsFile, "utf8")) as Record<string, Place>).map(([h, p]) => [
+        h.replace(/^@/, "").toLowerCase(),
+        p,
+      ]),
+    )
+  : {};
 
 type Scraped = {
   name: string | null;
@@ -125,7 +141,12 @@ async function main() {
   console.log(`Found ${creators.length} creators${total ? ` (page says ${total})` : ""}.`);
   if (total && total !== creators.length) console.warn("⚠️  Count doesn't match the page total; some cards may not have loaded.");
   if (dryRun) {
-    for (const c of creators) console.log(`  @${c.handle} · ${c.name} · ${c.location ?? "no location"} · ${JSON.stringify(c.followers)}`);
+    for (const c of creators) {
+      const h = (c.handle ?? "").toLowerCase();
+      const place = places[h];
+      const where = place ? [place.city, place.region, place.country].filter(Boolean).join(", ") : c.location ?? "no location";
+      console.log(`  ${skip.has(h) ? "SKIP " : ""}@${c.handle} · ${c.name} · ${where} · ${JSON.stringify(c.followers)}`);
+    }
     return;
   }
 
@@ -138,6 +159,7 @@ async function main() {
       continue;
     }
     const handle = c.handle.toLowerCase();
+    if (skip.has(handle)) continue;
     const email = managedProfileEmail(handle);
     const name = (c.name ?? "").trim() || handle;
 
@@ -164,7 +186,13 @@ async function main() {
       .update({ full_name: name, managed_profile: true, ...(avatarUrl ? { avatar_url: avatarUrl } : {}) })
       .eq("id", user.id);
 
-    const loc = parseRosterLocation(c.location);
+    // The page's location, unless it has no city and we were given one.
+    const pageLoc = parseRosterLocation(c.location);
+    const place = places[handle];
+    const loc =
+      place && !pageLoc.city
+        ? { city: place.city ?? "", region: place.region ?? "", country: place.country || pageLoc.country || "US" }
+        : pageLoc;
     const followers = {
       tiktok: parseFollowerCount(c.followers.tiktok),
       instagram: parseFollowerCount(c.followers.instagram),
