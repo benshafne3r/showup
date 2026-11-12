@@ -68,8 +68,8 @@ than trusting notes (0007 was marked "done" but wasn't).
   ("All tickets were claimed", request → expired) and notifies those creators.
 - UI: invite bar / Creators page say "N tickets, first to accept" instead of blocking; accept page and
   agency Waiting on you show tickets left. Tests: `tests/integration/bookings.test.ts` "first come invites".
-- **Prod: 0032 NOT applied yet** (waiting on Ben). It also frees the 11 tickets held by 11 open invites
-  on 3 shows. Code must not deploy before it (selects `holds_tickets`).
+- **Prod: 0032 applied 2026-11-12** (Ben approved). Freed the 11 tickets held by 11 open invites on
+  3 shows; `booking_consistency()` clean after.
 
 ## Team admins (2026-11-12, Ben)
 - **Management teams** now work like label teams: owners/admins invite teammates by email as **admin or
