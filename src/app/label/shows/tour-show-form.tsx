@@ -73,6 +73,7 @@ export function TourShowForm({
       venueName: event.venueName,
       venueCity: event.city,
       venueState: event.region,
+      venueAddress: event.address ?? "",
       date: event.date,
       startTime: event.startTime ?? baseInitial.startTime,
     });

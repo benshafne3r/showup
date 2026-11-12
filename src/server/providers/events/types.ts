@@ -14,6 +14,8 @@ export type ExternalEvent = {
   region: string;
   /** ISO country code or name, e.g. "US", "United Kingdom". */
   country: string;
+  /** Venue street address, when the source provides one. */
+  address?: string;
   /** Show date, YYYY-MM-DD (venue-local). */
   date: string;
   /** Start time HH:MM (24h), when the source provides one. */

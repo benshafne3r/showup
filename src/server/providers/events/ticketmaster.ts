@@ -45,6 +45,7 @@ export class TicketmasterProvider implements EventProvider {
               city?: { name?: string };
               state?: { stateCode?: string };
               country?: { countryCode?: string };
+              address?: { line1?: string };
             }>;
             attractions?: Array<{ name?: string }>;
           };
@@ -83,6 +84,7 @@ export class TicketmasterProvider implements EventProvider {
           city: venue.city.name,
           region: venue.state?.stateCode ?? "",
           country: venue.country?.countryCode ?? "",
+          address: venue.address?.line1 || undefined,
           date,
           startTime: event.dates?.start?.localTime?.slice(0, 5),
           url: event.url,

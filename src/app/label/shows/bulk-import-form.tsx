@@ -112,6 +112,7 @@ export function BulkImportForm({
       venueName: e.venueName,
       venueCity: e.city,
       venueState: e.region,
+      venueAddress: e.address ?? "",
       date: e.date,
       startTime: e.startTime,
     }));
