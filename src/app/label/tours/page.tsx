@@ -65,10 +65,9 @@ type ChipShow = {
   date: string;
   status: string;
   venues: { city: string } | null;
-  show_opportunities: OppTerms | null;
 };
 
-/** One date on a card: day · city · deposit, linking to the show. */
+/** One date on a card: day · city, linking to the show. */
 function DateChip({ show }: { show: ChipShow }) {
   return (
     <Link
@@ -76,9 +75,6 @@ function DateChip({ show }: { show: ChipShow }) {
       className="inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors hover:border-primary/60"
     >
       {formatShowDate(show.date)} · {show.venues?.city}
-      {show.show_opportunities ? (
-        <span className="text-muted-foreground">· {formatCents(depositOf(show.show_opportunities))}</span>
-      ) : null}
       {show.status !== "published" ? <span className="text-muted-foreground">({show.status})</span> : null}
     </Link>
   );
@@ -291,6 +287,11 @@ export default async function ToursPage({
                           />
                         ) : null}
                         <Button asChild size="sm">
+                          <Link href={`/label/shows/import?tour=${card.tour.id}`}>
+                            <CalendarArrowDown className="size-4" aria-hidden /> Import dates
+                          </Link>
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
                           <Link href={`/label/shows/new?tour=${card.tour.id}`}>
                             <CalendarPlus className="size-4" aria-hidden /> Add a date
                           </Link>

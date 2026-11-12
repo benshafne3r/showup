@@ -3,7 +3,6 @@
 import { useActionState, useMemo, useState } from "react";
 import { saveShowAction, type ActionState } from "../actions";
 import { authorizationAmountCents, formatCents, parseDollarsToCents } from "@/lib/money";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -18,26 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { SubmitButton } from "@/components/submit-button";
 import { VenueFields } from "./venue-fields";
-import { Plus, Trash2 } from "lucide-react";
-
-type Deliverable = {
-  platform:
-    | "instagram_story" | "instagram_reel" | "instagram_post" | "tiktok_video"
-    | "youtube_short" | "youtube_video" | "twitter_post" | "other";
-  quantity: number;
-  description: string;
-};
-
-const PLATFORM_LABELS: Array<[Deliverable["platform"], string]> = [
-  ["tiktok_video", "TikTok video"],
-  ["instagram_reel", "Instagram Reel"],
-  ["instagram_story", "Instagram Story"],
-  ["instagram_post", "Instagram Post"],
-  ["youtube_short", "YouTube Short"],
-  ["youtube_video", "YouTube video"],
-  ["twitter_post", "X / Twitter post"],
-  ["other", "Other"],
-];
+import { ContentFields, type Deliverable } from "./content-fields";
 
 export type ShowFormInitial = {
   showId?: string;
@@ -62,20 +42,28 @@ export type ShowFormInitial = {
   isPublished?: boolean;
 };
 
+/** Adding a date to a known tour: its artist and tour are fixed, not picked. */
+export type LockedTour = {
+  id: string;
+  name: string;
+  artist: { id: string; name: string; imageUrl: string | null };
+};
+
 export function ShowForm({
   artists,
   tours,
   initial,
+  lockedTour,
 }: {
   artists: { id: string; name: string }[];
   tours: { id: string; name: string; artistId: string }[];
   initial: ShowFormInitial;
+  lockedTour?: LockedTour;
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveShowAction, null);
   const [artistId, setArtistId] = useState(initial.artistId ?? artists[0]?.id ?? "");
   const [deposit, setDeposit] = useState(initial.depositPerTicket ?? "");
   const [plusOne, setPlusOne] = useState(initial.plusOneAllowed ?? true);
-  const [deliverables, setDeliverables] = useState<Deliverable[]>(initial.deliverables ?? []);
 
   const artistTours = tours.filter((tour) => tour.artistId === artistId);
 
@@ -91,9 +79,6 @@ export function ShowForm({
     }
   }, [deposit]);
 
-  const patchDeliverable = (index: number, patch: Partial<Deliverable>) =>
-    setDeliverables((prev) => prev.map((d, i) => (i === index ? { ...d, ...patch } : d)));
-
   return (
     <form action={formAction} className="space-y-6">
       {initial.showId ? <input type="hidden" name="showId" value={initial.showId} /> : null}
@@ -103,36 +88,55 @@ export function ShowForm({
           <CardTitle className="text-base">Show details</CardTitle>
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-1.5">
-            <Label htmlFor="show-artist">Artist</Label>
-            <Select name="artistId" value={artistId} onValueChange={setArtistId}>
-              <SelectTrigger id="show-artist" className="w-full">
-                <SelectValue placeholder="Pick an artist" />
-              </SelectTrigger>
-              <SelectContent>
-                {artists.map((artist) => (
-                  <SelectItem key={artist.id} value={artist.id}>
-                    {artist.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="show-tour">Tour (optional)</Label>
-            <Select name="tourId" defaultValue={initial.tourId || undefined}>
-              <SelectTrigger id="show-tour" className="w-full">
-                <SelectValue placeholder="Standalone show" />
-              </SelectTrigger>
-              <SelectContent>
-                {artistTours.map((tour) => (
-                  <SelectItem key={tour.id} value={tour.id}>
-                    {tour.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {lockedTour ? (
+            <div className="flex items-center gap-3 rounded-lg border p-2.5 sm:col-span-2">
+              {lockedTour.artist.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={lockedTour.artist.imageUrl} alt="" className="size-10 shrink-0 rounded-full object-cover" />
+              ) : (
+                <span className="size-10 shrink-0 rounded-full bg-muted" />
+              )}
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium">{lockedTour.artist.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">{lockedTour.name}</span>
+              </span>
+              <input type="hidden" name="artistId" value={lockedTour.artist.id} />
+              <input type="hidden" name="tourId" value={lockedTour.id} />
+            </div>
+          ) : (
+            <>
+              <div className="space-y-1.5">
+                <Label htmlFor="show-artist">Artist</Label>
+                <Select name="artistId" value={artistId} onValueChange={setArtistId}>
+                  <SelectTrigger id="show-artist" className="w-full">
+                    <SelectValue placeholder="Pick an artist" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {artists.map((artist) => (
+                      <SelectItem key={artist.id} value={artist.id}>
+                        {artist.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="show-tour">Tour (optional)</Label>
+                <Select name="tourId" defaultValue={initial.tourId || undefined}>
+                  <SelectTrigger id="show-tour" className="w-full">
+                    <SelectValue placeholder="Standalone show" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {artistTours.map((tour) => (
+                      <SelectItem key={tour.id} value={tour.id}>
+                        {tour.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </>
+          )}
           <VenueFields idPrefix="venue" initial={initial} />
           <div className="space-y-1.5">
             <Label htmlFor="show-date">Date</Label>
@@ -209,16 +213,6 @@ export function ShowForm({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
-              <Label htmlFor="creator-payment">Creator payment (USD, 0 = attend-only)</Label>
-              <Input
-                id="creator-payment"
-                name="creatorPayment"
-                inputMode="decimal"
-                placeholder="150"
-                defaultValue={initial.creatorPayment ?? ""}
-              />
-            </div>
-            <div className="space-y-1.5">
               <Label htmlFor="application-deadline">Application deadline</Label>
               <Input
                 id="application-deadline"
@@ -228,18 +222,7 @@ export function ShowForm({
                 required
               />
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="content-deadline-days">Content due (days after show)</Label>
-              <Input
-                id="content-deadline-days"
-                name="contentDeadlineDays"
-                type="number"
-                min={0}
-                max={90}
-                defaultValue={initial.contentDeadlineDays ?? 7}
-              />
-            </div>
-            <div className="flex items-center gap-2 pt-6">
+            <div className="flex items-center gap-2 sm:pt-6">
               <Checkbox
                 id="plus-one"
                 name="plusOneAllowed"
@@ -250,89 +233,24 @@ export function ShowForm({
             </div>
           </div>
 
-          <div className="space-y-2">
-            <p className="text-sm font-medium">Content deliverables</p>
-            {deliverables.map((deliverable, index) => (
-              <div key={index} className="grid gap-2 rounded-lg border p-3 sm:grid-cols-[170px_80px_1fr_auto]">
-                <div>
-                  <Label htmlFor={`deliverable-platform-${index}`} className="text-xs">Platform</Label>
-                  <Select
-                    value={deliverable.platform}
-                    onValueChange={(value) =>
-                      patchDeliverable(index, { platform: value as Deliverable["platform"] })
-                    }
-                  >
-                    <SelectTrigger id={`deliverable-platform-${index}`} className="mt-1 w-full">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PLATFORM_LABELS.map(([value, label]) => (
-                        <SelectItem key={value} value={value}>
-                          {label}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <Label htmlFor={`deliverable-qty-${index}`} className="text-xs">Qty</Label>
-                  <Input
-                    id={`deliverable-qty-${index}`}
-                    className="mt-1"
-                    type="number"
-                    min={1}
-                    max={20}
-                    value={deliverable.quantity}
-                    onChange={(event) =>
-                      patchDeliverable(index, { quantity: parseInt(event.target.value || "1", 10) })
-                    }
-                  />
-                </div>
-                <div>
-                  <Label htmlFor={`deliverable-desc-${index}`} className="text-xs">Requirements</Label>
-                  <Input
-                    id={`deliverable-desc-${index}`}
-                    className="mt-1"
-                    maxLength={300}
-                    value={deliverable.description}
-                    onChange={(event) => patchDeliverable(index, { description: event.target.value })}
-                    placeholder="≥30s, tag @artist, posted within 48h"
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Remove deliverable"
-                    onClick={() => setDeliverables((prev) => prev.filter((_, i) => i !== index))}
-                  >
-                    <Trash2 className="size-4" aria-hidden />
-                  </Button>
-                </div>
-              </div>
-            ))}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() =>
-                setDeliverables((prev) =>
-                  prev.length < 8
-                    ? [...prev, { platform: "tiktok_video", quantity: 1, description: "" }]
-                    : prev,
-                )
-              }
-            >
-              <Plus className="size-4" aria-hidden /> Add deliverable
-            </Button>
-            <input type="hidden" name="deliverables" value={JSON.stringify(deliverables)} />
-          </div>
-
           <div className="space-y-1.5">
             <Label htmlFor="opportunity-notes">Notes for creators (optional)</Label>
             <Textarea id="opportunity-notes" name="notes" rows={2} maxLength={1000} defaultValue={initial.notes ?? ""} />
           </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Content</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContentFields
+            idPrefix="show"
+            mode="list"
+            initial={initial}
+            defaultDueDays={initial.contentDeadlineDays ?? 7}
+          />
         </CardContent>
       </Card>
 

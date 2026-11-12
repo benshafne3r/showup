@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, useTransition, useActionState } from "react";
+import { useEffect, useRef, useState, useTransition, useActionState } from "react";
 import { searchArtistEvents } from "../import-actions";
 import { bulkImportShowsAction } from "../actions";
 import type { ActionState } from "../actions";
@@ -18,6 +18,7 @@ import {
 import { SubmitButton } from "@/components/submit-button";
 import { formatShowDate } from "@/lib/dates";
 import { ArtistSelector } from "../tours/artist-selector";
+import { ContentFields } from "./content-fields";
 import type { PickedArtist } from "../tours/spotify-artist-picker";
 import { CalendarArrowDown, Loader2, MapPin } from "lucide-react";
 
@@ -26,19 +27,24 @@ type Tour = { id: string; name: string; artistId: string };
 /**
  * Bulk import: search Spotify for the artist, which pulls their announced
  * dates; select the ones you want, set the opportunity terms once, and
- * publish a show for every selected date.
+ * publish a show for every selected date. Opened from a tour, the tour's
+ * artist and the tour come preselected and the dates load straight away.
  */
 export function BulkImportForm({
   tours,
   contentDeadlineDefaultDays,
+  initialArtist,
+  initialTourId,
 }: {
   tours: Tour[];
   contentDeadlineDefaultDays: number;
+  initialArtist?: PickedArtist;
+  initialTourId?: string;
 }) {
-  const [artist, setArtist] = useState<PickedArtist | null>(null);
+  const [artist, setArtist] = useState<PickedArtist | null>(initialArtist ?? null);
   // The label's existing artist for the pick (null = new), for the tour list.
   const [artistId, setArtistId] = useState<string | null>(null);
-  const fetchedFor = useRef("");
+  const fetchedFor = useRef<string | null>(null);
   const [events, setEvents] = useState<ExternalEvent[] | null>(null);
   const [provider, setProvider] = useState<string | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -48,10 +54,7 @@ export function BulkImportForm({
 
   const artistTours = artistId ? tours.filter((t) => t.artistId === artistId) : [];
 
-  const fetchEvents = (picked: PickedArtist) => {
-    setFetchError(null);
-    setEvents(null);
-    setSelected(new Set());
+  const loadEvents = (picked: PickedArtist) =>
     startTransition(async () => {
       const result = await searchArtistEvents({ name: picked.name, spotifyUrl: picked.spotifyUrl });
       if (!result.ok) {
@@ -64,15 +67,31 @@ export function BulkImportForm({
       // Pre-select everything — the whole point is "pull in all the shows".
       setSelected(new Set(result.events.map((_, i) => i)));
     });
+
+  const fetchEvents = (picked: PickedArtist) => {
+    setFetchError(null);
+    setEvents(null);
+    setSelected(new Set());
+    loadEvents(picked);
   };
+
+  const artistKey = (picked: PickedArtist) => `${picked.name}|${picked.spotifyUrl}`;
 
   // The picker reports twice per pick (Spotify data, then bio); fetch once.
   const pickArtist = (picked: PickedArtist) => {
     setArtist(picked);
-    if (picked.spotifyUrl === fetchedFor.current) return;
-    fetchedFor.current = picked.spotifyUrl;
+    if (artistKey(picked) === fetchedFor.current) return;
+    fetchedFor.current = artistKey(picked);
     fetchEvents(picked);
   };
+
+  // Opened from a tour: load that artist's dates right away.
+  useEffect(() => {
+    if (!initialArtist) return;
+    fetchedFor.current = artistKey(initialArtist);
+    loadEvents(initialArtist);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open
+  }, []);
 
   const toggle = (i: number) =>
     setSelected((prev) => {
@@ -106,11 +125,15 @@ export function BulkImportForm({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <ArtistSelector onChange={pickArtist} />
+          <ArtistSelector onChange={pickArtist} initial={initialArtist} />
           {artistTours.length > 0 ? (
             <div className="space-y-1.5">
               <Label htmlFor="bulk-tour">Add to tour (optional)</Label>
-              <Select key={artistId} name="tourId" defaultValue="none">
+              <Select
+                key={artistId}
+                name="tourId"
+                defaultValue={artistTours.some((t) => t.id === initialTourId) ? initialTourId : "none"}
+              >
                 <SelectTrigger id="bulk-tour" className="w-full">
                   <SelectValue />
                 </SelectTrigger>
@@ -196,25 +219,6 @@ export function BulkImportForm({
             <Input id="bulk-tickets" name="ticketsTotal" type="number" min={1} max={500} defaultValue={4} required />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="bulk-pay">Creator payment (USD)</Label>
-            <Input id="bulk-pay" name="creatorPayment" inputMode="decimal" placeholder="0 = attend-only" />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="bulk-content">Content ask</Label>
-            <Select name="contentPlatform" defaultValue="none">
-              <SelectTrigger id="bulk-content" className="w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Attend-only (no post)</SelectItem>
-                <SelectItem value="instagram_reel">1 × Instagram Reel</SelectItem>
-                <SelectItem value="instagram_story">1 × Instagram Story</SelectItem>
-                <SelectItem value="instagram_post">1 × Instagram Post</SelectItem>
-                <SelectItem value="tiktok_video">1 × TikTok</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
             <Label htmlFor="bulk-delivery">Ticket delivery</Label>
             <Select name="ticketDeliveryMethod" defaultValue="guest_list">
               <SelectTrigger id="bulk-delivery" className="w-full">
@@ -232,14 +236,19 @@ export function BulkImportForm({
             <Label htmlFor="bulk-deadline">Applications close (days before each show)</Label>
             <Input id="bulk-deadline" name="deadlineDaysBefore" type="number" min={0} max={120} defaultValue={7} required />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="bulk-content-days">Content due (days after show)</Label>
-            <Input id="bulk-content-days" name="contentDeadlineDays" type="number" min={0} max={90} defaultValue={contentDeadlineDefaultDays} required />
-          </div>
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             <input type="checkbox" name="plusOneAllowed" className="size-4 accent-primary" />
             Allow a +1 guest
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Content</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <ContentFields idPrefix="bulk" mode="quick" defaultDueDays={contentDeadlineDefaultDays} />
         </CardContent>
       </Card>
 

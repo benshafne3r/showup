@@ -316,8 +316,31 @@ const showSchema = z.object({
   contentDeadlineDays: z.coerce.number().int().min(0).max(90),
   notes: z.string().max(1000),
   deliverables: z.string(), // JSON
+  contentRequired: z.string().optional(),
   publish: z.string().optional(),
 });
+
+/**
+ * Content is opt-in ("Require content" on the show forms). Off is attend-only:
+ * no creator payment and nothing to post. On needs a payment, since a booking
+ * requires content exactly when it's paid, and at least one thing to post.
+ */
+function contentTerms<D>(
+  required: boolean,
+  payment: string | undefined,
+  deliverables: D[],
+): { ok: true; creatorPaymentCents: number; deliverables: D[] } | { ok: false; error: string } {
+  if (!required) return { ok: true, creatorPaymentCents: 0, deliverables: [] };
+  let cents: number;
+  try {
+    cents = parseDollarsToCents(payment || "0");
+  } catch {
+    return { ok: false, error: "Enter dollar amounts like 120 or 120.50" };
+  }
+  if (cents < 100) return { ok: false, error: "Set what creators are paid for the content" };
+  if (!deliverables.length) return { ok: false, error: "Add what creators should post" };
+  return { ok: true, creatorPaymentCents: cents, deliverables };
+}
 
 const deliverablesSchema = z.array(
   z.object({
@@ -349,13 +372,13 @@ export async function saveShowAction(
     }
 
     let statedTicketValueCents: number;
-    let creatorPaymentCents: number;
     try {
       statedTicketValueCents = parseDollarsToCents(data.depositPerTicket);
-      creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
     } catch {
       return { error: "Enter dollar amounts like 120 or 120.50" };
     }
+    const content = contentTerms(data.contentRequired === "on", data.creatorPayment, deliverables);
+    if (!content.ok) return { error: content.error };
 
     const imageFile = formData.get("image");
     const showResult = await upsertShow({
@@ -385,13 +408,13 @@ export async function saveShowAction(
       showId,
       statedTicketValueCents,
       depositPercentage: 100,
-      creatorPaymentCents,
+      creatorPaymentCents: content.creatorPaymentCents,
       plusOneAllowed: data.plusOneAllowed === "on",
       ticketsTotal: data.ticketsTotal,
       applicationDeadline: new Date(data.applicationDeadline).toISOString(),
       contentDeadlineDays: data.contentDeadlineDays,
       notes: data.notes,
-      deliverables,
+      deliverables: content.deliverables,
       publish: data.publish === "true",
     });
     if (!oppResult.ok) return { error: oppResult.error };
@@ -418,6 +441,7 @@ const bulkImportSchema = z.object({
     "tiktok_video", "youtube_short", "youtube_video", "twitter_post", "other",
   ]),
   ticketDeliveryMethod: z.enum(["will_call", "digital_transfer", "guest_list", "box_office"]),
+  contentRequired: z.string().optional(),
 });
 
 const importedDatesSchema = z
@@ -452,18 +476,17 @@ export async function bulkImportShowsAction(
     }
 
     let statedTicketValueCents: number;
-    let creatorPaymentCents: number;
     try {
       statedTicketValueCents = parseDollarsToCents(data.depositPerTicket);
-      creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
     } catch {
       return { error: "Enter dollar amounts like 120 or 120.50" };
     }
-
-    const deliverables =
-      data.contentPlatform === "none"
-        ? []
-        : [{ platform: data.contentPlatform, quantity: 1, description: "" }];
+    const content = contentTerms(
+      data.contentRequired === "on",
+      data.creatorPayment,
+      data.contentPlatform === "none" ? [] : [{ platform: data.contentPlatform, quantity: 1, description: "" }],
+    );
+    if (!content.ok) return { error: content.error };
 
     const artist = await artistFromForm(data, context.companyId, { id: context.user.id, role: "label" });
     if (!artist.ok) return { error: artist.error };
@@ -528,12 +551,12 @@ export async function bulkImportShowsAction(
         showId: showResult.showId,
         statedTicketValueCents,
         depositPercentage: 100,
-        creatorPaymentCents,
+        creatorPaymentCents: content.creatorPaymentCents,
         plusOneAllowed: data.plusOneAllowed === "on",
         ticketsTotal: data.ticketsTotal,
         applicationDeadline,
         contentDeadlineDays: data.contentDeadlineDays,
-        deliverables,
+        deliverables: content.deliverables,
         publish: true,
       });
       if (!oppResult.ok) {
@@ -573,6 +596,7 @@ const popupSchema = z.object({
   applicationDeadline: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Pick a deadline date"),
   // A content platform, or "none"/"" for attend-only.
   contentPlatform: z.string().optional(),
+  contentRequired: z.string().optional(),
 });
 
 export async function createPopupShowAction(
@@ -592,16 +616,18 @@ export async function createPopupShowAction(
     const artistId = artist.artistId;
 
     let statedTicketValueCents: number;
-    let creatorPaymentCents: number;
     try {
       statedTicketValueCents = parseDollarsToCents(data.depositPerTicket);
-      creatorPaymentCents = data.creatorPayment ? parseDollarsToCents(data.creatorPayment) : 0;
     } catch {
       return { error: "Enter dollar amounts like 120 or 120.50" };
     }
-
     const platform = CONTENT_PLATFORMS.find((p) => p === data.contentPlatform);
-    const deliverables = platform ? [{ platform, quantity: 1, description: "" }] : [];
+    const content = contentTerms(
+      data.contentRequired === "on",
+      data.creatorPayment,
+      platform ? [{ platform, quantity: 1, description: "" }] : [],
+    );
+    if (!content.ok) return { error: content.error };
 
     const showResult = await upsertShow({
       companyId: context.companyId,
@@ -623,14 +649,14 @@ export async function createPopupShowAction(
       showId,
       statedTicketValueCents,
       depositPercentage: 100,
-      creatorPaymentCents,
+      creatorPaymentCents: content.creatorPaymentCents,
       plusOneAllowed: false,
       ticketsTotal: data.ticketsTotal,
       // Deadline is a date → treat as end of that day.
       applicationDeadline: new Date(`${data.applicationDeadline}T23:59:59`).toISOString(),
       contentDeadlineDays: 2,
       notes: "",
-      deliverables,
+      deliverables: content.deliverables,
       publish: true,
     });
     if (!oppResult.ok) return { error: oppResult.error };

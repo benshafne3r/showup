@@ -5,16 +5,10 @@ import { createPopupShowAction, type ActionState } from "../actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { SubmitButton } from "@/components/submit-button";
 import { ArtistSelector } from "./artist-selector";
 import { VenueFields } from "../shows/venue-fields";
+import { ContentFields } from "../shows/content-fields";
 
 /**
  * Quick one-off pop-up: a standalone show (no tour) in a city, published
@@ -59,26 +53,8 @@ export function PopupShowForm() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div className="space-y-1.5">
-          <Label htmlFor="pop-pay">Creator payment (USD)</Label>
-          <Input id="pop-pay" name="creatorPayment" inputMode="decimal" placeholder="0 = attend-only" />
-        </div>
-        <div className="space-y-1.5">
-          <Label htmlFor="pop-content">Content ask</Label>
-          <Select name="contentPlatform" defaultValue="none">
-            <SelectTrigger id="pop-content" className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="none">Attend-only (no post)</SelectItem>
-              <SelectItem value="instagram_reel">1 × Instagram Reel</SelectItem>
-              <SelectItem value="instagram_story">1 × Instagram Story</SelectItem>
-              <SelectItem value="instagram_post">1 × Instagram Post</SelectItem>
-              <SelectItem value="tiktok_video">1 × TikTok</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+      <div className="rounded-lg border p-3">
+        <ContentFields idPrefix="pop" mode="quick" defaultDueDays={2} withDueDays={false} />
       </div>
 
       {state && "error" in state ? (

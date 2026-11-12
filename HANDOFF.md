@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-11-04_
+_Last updated: 2026-11-11_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -56,6 +56,16 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Posting flow (2026-11-11, Ben)
+- **Content is opt-in:** a "Require content" checkbox (`src/app/label/shows/content-fields.tsx`) on the
+  show form (own "Content" card), bulk import and pop-up. Off = attend-only (payment 0, no deliverables);
+  on needs a payment and at least one deliverable (`contentTerms()` in `label/actions.ts`).
+- **Tour cards:** "Import dates" (bulk import with the tour + artist preselected, all dates selected,
+  `/label/shows/import?tour=`) and "Add a date" (`/label/shows/new?tour=`, `tour-show-form.tsx`: artist
+  and tour locked, the artist's dates load on open minus ones already on the tour, click one to fill
+  the form). The old one-at-a-time import panel is gone. Date chips no longer show the deposit.
+- Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)
 Ran a read-only whole-codebase Codex audit (`codex-companion.mjs task --model gpt-6-sol --effort high`;

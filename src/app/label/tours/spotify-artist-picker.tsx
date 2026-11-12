@@ -24,11 +24,13 @@ type SearchHit = Pick<PickedArtist, "name" | "genre" | "imageUrl" | "spotifyUrl"
 export function SpotifyArtistPicker({
   onSelect,
   selectedName,
+  defaultQuery = "",
 }: {
   onSelect: (artist: PickedArtist) => void;
   selectedName?: string;
+  defaultQuery?: string;
 }) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(defaultQuery);
   const [results, setResults] = useState<SearchHit[]>([]);
   const [open, setOpen] = useState(false);
   const [searching, setSearching] = useState(false);

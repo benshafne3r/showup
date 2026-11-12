@@ -36,8 +36,8 @@ test("label creates an artist (via a tour) and a show with an opportunity", asyn
   // The dialog stays open and shows a success message; the artist now exists.
   await expect(page.getByText("Tour saved")).toBeVisible();
 
-  // Create the show (dated today so check-in opens immediately). The show
-  // form's artist picker is #show-artist (the page also has an import panel).
+  // Create the show (dated today so check-in opens immediately). Content is
+  // opt-in: "Require content" reveals the payment (one TikTok row to start).
   await page.goto("/label/shows/new");
   await page.locator("#show-artist").click();
   await page.getByRole("option", { name: ARTIST }).click();
@@ -46,7 +46,8 @@ test("label creates an artist (via a tour) and a show with an opportunity", asyn
   await page.getByLabel("Date").fill(todayISO());
   await page.getByLabel("Deposit per ticket (USD)").fill("40");
   await page.getByLabel("Tickets available to creators").fill("4");
-  await page.getByLabel("Creator payment (USD, 0 = attend-only)").fill("50");
+  await page.getByLabel("Require content").check();
+  await page.getByLabel("Creator payment (USD)").fill("50");
   await page.getByLabel("Application deadline").fill(soonDeadlineLocal());
   await page.getByRole("button", { name: "Publish show" }).click();
 

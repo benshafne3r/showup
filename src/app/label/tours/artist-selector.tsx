@@ -9,13 +9,21 @@ import { SpotifyArtistPicker, type PickedArtist } from "./spotify-artist-picker"
  * Emits the `artist*` fields the create actions read; the server reuses the
  * label's artist when they already have it.
  */
-export function ArtistSelector({ onChange }: { onChange?: (artist: PickedArtist) => void }) {
-  const [artist, setArtist] = useState<PickedArtist | null>(null);
+export function ArtistSelector({
+  onChange,
+  initial,
+}: {
+  onChange?: (artist: PickedArtist) => void;
+  /** Already picked (e.g. importing dates for an existing tour). */
+  initial?: PickedArtist;
+}) {
+  const [artist, setArtist] = useState<PickedArtist | null>(initial ?? null);
 
   return (
     <fieldset className="space-y-2">
       <legend className="text-sm font-medium">Artist</legend>
       <SpotifyArtistPicker
+        defaultQuery={initial?.name}
         onSelect={(picked) => {
           setArtist(picked);
           onChange?.(picked);
