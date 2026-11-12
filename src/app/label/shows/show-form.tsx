@@ -62,7 +62,7 @@ export function ShowForm({
 }) {
   const [state, formAction] = useActionState<ActionState, FormData>(saveShowAction, null);
   const [artistId, setArtistId] = useState(initial.artistId ?? artists[0]?.id ?? "");
-  const [deposit, setDeposit] = useState(initial.depositPerTicket ?? "");
+  const [deposit, setDeposit] = useState(initial.depositPerTicket ?? "100");
   const [plusOne, setPlusOne] = useState(initial.plusOneAllowed ?? true);
 
   const artistTours = tours.filter((tour) => tour.artistId === artistId);
@@ -185,7 +185,7 @@ export function ShowForm({
                 id="deposit-per-ticket"
                 name="depositPerTicket"
                 inputMode="decimal"
-                placeholder="50"
+                placeholder="100"
                 value={deposit}
                 onChange={(event) => setDeposit(event.target.value)}
                 required
@@ -205,7 +205,7 @@ export function ShowForm({
                 type="number"
                 min={1}
                 max={500}
-                defaultValue={initial.ticketsTotal ?? 6}
+                defaultValue={initial.ticketsTotal ?? 3}
                 required
               />
             </div>

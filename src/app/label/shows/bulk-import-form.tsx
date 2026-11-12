@@ -213,11 +213,11 @@ export function BulkImportForm({
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
             <Label htmlFor="bulk-deposit">Deposit per ticket (USD)</Label>
-            <Input id="bulk-deposit" name="depositPerTicket" inputMode="decimal" placeholder="50" required />
+            <Input id="bulk-deposit" name="depositPerTicket" inputMode="decimal" placeholder="100" defaultValue="100" required />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bulk-tickets">Tickets per show</Label>
-            <Input id="bulk-tickets" name="ticketsTotal" type="number" min={1} max={500} defaultValue={4} required />
+            <Input id="bulk-tickets" name="ticketsTotal" type="number" min={1} max={500} defaultValue={3} required />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bulk-delivery">Ticket delivery</Label>

@@ -63,7 +63,7 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
           doorsTime: show.doors_time?.slice(0, 5) ?? "",
           startTime: show.start_time?.slice(0, 5) ?? "",
           ticketDeliveryMethod: show.ticket_delivery_method,
-          depositPerTicket: deposit !== null ? centsToDollarString(deposit) : "",
+          depositPerTicket: deposit !== null ? centsToDollarString(deposit) : undefined,
           creatorPayment: opp && opp.creator_payment_cents > 0 ? centsToDollarString(opp.creator_payment_cents) : "",
           plusOneAllowed: opp?.plus_one_allowed ?? true,
           ticketsTotal: opp?.tickets_total,
