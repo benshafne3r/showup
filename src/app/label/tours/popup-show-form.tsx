@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState } from "react";
+import { useActionState, useState } from "react";
 import { createPopupShowAction, type ActionState } from "../actions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,9 @@ import { ContentFields } from "../shows/content-fields";
  */
 export function PopupShowForm() {
   const [state, formAction] = useActionState<ActionState, FormData>(createPopupShowAction, null);
+  const [date, setDate] = useState("");
+  // "Apply by" is the show date until the label picks another day.
+  const [applyBy, setApplyBy] = useState<string | null>(null);
 
   return (
     <form action={formAction} className="space-y-4">
@@ -34,11 +37,18 @@ export function PopupShowForm() {
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="pop-date">Show date</Label>
-          <Input id="pop-date" name="date" type="date" required />
+          <Input id="pop-date" name="date" type="date" value={date} onChange={(e) => setDate(e.target.value)} required />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="pop-deadline">Apply by</Label>
-          <Input id="pop-deadline" name="applicationDeadline" type="date" required />
+          <Input
+            id="pop-deadline"
+            name="applicationDeadline"
+            type="date"
+            value={applyBy ?? date}
+            onChange={(e) => setApplyBy(e.target.value)}
+            required
+          />
         </div>
       </div>
 

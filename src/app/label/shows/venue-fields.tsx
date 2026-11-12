@@ -29,21 +29,36 @@ function VenueOption({ venue }: { venue: VenueSuggestion }) {
  * editable. `compact` (pop-up form) shows only venue + city and carries the
  * picked state and address as hidden fields.
  */
-export function VenueFields({ idPrefix, initial = {}, compact = false }: { idPrefix: string; initial?: Location; compact?: boolean }) {
+export function VenueFields({
+  idPrefix,
+  initial = {},
+  compact = false,
+  onChange,
+}: {
+  idPrefix: string;
+  initial?: Location;
+  compact?: boolean;
+  /** Reports the venue as it's typed or picked (e.g. for a summary elsewhere on the form). */
+  onChange?: (venue: { name: string; city: string; state: string }) => void;
+}) {
   const [name, setName] = useState(initial.venueName ?? "");
   const [city, setCity] = useState(initial.venueCity ?? "");
   const [state, setState] = useState(initial.venueState ?? "");
   const [address, setAddress] = useState(initial.venueAddress ?? "");
+  const report = (next: { name?: string; city?: string; state?: string }) =>
+    onChange?.({ name: next.name ?? name, city: next.city ?? city, state: next.state ?? state });
 
   const pickVenue = (v: VenueSuggestion) => {
     setName(v.name);
     setCity(v.city);
     setState(v.state);
     setAddress(v.address);
+    report({ name: v.name, city: v.city, state: v.state });
   };
   const pickCity = (c: CitySuggestion) => {
     setCity(c.city);
     setState(c.state);
+    report({ city: c.city, state: c.state });
   };
 
   const venueInput = (
@@ -54,6 +69,7 @@ export function VenueFields({ idPrefix, initial = {}, compact = false }: { idPre
       onValueChange={(v) => {
         setName(v);
         if (compact) setAddress(""); // a hidden address belongs to the picked venue only
+        report({ name: v });
       }}
       suggest={suggestVenuesAction}
       itemKey={venueKey}
@@ -71,6 +87,7 @@ export function VenueFields({ idPrefix, initial = {}, compact = false }: { idPre
       onValueChange={(v) => {
         setCity(v);
         if (compact) setState("");
+        report({ city: v, ...(compact ? { state: "" } : {}) });
       }}
       suggest={suggestCitiesAction}
       itemKey={cityKey}
@@ -111,7 +128,16 @@ export function VenueFields({ idPrefix, initial = {}, compact = false }: { idPre
         </div>
         <div className="space-y-1.5">
           <Label htmlFor={`${idPrefix}-state`}>State</Label>
-          <Input id={`${idPrefix}-state`} name="venueState" value={state} onChange={(e) => setState(e.target.value)} placeholder="CA" />
+          <Input
+            id={`${idPrefix}-state`}
+            name="venueState"
+            value={state}
+            onChange={(e) => {
+              setState(e.target.value);
+              report({ state: e.target.value });
+            }}
+            placeholder="CA"
+          />
         </div>
       </div>
       <div className="space-y-1.5 sm:col-span-2">

@@ -315,7 +315,8 @@ const showSchema = z.object({
   creatorPayment: z.string(),
   plusOneAllowed: z.string().optional(),
   ticketsTotal: z.coerce.number().int().min(1, "Offer at least 1 ticket").max(500),
-  applicationDeadline: z.string().min(1, "Set an application deadline"),
+  // An exact time (ISO) from the browser, which knows the label's time zone.
+  applicationDeadline: z.string().min(1, "Set an application deadline").pipe(z.string().datetime({ offset: true, message: "Set an application deadline" })),
   contentDeadlineDays: z.coerce.number().int().min(0).max(90),
   notes: z.string().max(1000),
   deliverables: z.string(), // JSON
@@ -497,7 +498,6 @@ export async function bulkImportShowsAction(
     const tourId = data.tourId && data.tourId !== "none" ? data.tourId : undefined;
 
     const now = Date.now();
-    const dayMs = 24 * 60 * 60 * 1000;
     let firstError: string | null = null;
 
     // Dedup: skip any date this artist already has a show for at the same
@@ -543,10 +543,11 @@ export async function bulkImportShowsAction(
         firstError ??= `${ev.date}: ${showResult.error}`;
         continue;
       }
-      // Applications close N days before each show, but never in the past.
-      const dl = new Date(`${ev.date}T20:00:00`);
-      dl.setDate(dl.getDate() - data.deadlineDaysBefore);
-      const applicationDeadline = new Date(Math.max(dl.getTime(), now + dayMs)).toISOString();
+      // Applications close N days before each show at 20:00 UTC (noon Pacific,
+      // 3 pm Eastern), but never sooner than an hour from now.
+      const dl = new Date(`${ev.date}T20:00:00Z`);
+      dl.setUTCDate(dl.getUTCDate() - data.deadlineDaysBefore);
+      const applicationDeadline = new Date(Math.max(dl.getTime(), now + 3_600_000)).toISOString();
 
       const oppResult = await upsertOpportunity({
         companyId: context.companyId,

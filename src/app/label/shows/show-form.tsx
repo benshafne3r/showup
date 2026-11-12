@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState, useMemo, useState } from "react";
+import { useActionState, useMemo, useState, useSyncExternalStore } from "react";
 import { saveShowAction, type ActionState } from "../actions";
 import { authorizationAmountCents, formatCents, parseDollarsToCents } from "@/lib/money";
+import { formatShowDate } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,6 +36,7 @@ export type ShowFormInitial = {
   creatorPayment?: string;
   plusOneAllowed?: boolean;
   ticketsTotal?: number;
+  /** ISO timestamp (the form shows and edits it in the viewer's own time zone). */
   applicationDeadline?: string;
   contentDeadlineDays?: number;
   notes?: string;
@@ -48,6 +50,15 @@ export type LockedTour = {
   name: string;
   artist: { id: string; name: string; imageUrl: string | null };
 };
+
+const noSubscribe = () => () => {};
+
+/** ISO → "YYYY-MM-DDTHH:mm" in this browser's time zone, for a datetime-local input. */
+function localInputValue(iso: string): string {
+  const d = new Date(iso);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 export function ShowForm({
   artists,
@@ -64,6 +75,27 @@ export function ShowForm({
   const [artistId, setArtistId] = useState(initial.artistId ?? artists[0]?.id ?? "");
   const [deposit, setDeposit] = useState(initial.depositPerTicket ?? "100");
   const [plusOne, setPlusOne] = useState(initial.plusOneAllowed ?? true);
+  const [date, setDate] = useState(initial.date ?? "");
+  const [venue, setVenue] = useState({
+    name: initial.venueName ?? "",
+    city: initial.venueCity ?? "",
+    state: initial.venueState ?? "",
+  });
+  // Application deadline: noon on the show date until the label sets one. It's
+  // entered in their own time zone and sent as an exact time (ISO), so the
+  // server never guesses the zone. Saved deadlines are shown once in the browser.
+  const [deadlineEdit, setDeadlineEdit] = useState<string | null>(null);
+  const inBrowser = useSyncExternalStore(noSubscribe, () => true, () => false);
+  const deadlineLocal =
+    deadlineEdit ??
+    (initial.applicationDeadline
+      ? inBrowser
+        ? localInputValue(initial.applicationDeadline)
+        : ""
+      : date
+        ? `${date}T12:00`
+        : "");
+  const deadlineIso = inBrowser && deadlineLocal ? new Date(deadlineLocal).toISOString() : "";
 
   const artistTours = tours.filter((tour) => tour.artistId === artistId);
 
@@ -98,7 +130,11 @@ export function ShowForm({
               )}
               <span className="min-w-0">
                 <span className="block truncate text-sm font-medium">{lockedTour.artist.name}</span>
-                <span className="block truncate text-xs text-muted-foreground">{lockedTour.name}</span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {[date ? formatShowDate(date) : "", venue.name, [venue.city, venue.state].filter(Boolean).join(", ")]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
               </span>
               <input type="hidden" name="artistId" value={lockedTour.artist.id} />
               <input type="hidden" name="tourId" value={lockedTour.id} />
@@ -137,10 +173,17 @@ export function ShowForm({
               </div>
             </>
           )}
-          <VenueFields idPrefix="venue" initial={initial} />
+          <VenueFields idPrefix="venue" initial={initial} onChange={setVenue} />
           <div className="space-y-1.5">
             <Label htmlFor="show-date">Date</Label>
-            <Input id="show-date" name="date" type="date" defaultValue={initial.date ?? ""} required />
+            <Input
+              id="show-date"
+              name="date"
+              type="date"
+              value={date}
+              onChange={(event) => setDate(event.target.value)}
+              required
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">
@@ -216,11 +259,12 @@ export function ShowForm({
               <Label htmlFor="application-deadline">Application deadline</Label>
               <Input
                 id="application-deadline"
-                name="applicationDeadline"
                 type="datetime-local"
-                defaultValue={initial.applicationDeadline ?? ""}
+                value={deadlineLocal}
+                onChange={(event) => setDeadlineEdit(event.target.value)}
                 required
               />
+              <input type="hidden" name="applicationDeadline" value={deadlineIso} />
             </div>
             <div className="flex items-center gap-2 sm:pt-6">
               <Checkbox

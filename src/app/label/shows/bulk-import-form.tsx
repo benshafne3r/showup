@@ -235,7 +235,7 @@ export function BulkImportForm({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="bulk-deadline">Applications close (days before each show)</Label>
-            <Input id="bulk-deadline" name="deadlineDaysBefore" type="number" min={0} max={120} defaultValue={7} required />
+            <Input id="bulk-deadline" name="deadlineDaysBefore" type="number" min={0} max={120} defaultValue={0} required />
           </div>
           <label className="flex items-center gap-2 text-sm sm:col-span-2">
             <input type="checkbox" name="plusOneAllowed" className="size-4 accent-primary" />

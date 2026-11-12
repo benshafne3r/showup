@@ -71,6 +71,10 @@ than trusting notes (0007 was marked "done" but wasn't).
   action runs it via `after()` (worker as fallback); the label can leave right away and gets an in-app
   notice ("Invited N creators", `inAppOnly`, no email). Show page "Pick creators": floating bar (count,
   Clear, Invite N), "Nearby" folded behind a chevron, neutral selected cards (also on the Creators tab).
+- **Defaults:** $100 deposit, 3 tickets; application deadline = noon on the show date (bulk import:
+  0 days before = 20:00 UTC on show day; pop-up "Apply by" = show date). The show form's deadline is
+  entered in the browser's time zone and sent as ISO (hidden `applicationDeadline`); it used to be
+  parsed as UTC on the server. The locked artist card on "Add a date" shows date · venue · city.
 - Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)

@@ -67,9 +67,7 @@ export default async function EditShowPage({ params }: { params: Promise<{ id: s
           creatorPayment: opp && opp.creator_payment_cents > 0 ? centsToDollarString(opp.creator_payment_cents) : "",
           plusOneAllowed: opp?.plus_one_allowed ?? true,
           ticketsTotal: opp?.tickets_total,
-          applicationDeadline: opp
-            ? new Date(opp.application_deadline).toISOString().slice(0, 16)
-            : "",
+          applicationDeadline: opp?.application_deadline,
           contentDeadlineDays: opp?.content_deadline_days ?? settings.contentDeadlineDefaultDays,
           notes: opp?.notes ?? "",
           deliverables: (opp?.deliverable_requirements ?? []).map((d) => ({
