@@ -17,6 +17,7 @@ import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/pagination";
 import { requestOutcomeMeta } from "@/lib/statuses";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
+import { formatInviteMessage } from "@/lib/show-brief";
 import { Inbox } from "lucide-react";
 
 export const metadata: Metadata = { title: "Messages" };
@@ -80,12 +81,18 @@ export default async function ManagerMessagesPage({
         showId: offer.showId,
         title: [offer.artist, formatShowDate(offer.date), offer.city].filter(Boolean).join(" · "),
         detail: `${offer.label} · answer by ${formatDateTime(offer.acceptBy)}`,
-        brief: briefs.get(offer.showId) ?? "",
         invites: [],
       };
       waiting.push(show);
     }
-    show.invites.push({ bookingId: offer.bookingId, creatorName: offer.creatorName, avatarUrl: offer.avatarUrl, hold: offer.hold });
+    const brief = briefs.get(offer.showId);
+    show.invites.push({
+      bookingId: offer.bookingId,
+      creatorName: offer.creatorName,
+      avatarUrl: offer.avatarUrl,
+      hold: offer.hold,
+      message: brief ? formatInviteMessage(brief, { name: offer.creatorName, tickets: offer.tickets }) : "",
+    });
   }
   const open = openList.rows;
   const decided = decidedList.rows;

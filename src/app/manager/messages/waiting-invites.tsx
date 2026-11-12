@@ -26,9 +26,8 @@ export type WaitingShow = {
   title: string;
   /** "Columbia Records · answer by Nov 4, 9:37 PM" */
   detail: string;
-  /** Paste-ready rundown for the creator (where, when, ticket, what to post). */
-  brief: string;
-  invites: { bookingId: string; creatorName: string; avatarUrl: string | null; hold: string }[];
+  /** Each with a ready-to-send text inviting that creator (where, when, ticket, what to post). */
+  invites: { bookingId: string; creatorName: string; avatarUrl: string | null; hold: string; message: string }[];
 };
 
 /**
@@ -36,12 +35,12 @@ export type WaitingShow = {
  * one, accept all, or pass. Without an agency card there's one note up top
  * instead of a warning on every row.
  */
-/** Copy the show rundown, or open Messages with it written in (pick the creator there). */
-function BriefButtons({ brief }: { brief: string }) {
+/** Copy the creator's invite text, or open Messages with it written in (pick the contact there). */
+function MessageButtons({ name, message }: { name: string; message: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
     try {
-      await navigator.clipboard.writeText(brief);
+      await navigator.clipboard.writeText(message);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
@@ -50,13 +49,12 @@ function BriefButtons({ brief }: { brief: string }) {
   };
   return (
     <>
-      <Button type="button" variant="outline" size="sm" onClick={copy}>
-        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
-        {copied ? "Copied" : "Copy details"}
+      <Button type="button" variant="ghost" size="icon" onClick={copy} aria-label={`Copy the invite text for ${name}`} title="Copy invite text">
+        {copied ? <Check className="size-4" aria-hidden /> : <Copy className="size-4" aria-hidden />}
       </Button>
-      <Button asChild variant="outline" size="sm">
-        <a href={`sms:?&body=${encodeURIComponent(brief)}`}>
-          <MessageCircle className="size-3.5" aria-hidden /> Text
+      <Button asChild variant="ghost" size="icon">
+        <a href={`sms:?&body=${encodeURIComponent(message)}`} aria-label={`Text ${name} the invite`} title="Text the invite">
+          <MessageCircle className="size-4" aria-hidden />
         </a>
       </Button>
     </>
@@ -89,12 +87,9 @@ export function WaitingInvites({ shows, card }: { shows: WaitingShow[]; card: st
               <p className="truncate font-medium">{show.title}</p>
               <p className="text-xs text-muted-foreground">{show.detail}</p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {show.brief ? <BriefButtons brief={show.brief} /> : null}
-              {card && show.invites.length > 1 ? (
-                <AcceptAll show={show} card={card} primary={shows.length === 1} />
-              ) : null}
-            </div>
+            {card && show.invites.length > 1 ? (
+              <AcceptAll show={show} card={card} primary={shows.length === 1} />
+            ) : null}
           </div>
           <ul className="divide-y">
             {show.invites.map((invite) => (
@@ -106,6 +101,7 @@ export function WaitingInvites({ shows, card }: { shows: WaitingShow[]; card: st
                 </span>
                 <span className="flex shrink-0 items-center gap-2">
                   <span className="mr-1 hidden text-xs text-muted-foreground tabular-nums sm:inline">{invite.hold} hold</span>
+                  {invite.message ? <MessageButtons name={invite.creatorName} message={invite.message} /> : null}
                   {card ? <AcceptOne invite={invite} card={card} /> : null}
                   <ConfirmActionButton
                     action={passForCreatorAction}

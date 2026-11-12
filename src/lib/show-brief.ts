@@ -11,7 +11,6 @@ export type ShowBriefInput = {
   city: string | null;
   state: string | null;
   ticketDelivery: string | null;
-  plusOneAllowed: boolean;
   /** Days after the show the post is due (only used when there's something to post). */
   contentDeadlineDays: number;
   deliverables: { platform: string; quantity: number; description: string }[];
@@ -19,55 +18,63 @@ export type ShowBriefInput = {
 };
 
 const DELIVERY: Record<string, string> = {
-  guest_list: "Guest list",
-  will_call: "Will call",
-  digital_transfer: "Digital transfer",
-  box_office: "Box office pickup",
+  guest_list: "on the guest list",
+  will_call: "at will call",
+  digital_transfer: "sent to you digitally",
+  box_office: "at the box office",
 };
 
-const PLATFORM: Record<string, string> = {
-  tiktok_video: "TikTok video",
-  instagram_reel: "Instagram Reel",
-  instagram_story: "Instagram Story",
-  instagram_post: "Instagram post",
-  youtube_short: "YouTube Short",
-  youtube_video: "YouTube video",
-  twitter_post: "X post",
-  other: "Post",
+const PLATFORM: Record<string, [string, string]> = {
+  tiktok_video: ["TikTok", "TikToks"],
+  instagram_reel: ["Instagram Reel", "Instagram Reels"],
+  instagram_story: ["Instagram Story", "Instagram Stories"],
+  instagram_post: ["Instagram post", "Instagram posts"],
+  youtube_short: ["YouTube Short", "YouTube Shorts"],
+  youtube_video: ["YouTube video", "YouTube videos"],
+  twitter_post: ["X post", "X posts"],
+  other: ["post", "posts"],
 };
 
 /**
- * A plain-text rundown of a show for a manager to paste to their creator:
- * where and when, how the ticket works, and what to post by when. Leaves out
- * money (the hold and the creator payment are between the label and agency).
+ * A text a manager can send their creator to invite them to a show, written
+ * as if from the manager: where and when, the ticket, and what to post by
+ * when. Plain characters only, so it stays a short SMS. Leaves out money
+ * (the hold and the creator payment are between the label and the agency).
  */
-export function formatShowBrief(s: ShowBriefInput): string {
-  const when = [
-    formatShowDate(s.date),
-    s.doorsTime ? `Doors ${formatShowTime(s.doorsTime)}` : null,
-    s.startTime ? `Show ${formatShowTime(s.startTime)}` : null,
+export function formatInviteMessage(
+  s: ShowBriefInput,
+  creator: { name: string; tickets: number },
+): string {
+  const firstName = creator.name.trim().split(/\s+/)[0] ?? "";
+  const times = [
+    s.doorsTime ? `doors ${formatShowTime(s.doorsTime)}` : null,
+    s.startTime ? `show ${formatShowTime(s.startTime)}` : null,
   ].filter(Boolean);
-  const place = [s.address, [s.city, s.state].filter(Boolean).join(", ")].filter(Boolean).join(", ");
-  const ticket = [s.ticketDelivery ? DELIVERY[s.ticketDelivery] ?? null : null, s.plusOneAllowed ? "+1 allowed" : null]
-    .filter(Boolean)
-    .join(", ");
+  const where = s.venueName ? ` at ${s.venueName}` : "";
+  const invite = `Wanted to invite you to see ${s.artist}${where} on ${formatShowDate(s.date)}${times.length ? ` (${times.join(", ")})` : ""}.`;
 
-  const lines = [
-    s.venueName ? `${s.artist} at ${s.venueName}` : s.artist,
-    when.join(" · "),
-    place || null,
-    ticket ? `Ticket: ${ticket}` : null,
+  const address = [s.address, [s.city, s.state].filter(Boolean).join(", ")].filter(Boolean).join(", ");
+  const ticketFor = creator.tickets > 1 ? "You + 1 guest" : "Your ticket";
+  const delivery = s.ticketDelivery ? DELIVERY[s.ticketDelivery] : null;
+
+  const details = [
+    address ? `Address: ${address}` : null,
+    delivery ? `${ticketFor} will be ${delivery}.` : creator.tickets > 1 ? "You can bring a +1." : null,
   ];
   if (s.deliverables.length) {
-    for (const d of s.deliverables) {
-      const what = `${d.quantity} × ${PLATFORM[d.platform] ?? "Post"}`;
-      lines.push(`To post: ${what}${d.description.trim() ? ` (${d.description.trim()})` : ""}`);
-    }
-    const due = addDays(parseISO(s.date), s.contentDeadlineDays);
-    lines.push(`Post by: ${format(due, "EEE, MMM d")}`);
+    const posts = s.deliverables
+      .map((d) => {
+        const [one, many] = PLATFORM[d.platform] ?? PLATFORM.other;
+        const what = `${d.quantity} ${d.quantity === 1 ? one : many}`;
+        return d.description.trim() ? `${what} (${d.description.trim()})` : what;
+      })
+      .join(" and ");
+    const due = format(addDays(parseISO(s.date), s.contentDeadlineDays), "EEE, MMM d");
+    details.push(`To post: ${posts} by ${due}.`);
   } else {
-    lines.push("No post required");
+    details.push("No post needed for this one.");
   }
-  if (s.notes?.trim()) lines.push(`Notes: ${s.notes.trim()}`);
-  return lines.filter(Boolean).join("\n");
+  if (s.notes?.trim()) details.push(`Notes: ${s.notes.trim()}`);
+
+  return [firstName ? `Hey ${firstName}!` : "Hey!", "", invite, "", ...details.filter(Boolean), "", "Let me know if you're in!"].join("\n");
 }
