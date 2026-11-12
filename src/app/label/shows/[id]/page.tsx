@@ -59,7 +59,7 @@ export default async function ShowDashboardPage({
   const { data: requests } = await db
     .from("show_requests")
     .select(
-      "id, status, ticket_count, created_at, users:users!creator_id(full_name, avatar_url), bookings(id, status, attendance_state)",
+      "id, status, ticket_count, created_at, offered_at, users:users!creator_id(full_name, avatar_url), bookings(id, status, attendance_state)",
     )
     .eq("show_id", id)
     .order("created_at", { ascending: false });
@@ -92,6 +92,10 @@ export default async function ShowDashboardPage({
 
   const attendedCount = bookings.filter((b) =>
     ["attended", "completed"].includes(b.status),
+  ).length;
+  // Invites waiting on an answer: they don't hold tickets until accepted.
+  const openInvites = (requests ?? []).filter(
+    (r) => r.offered_at && r.bookings && ["awaiting_acceptance", "awaiting_payment_method"].includes(r.bookings.status),
   ).length;
   const confirmedCount = bookings.filter((b) =>
     ["confirmed", "attended", "completed", "no_show_review", "disputed"].includes(b.status),
@@ -137,7 +141,9 @@ export default async function ShowDashboardPage({
                 {opp.tickets_claimed}
                 <span className="text-base font-normal text-muted-foreground">/{opp.tickets_total}</span>
               </p>
-              <p className="text-sm text-muted-foreground">tickets claimed</p>
+              <p className="text-sm text-muted-foreground">
+                tickets claimed{openInvites ? <span className="tabular-nums">{` · ${openInvites} invited`}</span> : null}
+              </p>
             </CardContent>
           </Card>
           <Card>

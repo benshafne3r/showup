@@ -49,7 +49,8 @@ export default async function CreatorBookingPage({
          includes_plus_one, content_required, content_state, content_deadline_at,
          attendance_state, acceptance_deadline_at, accepted_at, terms_accepted_at,
          ticket_instructions, ticket_instructions_sent_at, canceled_at, cancel_reason,
-         completed_at, created_at,
+         completed_at, created_at, holds_tickets,
+         show_opportunities(tickets_total, tickets_claimed),
          shows!inner(id, date, doors_time, start_time, status, artists(name), venues(city)),
          companies!inner(name),
          authorization_records(id, status, amount_cents, scheduled_for, authorized_at, released_at, captured_at, failure_reason, grace_deadline_at, created_at),
@@ -178,6 +179,11 @@ export default async function CreatorBookingPage({
               hasVerifiedCard={!!paymentMethod}
               cardLabel={paymentMethod ? `${paymentMethod.brand.toUpperCase()} •••• ${paymentMethod.last4}` : null}
               holdCents={booking.authorization_amount_cents}
+              ticketsLeft={
+                !booking.holds_tickets && booking.show_opportunities
+                  ? Math.max(0, booking.show_opportunities.tickets_total - booking.show_opportunities.tickets_claimed)
+                  : null
+              }
             />
           ) : null}
 

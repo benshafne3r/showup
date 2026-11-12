@@ -70,7 +70,10 @@ export function CreatorDirectory({
   const matchCount = complete ? matches.length : total;
 
   const show = shows.find((s) => s.id === showId) ?? null;
-  const tooMany = show ? selected.size > show.ticketsLeft : false;
+  // Invites don't hold tickets (the first to accept get them), so more
+  // creators than tickets is fine, as long as one is left.
+  const soldOut = show ? show.ticketsLeft <= 0 : false;
+  const overInvited = show ? selected.size > show.ticketsLeft : false;
   const invitedToShow = (c: DirectoryCreator) => !!showId && c.invitedTo.includes(showId);
 
   const applyFilter = (patch: { city?: string; q?: string }) => {
@@ -329,14 +332,18 @@ export function CreatorDirectory({
                 className="min-h-9"
               />
             </div>
-            <Button type="button" onClick={send} disabled={!show || tooMany || sending}>
+            <Button type="button" onClick={send} disabled={!show || soldOut || sending}>
               {sending ? <Loader2 className="size-4 animate-spin" aria-hidden /> : <Send className="size-4" aria-hidden />}
               {`Invite ${selected.size} creator${selected.size === 1 ? "" : "s"}`}
             </Button>
           </div>
-          {tooMany && show ? (
+          {soldOut ? (
             <p role="alert" className="text-xs font-medium text-amber-300">
-              {`Only ${show.ticketsLeft} ticket${show.ticketsLeft === 1 ? "" : "s"} left for this show. Unselect some creators.`}
+              All the tickets for this show are claimed.
+            </p>
+          ) : overInvited && show ? (
+            <p className="text-xs text-muted-foreground">
+              {`${show.ticketsLeft} ticket${show.ticketsLeft === 1 ? "" : "s"} left. The first creators to accept get them.`}
             </p>
           ) : null}
           {error ? (

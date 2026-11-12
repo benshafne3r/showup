@@ -563,6 +563,7 @@ export type Database = {
           creator_payment_cents: number
           deposit_percentage: number
           hold_agency_id: string | null
+          holds_tickets: boolean
           id: string
           includes_plus_one: boolean
           opportunity_id: string
@@ -594,6 +595,7 @@ export type Database = {
           creator_payment_cents: number
           deposit_percentage: number
           hold_agency_id?: string | null
+          holds_tickets?: boolean
           id?: string
           includes_plus_one?: boolean
           opportunity_id: string
@@ -625,6 +627,7 @@ export type Database = {
           creator_payment_cents?: number
           deposit_percentage?: number
           hold_agency_id?: string | null
+          holds_tickets?: boolean
           id?: string
           includes_plus_one?: boolean
           opportunity_id?: string

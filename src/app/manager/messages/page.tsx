@@ -86,7 +86,15 @@ export default async function ManagerMessagesPage({
       show = {
         showId: offer.showId,
         title: [offer.artist, formatShowDate(offer.date), offer.city].filter(Boolean).join(" · "),
-        detail: `${offer.label} · answer by ${formatDateTime(offer.acceptBy)}`,
+        detail: [
+          offer.label,
+          offer.ticketsLeft !== null
+            ? `${offer.ticketsLeft} ticket${offer.ticketsLeft === 1 ? "" : "s"} left, first to accept`
+            : null,
+          `answer by ${formatDateTime(offer.acceptBy)}`,
+        ]
+          .filter(Boolean)
+          .join(" · "),
         invites: [],
       };
       waiting.push(show);

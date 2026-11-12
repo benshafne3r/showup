@@ -1,6 +1,6 @@
 # HANDOFF — ShowUp (CreatorTickets Platform)
 
-_Last updated: 2026-11-11_
+_Last updated: 2026-11-12_
 
 ## 🚦 LIVE STATE (read this first)
 Prod is **live for real** on a real domain with real payments. Owner account:
@@ -56,6 +56,20 @@ than trusting notes (0007 was marked "done" but wasn't).
 → `npm run seed` → `npm run dev`. `.env.local` points at `http://127.0.0.1:54321`. Studio at
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
+
+## Invites are first come, first served (2026-11-12, Ben)
+- A label invite no longer holds a ticket. Labels can invite more creators than they have tickets
+  (still needs 1 left); the ticket is taken when a creator accepts. Approving a creator's own
+  request still holds the ticket as before.
+- `bookings.holds_tickets` (migration **0032**): invites start false, flip true in `accept_booking_tx`
+  (raises `sold_out` if full). `cancel_booking_tx` only gives tickets back when it held them;
+  `booking_consistency` counts only holding bookings.
+- When the last ticket goes, `closeInvitesIfFull` (bookings.ts) closes the open invites
+  ("All tickets were claimed", request → expired) and notifies those creators.
+- UI: invite bar / Creators page say "N tickets, first to accept" instead of blocking; accept page and
+  agency Waiting on you show tickets left. Tests: `tests/integration/bookings.test.ts` "first come invites".
+- **Prod: 0032 NOT applied yet** (waiting on Ben). It also frees the 11 tickets held by 11 open invites
+  on 3 shows. Code must not deploy before it (selects `holds_tickets`).
 
 ## Team admins (2026-11-12, Ben)
 - **Management teams** now work like label teams: owners/admins invite teammates by email as **admin or

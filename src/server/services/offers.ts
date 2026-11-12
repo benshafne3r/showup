@@ -338,9 +338,10 @@ async function checkOffers(input: OfferInput) {
   if (!show || !opp) return { ok: false as const, error: "Show not found" };
   if (show.status !== "published") return { ok: false as const, error: "Publish the show before inviting creators" };
   if (showDatePassed(show.date)) return { ok: false as const, error: "This show has already happened" };
-  const left = opp.tickets_total - opp.tickets_claimed;
-  if (creatorIds.length > left) {
-    return { ok: false as const, error: `Only ${left} ticket${left === 1 ? "" : "s"} left for this show` };
+  // Invites don't hold tickets (the first to accept get them), so a label can
+  // invite more creators than it has tickets, as long as one is left.
+  if (opp.tickets_claimed >= opp.tickets_total) {
+    return { ok: false as const, error: "All the tickets for this show are claimed" };
   }
   return { ok: true as const, show, opp, creatorIds };
 }
@@ -376,7 +377,7 @@ export async function sendQueuedOffers(input: OfferInput, jobKey: string) {
     type: "request_approved",
     title: result.ok ? `Invited ${n} creator${n === 1 ? "" : "s"}` : "Invites not sent",
     body: result.ok
-      ? `${result.skipped.length ? `Skipped: ${result.skipped.join(", ")}. ` : ""}They have ${result.acceptHours} hours to accept.`
+      ? `${result.skipped.length ? `Skipped: ${result.skipped.join(", ")}. ` : ""}Tickets go to whoever accepts first (within ${result.acceptHours} hours).`
       : result.error,
     link: `/label/shows/${input.showId}`,
     dedupeKey: `${jobKey}:done`,
@@ -443,7 +444,7 @@ export async function sendOffers(
             userId: creatorId,
             type: "offer_received",
             title: `${label} invited you to ${artist}`,
-            body: `You're invited to ${artist} on ${formatShowDate(show.date)}. Accept within ${acceptHours} hours to lock in your ticket.`,
+            body: `You're invited to ${artist} on ${formatShowDate(show.date)}. Tickets go to the first creators to accept, so accept soon (within ${acceptHours} hours).`,
             link: `/creator/bookings/${bookingId}`,
           }, input.companyId),
         ];
@@ -513,7 +514,7 @@ export async function sendOfferDigest(p: { agencyId: string; showId: string; com
   await notifyAgency(p.agencyId, {
     type: "offer_received",
     title: single ? `${label} invited ${name(single)} to ${artist}` : `${label} invited ${offers.length} of your creators to ${artist}`,
-    body: `${artist}, ${formatShowDate(first.shows.date)}${first.shows.venues?.city ? ` in ${first.shows.venues.city}` : ""}. Accept or pass for each by ${formatDateTime(first.acceptance_deadline_at)}. Holds go on your card.`,
+    body: `${artist}, ${formatShowDate(first.shows.date)}${first.shows.venues?.city ? ` in ${first.shows.venues.city}` : ""}. Tickets go to the first creators to accept, so accept or pass for each by ${formatDateTime(first.acceptance_deadline_at)}. Holds go on your card.`,
     link: "/manager/messages?tab=requests",
     email: { details: offers.map((o) => ({ label: name(o), value: "Invited" })), ctaLabel: "Review invites" },
     dedupeKey: `offers:${p.agencyId}:${p.showId}:${p.since}`,
@@ -572,7 +573,8 @@ export async function pendingOffersForAgency(agencyId: string, limit = 200) {
   const { data: rows } = await db
     .from("bookings")
     .select(
-      `id, creator_id, authorization_amount_cents, acceptance_deadline_at, ticket_count,
+      `id, creator_id, authorization_amount_cents, acceptance_deadline_at, ticket_count, holds_tickets,
+       show_opportunities(tickets_total, tickets_claimed),
        users:users!creator_id(full_name, avatar_url),
        shows!inner(id, date, artists(name), venues(city)),
        companies(name),
@@ -596,5 +598,10 @@ export async function pendingOffersForAgency(agencyId: string, limit = 200) {
     acceptBy: b.acceptance_deadline_at,
     tickets: b.ticket_count,
     invited: !!b.show_requests?.offered_at,
+    /** For an invite (no ticket held yet): tickets left, first to accept gets them. */
+    ticketsLeft:
+      !b.holds_tickets && b.show_opportunities
+        ? Math.max(0, b.show_opportunities.tickets_total - b.show_opportunities.tickets_claimed)
+        : null,
   }));
 }

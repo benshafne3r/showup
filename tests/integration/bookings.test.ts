@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
 import { clearCheckpoints, onCheckpoint, SimulatedCrash } from "@/server/checkpoints";
 import { approveRequest, createRequest } from "@/server/services/requests";
-import { cancelBooking } from "@/server/services/bookings";
+import { acceptBooking, cancelBooking, passOnBooking } from "@/server/services/bookings";
 import { placeAuthorization } from "@/server/services/payments";
 import { queueOffers, sendOffers, sendQueuedOffers } from "@/server/services/offers";
 import { drainJobs, enqueueJobs, runOutboxNow } from "@/server/jobs/queue";
@@ -55,6 +55,8 @@ async function opportunity(companyId: string, tickets: number) {
 
 const claimed = async (oppId: string) =>
   (await db.from("show_opportunities").select("tickets_claimed").eq("id", oppId).single()).data!.tickets_claimed;
+const invites = async (oppId: string) =>
+  (await db.from("bookings").select("id").eq("opportunity_id", oppId)).data!.length;
 
 describe("approvals", () => {
   it("never oversells when two approvals race for the last ticket", async () => {
@@ -145,7 +147,7 @@ describe("label invites", () => {
     expect(req!.message_threads).not.toBeNull();
     expect(req!.bookings?.status).toBe("awaiting_acceptance");
     expect(req!.bookings?.booking_tickets).toHaveLength(1);
-    expect(await claimed(oppId)).toBe(1);
+    expect(await claimed(oppId)).toBe(0); // an invite holds no ticket until accepted
   });
 
   it("post the label's note in each invite's conversation", async () => {
@@ -175,24 +177,92 @@ describe("background invites", () => {
     const queued = await queueOffers(input);
     if (!queued.ok) throw new Error(queued.error);
     expect(queued.count).toBe(2);
-    expect(await claimed(oppId)).toBe(0); // nothing sent until the job runs
+    expect(await invites(oppId)).toBe(0); // nothing sent until the job runs
 
     await runOutboxNow([queued.key]);
-    expect(await claimed(oppId)).toBe(2);
+    expect(await invites(oppId)).toBe(2);
     const done = await db.from("notifications").select("title, emailed_at").eq("dedupe_key", `${queued.key}:done`);
     expect(done.data).toEqual([{ title: "Invited 2 creators", emailed_at: null }]);
 
     // A retry of the same job skips the invited creators and sends no second note.
     await sendQueuedOffers(input, queued.key);
-    expect(await claimed(oppId)).toBe(2);
+    expect(await invites(oppId)).toBe(2);
     expect((await db.from("notifications").select("id").eq("dedupe_key", `${queued.key}:done`)).data).toHaveLength(1);
   });
 
-  it("are refused up front when the show can't take them", async () => {
+  it("are refused up front once every ticket is claimed", async () => {
     const { ownerId, companyId, creators } = await companyAndCreators();
-    const { showId } = await opportunity(companyId, 1);
+    const { showId, oppId } = await opportunity(companyId, 1);
+    await db.from("show_opportunities").update({ tickets_claimed: 1 }).eq("id", oppId);
     const result = await queueOffers({ companyId, showId, creatorIds: creators.slice(0, 2).map((c) => c.id), reviewer: { id: ownerId, role: "label" } });
-    expect(result).toEqual({ ok: false, error: "Only 1 ticket left for this show" });
+    expect(result).toEqual({ ok: false, error: "All the tickets for this show are claimed" });
+  });
+});
+
+describe("first come invites", () => {
+  /** Jay and Zoe have verified cards in the seed; Leo doesn't. */
+  async function invited(tickets: number) {
+    const { ownerId, companyId, creators } = await companyAndCreators();
+    const by = (email: string) => creators.find((c) => c.email === email)!.id;
+    const [jay, zoe, leo] = [by("creator.jay@demo.showup.test"), by("creator.zoe@demo.showup.test"), by("creator.leo@demo.showup.test")];
+    const { showId, oppId } = await opportunity(companyId, tickets);
+    const sent = await sendOffers({ companyId, showId, creatorIds: [jay, zoe, leo], reviewer: { id: ownerId, role: "label" } });
+    expect(sent).toMatchObject({ ok: true, sent: 3 }); // more invites than tickets is fine
+    const { data: rows } = await db.from("bookings").select("id, creator_id").eq("opportunity_id", oppId);
+    const booking = (creatorId: string) => rows!.find((r) => r.creator_id === creatorId)!.id;
+    return { oppId, jay, zoe, leo, booking };
+  }
+  const state = async (bookingId: string) =>
+    (await db.from("bookings").select("status, cancel_reason, holds_tickets, show_requests(status)").eq("id", bookingId).single()).data!;
+
+  it("give the ticket to whoever accepts first and close the other invites", async () => {
+    const { oppId, jay, zoe, leo, booking } = await invited(1);
+    expect(await claimed(oppId)).toBe(0);
+
+    expect(await acceptBooking({ creatorId: jay, bookingId: booking(jay), agreedToTerms: true })).toEqual({ ok: true });
+    expect(await claimed(oppId)).toBe(1);
+    expect(await state(booking(jay))).toMatchObject({ status: "confirmed", holds_tickets: true });
+
+    for (const other of [zoe, leo]) {
+      expect(await state(booking(other))).toMatchObject({
+        status: "canceled",
+        cancel_reason: "All tickets were claimed",
+        show_requests: { status: "expired" },
+      });
+      const { data: note } = await db.from("notifications").select("title").eq("dedupe_key", `booking:${booking(other)}:tickets_gone`);
+      expect(note).toHaveLength(1);
+    }
+    // Zoe tries anyway: the invite is closed.
+    const late = await acceptBooking({ creatorId: zoe, bookingId: booking(zoe), agreedToTerms: true });
+    expect(late.ok).toBe(false);
+    expect(await claimed(oppId)).toBe(1);
+  });
+
+  it("never oversell when two invitees race for the last ticket", async () => {
+    const { oppId, jay, zoe, booking } = await invited(1);
+    const results = await Promise.all([
+      acceptBooking({ creatorId: jay, bookingId: booking(jay), agreedToTerms: true }),
+      acceptBooking({ creatorId: zoe, bookingId: booking(zoe), agreedToTerms: true }),
+    ]);
+    expect(results.filter((r) => r.ok)).toHaveLength(1);
+    expect(await claimed(oppId)).toBe(1);
+    const statuses = [(await state(booking(jay))).status, (await state(booking(zoe))).status].sort();
+    expect(statuses).toEqual(["canceled", "confirmed"]);
+  });
+
+  it("leave tickets alone when an invite is passed on, and keep the rest open while tickets remain", async () => {
+    const { oppId, jay, zoe, leo, booking } = await invited(2);
+    expect(await acceptBooking({ creatorId: jay, bookingId: booking(jay), agreedToTerms: true })).toEqual({ ok: true });
+    expect(await claimed(oppId)).toBe(1);
+    expect((await state(booking(zoe))).status).toBe("awaiting_acceptance");
+
+    const { data: agency } = await db.from("agencies").select("id, name").limit(1).single();
+    await passOnBooking({ bookingId: booking(leo), agency: { agencyId: agency!.id, agencyName: agency!.name, actorId: jay } });
+    expect((await state(booking(leo))).status).toBe("canceled");
+    expect(await claimed(oppId)).toBe(1); // Leo's invite never held one
+
+    const { data: drift } = await db.rpc("booking_consistency");
+    expect((drift ?? []).filter((d) => d.ref === oppId)).toEqual([]);
   });
 });
 

@@ -25,12 +25,15 @@ export function AcceptFlow({
   hasVerifiedCard,
   cardLabel,
   holdCents,
+  ticketsLeft = null,
 }: {
   bookingId: string;
   deadline: string;
   hasVerifiedCard: boolean;
   cardLabel: string | null;
   holdCents: number;
+  /** Set for a label invite: tickets go to the first creators to accept. */
+  ticketsLeft?: number | null;
 }) {
   const [cardState, cardAction] = useActionState<ActionState, FormData>(addPaymentMethod, null);
   const [acceptState, acceptAction] = useActionState<ActionState, FormData>(acceptBookingAction, null);
@@ -58,6 +61,13 @@ export function AcceptFlow({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-5 text-sm">
+        {ticketsLeft !== null ? (
+          <p className="font-medium tabular-nums">
+            {ticketsLeft > 0
+              ? `${ticketsLeft} ticket${ticketsLeft === 1 ? "" : "s"} left. The first creators to accept get them.`
+              : "All the tickets for this show were just claimed."}
+          </p>
+        ) : null}
         <ol className="space-y-1 text-muted-foreground">
           <li>1. Review the ticket &amp; hold details (right side of this page).</li>
           <li>2. Add a payment method for the temporary hold.</li>

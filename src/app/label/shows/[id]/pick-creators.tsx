@@ -17,6 +17,7 @@ const FIRST_SHOWN = 12;
  * "in the city" then "nearby" (same state, folded away until opened). Picking
  * anyone brings up a floating bar to send the invites, which go out in the
  * background (see queueOffers), so the label can leave the page right away.
+ * Invites don't hold tickets: the first creators to accept get them.
  * Creators on an agency roster are answered by their agency.
  */
 export function PickCreators({
@@ -75,7 +76,10 @@ export function PickCreators({
     return <p className="text-sm text-muted-foreground">{emptyText ?? `No creators listed in or near ${city} yet.`}</p>;
   }
 
-  const tooMany = picked.size > ticketsLeft;
+  // Invites don't hold tickets (the first to accept get them), so the label
+  // can invite more creators than it has tickets, as long as one is left.
+  const soldOut = ticketsLeft <= 0;
+  const overInvited = picked.size > ticketsLeft;
   const showBar = picked.size > 0 || notice !== null;
 
   return (
@@ -105,16 +109,18 @@ export function PickCreators({
               <p className="flex min-w-0 flex-1 items-center gap-2 text-sm font-medium tabular-nums">
                 <Users className="size-4 shrink-0 text-muted-foreground" aria-hidden />
                 {picked.size} selected
-                {tooMany ? (
-                  <span className="truncate text-xs font-normal text-amber-300">
-                    {`· only ${ticketsLeft} ticket${ticketsLeft === 1 ? "" : "s"} left`}
+                {soldOut ? (
+                  <span className="truncate text-xs font-normal text-amber-300">· All tickets are claimed</span>
+                ) : overInvited ? (
+                  <span className="truncate text-xs font-normal text-muted-foreground">
+                    {`· ${ticketsLeft} ticket${ticketsLeft === 1 ? "" : "s"}, first to accept`}
                   </span>
                 ) : null}
               </p>
               <Button type="button" variant="ghost" size="sm" onClick={() => setPicked(new Set())}>
                 <X className="size-4" aria-hidden /> Clear
               </Button>
-              <SubmitButton size="sm" disabled={tooMany} pendingLabel="Sending…">
+              <SubmitButton size="sm" disabled={soldOut} pendingLabel="Sending…">
                 <Send className="size-4" aria-hidden />
                 {`Invite ${picked.size} creator${picked.size === 1 ? "" : "s"}`}
               </SubmitButton>

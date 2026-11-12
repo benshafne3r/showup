@@ -15,6 +15,7 @@ import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
 import { keysOf, notifyCompanyJob, notifyJob, releaseHoldsJob } from "@/server/jobs/outbox";
 
 const TERMS_VERSION = "2026-07-v1";
+const SOLD_OUT = "All the tickets for this show were just claimed";
 
 /** An agency accepting for a creator on its roster: the hold goes on its card. */
 export type AgencyPayer = { agencyId: string; agencyName: string; actorId: string };
@@ -48,7 +49,7 @@ export async function acceptBooking(input: {
   const db = serviceDb();
   const { data: booking } = await db
     .from("bookings")
-    .select("id, status, creator_id, company_id, acceptance_deadline_at, shows(date, status, artists(name)), users:users!creator_id(full_name)")
+    .select("id, status, creator_id, company_id, opportunity_id, acceptance_deadline_at, shows(date, status, artists(name)), users:users!creator_id(full_name)")
     .eq("id", input.bookingId)
     .eq("creator_id", input.creatorId)
     .single();
@@ -120,10 +121,18 @@ export async function acceptBooking(input: {
     booking_not_found: "Booking not found",
     not_acceptable: "Booking can no longer be accepted",
     acceptance_expired: "The acceptance window has passed",
+    sold_out: SOLD_OUT,
   });
+  if (failure === SOLD_OUT) {
+    // Other invitees accepted first: close this invite (and any others left).
+    await closeInvitesIfFull(booking.opportunity_id);
+    return { ok: false, error: failure };
+  }
   if (failure) return { ok: false, error: failure };
 
   await runOutboxNow(keysOf(jobs));
+  // That may have been the last ticket: close the invites still waiting.
+  await closeInvitesIfFull(booking.opportunity_id);
   // Placing the hold calls the provider, so it happens after commit. A
   // decline leaves the booking confirmed with a grace period to fix the card.
   if (due) await placeAuthorization(authId as string);
@@ -198,7 +207,7 @@ export async function passOnBooking(input: {
 }): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data: b } = await serviceDb()
     .from("bookings")
-    .select("users:users!creator_id(full_name), shows(date, artists(name))")
+    .select("holds_tickets, users:users!creator_id(full_name), shows(date, artists(name))")
     .eq("id", input.bookingId)
     .maybeSingle();
   const creatorName = b?.users?.full_name || "Their creator";
@@ -213,7 +222,7 @@ export async function passOnBooking(input: {
       notifyCompanyJob(`booking:${input.bookingId}:declined`, companyId, {
         type: "booking_canceled",
         title: `${input.agency.agencyName} passed on ${artistName}`,
-        body: `${creatorName} can't make it to ${artistName}${b?.shows?.date ? ` on ${formatShowDate(b.shows.date)}` : ""}. The ticket is back in your pool.`,
+        body: `${creatorName} can't make it to ${artistName}${b?.shows?.date ? ` on ${formatShowDate(b.shows.date)}` : ""}.${b?.holds_tickets === false ? "" : " The ticket is back in your pool."}`,
         link: `/label/bookings/${input.bookingId}`,
       }),
     ],
@@ -229,6 +238,57 @@ export async function passOnBooking(input: {
     metadata: { agencyId: input.agency.agencyId },
   });
   return { ok: true };
+}
+
+/**
+ * Invites don't hold tickets; the first creators to accept get them. Once a
+ * show's tickets are all claimed, close the invites still waiting on an
+ * answer and tell those creators (and their agencies). Returns how many closed.
+ */
+export async function closeInvitesIfFull(opportunityId: string): Promise<number> {
+  const db = serviceDb();
+  const { data: opp } = await db
+    .from("show_opportunities")
+    .select("tickets_total, tickets_claimed")
+    .eq("id", opportunityId)
+    .maybeSingle();
+  if (!opp || opp.tickets_claimed < opp.tickets_total) return 0;
+  const { data: open } = await db
+    .from("bookings")
+    .select("id, shows(artists(name))")
+    .eq("opportunity_id", opportunityId)
+    .eq("holds_tickets", false)
+    .in("status", ["awaiting_acceptance", "awaiting_payment_method"]);
+  let closed = 0;
+  for (const b of open ?? []) {
+    const artistName = b.shows?.artists?.name ?? "the show";
+    const result = await closeBooking({
+      bookingId: b.id,
+      reason: "All tickets were claimed",
+      from: AWAITING,
+      requestStatus: "expired",
+      actor: { id: null, role: "system" },
+      jobs: ({ creatorId, companyId }) => [
+        notifyJob(`booking:${b.id}:tickets_gone`, {
+          userId: creatorId,
+          type: "booking_canceled",
+          title: `Tickets for ${artistName} are gone`,
+          body: "Other creators accepted first, so this invite is closed. You can request other shows anytime.",
+          link: "/creator/messages?tab=requests",
+        }, companyId),
+      ],
+    });
+    if (result.ok) closed++;
+  }
+  if (closed) {
+    await audit({
+      action: "show.invites_closed",
+      entityType: "show_opportunity",
+      entityId: opportunityId,
+      metadata: { closed, reason: "tickets_claimed" },
+    });
+  }
+  return closed;
 }
 
 /** Expire a booking whose acceptance window lapsed; releases inventory. */
