@@ -108,6 +108,10 @@ than trusting notes (0007 was marked "done" but wasn't).
   resolved. Noise filters: MusicBrainz/Wikipedia misses are `log.warn` (+1 retry on 503/429); the
   browser drops "unexpected response" while viewing as someone (`instrumentation-client.ts`); the server
   skips "Failed to find Server Action" on marketing routes (bots) in `instrumentation.ts`.
+- **Scheduled task `sentry-watch`** (Claude app, local, hourly 8am-11pm, Bypass permissions): checks
+  unresolved Sentry issues from the last 24 h; fixes real bugs, runs all checks, pushes only when green,
+  resolves the issue; never touches payments/migrations/prod data/secrets (reports those). Task file:
+  `~/.claude/scheduled-tasks/sentry-watch/SKILL.md`. Runs only while the Claude app is open.
 - Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)
