@@ -93,7 +93,9 @@ than trusting notes (0007 was marked "done" but wasn't).
   entered in the browser's time zone and sent as ISO (hidden `applicationDeadline`); it used to be
   parsed as UTC on the server. The locked artist card on "Add a date" shows date · venue · city.
 - **Manager "Waiting on you": copy / text icons on each creator row** with a personal invite text
-  ("Hey Chloe! Wanted to invite you to see …"; `formatInviteMessage` in `src/lib/show-brief.ts`, show data
+  ("Hey Chloe! Wanted to invite you to see …"; one text per creator covering all their waiting invites:
+  several nights of one run = "Pick whichever night works" list, different shows = sections;
+  `formatInviteMessage(shows[], creator)` in `src/lib/show-brief.ts`, show data
   from `showBriefs()` in `services/offers.ts`): venue, date/doors/show, address, ticket method (+1 if they
   have 2 tickets), what to post and by when, notes; no money; plain characters so it's one normal SMS
   type. "Text" is an `sms:?&body=` link (opens Messages; no phone numbers stored, they pick the contact).
