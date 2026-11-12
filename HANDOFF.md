@@ -57,6 +57,16 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Spade Group roster import (2026-11-12, Ben)
+- Imported 14 creators from `dashboard.spadegroup.io/roster/spade-signed-creators` (a CreatorCore page) with
+  `npm run roster:import -- --agency "Spade Group" --url … --prod --skip pontiacmadeteetee,arieswilliams0`.
+  Skipped Teetee + Aries because Spade had added them by hand (Teetee's handle there is `pontiacmadeteetee0`).
+  Spade now has 19 creators.
+- New script flags: `--skip h1,h2` and `--locations file.json` ({handle: {city, region, country}}, full
+  state names like "Florida"), applied only when the page has no city.
+- Cities set from research: Danielle Cohn (Orlando), Damaury Mikula (Tampa), DESS (New York), Josh Diggs
+  (Iowa, state only). The rest are waiting on Ben to ask Spade.
+
 ## Invites are first come, first served (2026-11-12, Ben)
 - A label invite no longer holds a ticket. Labels can invite more creators than they have tickets
   (still needs 1 left); the ticket is taken when a creator accepts. Approving a creator's own
