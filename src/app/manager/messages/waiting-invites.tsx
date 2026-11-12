@@ -18,7 +18,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Loader2 } from "lucide-react";
+import { Check, Copy, Loader2, MessageCircle } from "lucide-react";
 
 export type WaitingShow = {
   showId: string;
@@ -26,6 +26,8 @@ export type WaitingShow = {
   title: string;
   /** "Columbia Records · answer by Nov 4, 9:37 PM" */
   detail: string;
+  /** Paste-ready rundown for the creator (where, when, ticket, what to post). */
+  brief: string;
   invites: { bookingId: string; creatorName: string; avatarUrl: string | null; hold: string }[];
 };
 
@@ -34,6 +36,33 @@ export type WaitingShow = {
  * one, accept all, or pass. Without an agency card there's one note up top
  * instead of a warning on every row.
  */
+/** Copy the show rundown, or open Messages with it written in (pick the creator there). */
+function BriefButtons({ brief }: { brief: string }) {
+  const [copied, setCopied] = useState(false);
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(brief);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error("Couldn't copy. Select the text and copy it instead.");
+    }
+  };
+  return (
+    <>
+      <Button type="button" variant="outline" size="sm" onClick={copy}>
+        {copied ? <Check className="size-3.5" aria-hidden /> : <Copy className="size-3.5" aria-hidden />}
+        {copied ? "Copied" : "Copy details"}
+      </Button>
+      <Button asChild variant="outline" size="sm">
+        <a href={`sms:?&body=${encodeURIComponent(brief)}`}>
+          <MessageCircle className="size-3.5" aria-hidden /> Text
+        </a>
+      </Button>
+    </>
+  );
+}
+
 export function WaitingInvites({ shows, card }: { shows: WaitingShow[]; card: string | null }) {
   const total = shows.reduce((n, s) => n + s.invites.length, 0);
   return (
@@ -60,9 +89,12 @@ export function WaitingInvites({ shows, card }: { shows: WaitingShow[]; card: st
               <p className="truncate font-medium">{show.title}</p>
               <p className="text-xs text-muted-foreground">{show.detail}</p>
             </div>
-            {card && show.invites.length > 1 ? (
-              <AcceptAll show={show} card={card} primary={shows.length === 1} />
-            ) : null}
+            <div className="flex flex-wrap items-center gap-2">
+              {show.brief ? <BriefButtons brief={show.brief} /> : null}
+              {card && show.invites.length > 1 ? (
+                <AcceptAll show={show} card={card} primary={shows.length === 1} />
+              ) : null}
+            </div>
           </div>
           <ul className="divide-y">
             {show.invites.map((invite) => (

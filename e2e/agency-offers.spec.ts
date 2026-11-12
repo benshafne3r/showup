@@ -91,6 +91,9 @@ test("label invites managed creators; the agency accepts one on its card and pas
     const waiting = page.getByRole("region", { name: /Waiting on you/ });
     await expect(waiting.getByRole("heading", { name: /Waiting on you\s*2/ })).toBeVisible();
     await expect(waiting.getByText(/Holds go on visa •••• 1881/)).toBeVisible();
+    // A paste-ready rundown of the show for the creator: copy it, or open Messages with it.
+    await expect(waiting.getByRole("button", { name: "Copy details" })).toBeVisible();
+    await expect(waiting.getByRole("link", { name: "Text" })).toHaveAttribute("href", /^sms:\?&body=.+Ticket%3A/);
     const raeRow = waiting.getByRole("listitem").filter({ hasText: "Rae Rivers" });
     await raeRow.getByRole("button", { name: "Accept" }).click();
     await page.getByRole("alertdialog").getByRole("button", { name: "Accept" }).click();

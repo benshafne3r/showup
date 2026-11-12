@@ -75,6 +75,11 @@ than trusting notes (0007 was marked "done" but wasn't).
   0 days before = 20:00 UTC on show day; pop-up "Apply by" = show date). The show form's deadline is
   entered in the browser's time zone and sent as ISO (hidden `applicationDeadline`); it used to be
   parsed as UTC on the server. The locked artist card on "Add a date" shows date · venue · city.
+- **Manager "Waiting on you" → Copy details / Text** per show: a paste-ready rundown for the creator
+  (`formatShowBrief` in `src/lib/show-brief.ts`, loaded by `showBriefs()` in `services/offers.ts`):
+  venue, date/doors/show, address, ticket method, +1, what to post and by when, notes; no money.
+  "Text" is an `sms:?&body=` link (opens Messages; no phone numbers stored, so they pick the contact).
+  Real SMS sending would need a paid service (Twilio): not set up.
 - Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)

@@ -14,6 +14,7 @@ import { locationLabel } from "@/lib/roster";
 import { formatDateTime, formatShowDate, showDatePassed, showToday } from "@/lib/dates";
 import { formatCents } from "@/lib/money";
 import { acceptanceHours } from "@/lib/holds";
+import { formatShowBrief } from "@/lib/show-brief";
 import { log } from "@/server/log";
 
 /**
@@ -525,6 +526,43 @@ export async function sendOfferDigest(p: { agencyId: string; showId: string; com
  * soonest deadline first. The roster is joined in SQL, so this works for any
  * roster size.
  */
+/** Paste-ready show rundowns (see formatShowBrief), keyed by show id, for a manager to send their creators. */
+export async function showBriefs(showIds: string[]): Promise<Map<string, string>> {
+  const briefs = new Map<string, string>();
+  if (!showIds.length) return briefs;
+  const { data, error } = await serviceDb()
+    .from("shows")
+    .select(
+      `id, date, doors_time, start_time, ticket_delivery_method,
+       artists(name), venues(name, address, city, state),
+       show_opportunities(plus_one_allowed, notes, content_deadline_days, deliverable_requirements(platform, quantity, description))`,
+    )
+    .in("id", showIds);
+  if (error) throw new Error(`show briefs: ${error.message}`);
+  for (const show of data ?? []) {
+    const opp = show.show_opportunities;
+    briefs.set(
+      show.id,
+      formatShowBrief({
+        artist: show.artists?.name ?? "Show",
+        date: show.date,
+        doorsTime: show.doors_time,
+        startTime: show.start_time,
+        venueName: show.venues?.name ?? null,
+        address: show.venues?.address ?? null,
+        city: show.venues?.city ?? null,
+        state: show.venues?.state ?? null,
+        ticketDelivery: show.ticket_delivery_method,
+        plusOneAllowed: opp?.plus_one_allowed ?? false,
+        contentDeadlineDays: opp?.content_deadline_days ?? 0,
+        deliverables: opp?.deliverable_requirements ?? [],
+        notes: opp?.notes ?? null,
+      }),
+    );
+  }
+  return briefs;
+}
+
 export async function pendingOffersForAgency(agencyId: string, limit = 200) {
   const db = serviceDb();
   const { data: page, error } = await db.rpc("agency_waiting_bookings", {

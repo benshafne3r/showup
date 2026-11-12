@@ -4,7 +4,7 @@ import { requireManagerPage } from "../require-manager";
 import { listThreadsFor, THREAD_PAGE } from "@/server/services/messaging-queries";
 import { serviceDb } from "@/server/db/service";
 import { withdrawForCreatorAction } from "../actions";
-import { pendingOffersForAgency } from "@/server/services/offers";
+import { pendingOffersForAgency, showBriefs } from "@/server/services/offers";
 import { agencyDefaultPaymentMethod } from "@/server/services/payments";
 import { WaitingInvites, type WaitingShow } from "./waiting-invites";
 import { PageHeader } from "@/components/page-header";
@@ -71,6 +71,7 @@ export default async function ManagerMessagesPage({
   ]);
   // Label invites waiting on the agency open the Requests tab.
   const defaultTab = params.tab === "messages" ? "messages" : params.tab === "requests" || offers.length ? "requests" : "messages";
+  const briefs = await showBriefs([...new Set(offers.map((o) => o.showId))]);
   const waiting: WaitingShow[] = [];
   for (const offer of offers) {
     let show = waiting.find((w) => w.showId === offer.showId);
@@ -79,6 +80,7 @@ export default async function ManagerMessagesPage({
         showId: offer.showId,
         title: [offer.artist, formatShowDate(offer.date), offer.city].filter(Boolean).join(" · "),
         detail: `${offer.label} · answer by ${formatDateTime(offer.acceptBy)}`,
+        brief: briefs.get(offer.showId) ?? "",
         invites: [],
       };
       waiting.push(show);
