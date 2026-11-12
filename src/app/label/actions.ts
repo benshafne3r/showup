@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requireUser, requireLabelWithCompany, requireCompanyRole } from "@/server/auth/guards";
@@ -9,7 +10,8 @@ import { serviceDb } from "@/server/db/service";
 import { artistFromSpotify, upsertArtist, upsertTour, upsertShow, cancelShow, deleteTour, deleteShow } from "@/server/services/catalog";
 import { setTourDeposit, upsertOpportunity } from "@/server/services/opportunities";
 import { approveRequest, rejectRequest, waitlistRequest } from "@/server/services/requests";
-import { creatorsInCity, sendOffers } from "@/server/services/offers";
+import { creatorsInCity, queueOffers } from "@/server/services/offers";
+import { runOutboxNow } from "@/server/jobs/queue";
 import { sendTicketInstructions, cancelBooking } from "@/server/services/bookings";
 import {
   approveAttendance,
@@ -153,7 +155,8 @@ const artistFields = {
   artistGenre: z.string().max(60).optional().or(z.literal("")),
   artistBio: z.string().max(1000).optional().or(z.literal("")),
   artistInstagram: z.string().max(60).optional().or(z.literal("")),
-  artistSpotifyUrl: z.string().url("Search Spotify and pick the artist"),
+  // Empty for an artist the label added before Spotify search (picked via their tour).
+  artistSpotifyUrl: z.string().url("Search Spotify and pick the artist").or(z.literal("")),
   artistImageUrl: z.string().url().or(z.literal("")).optional(),
 };
 
@@ -739,24 +742,25 @@ export async function deleteShowAction(
 
 // ── Invite creators to a show (offers) ──────────────────────────────────
 
+/** Invites go out in the background (see queueOffers); this is what the label sees meanwhile. */
+const sendingMessage = (count: number) =>
+  `Sending ${count} invite${count === 1 ? "" : "s"}. You'll get a notification when they're out.`;
+
 export async function sendOffersAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
   try {
     const context = await requireLabelWithCompany();
     const showId = z.string().uuid().parse(formData.get("showId"));
     const creatorIds = z.array(z.string().uuid()).parse(formData.getAll("creatorId"));
-    const result = await sendOffers({
+    const queued = await queueOffers({
       companyId: context.companyId,
       showId,
       creatorIds,
       reviewer: { id: context.user.id, role: "label" },
     });
-    if (!result.ok) return { error: result.error };
-    revalidatePath(`/label/shows/${showId}`);
-    revalidatePath("/label/creators");
-    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. Their team has ${result.acceptHours} hours to accept.`;
-    return result.skipped.length
-      ? { success: `${sent} Skipped: ${result.skipped.join(", ")}.` }
-      : { success: sent };
+    if (!queued.ok) return { error: queued.error };
+    // Send once the response is out, so the label can move on right away.
+    after(() => runOutboxNow([queued.key]));
+    return { success: sendingMessage(queued.count) };
   } catch (err) {
     return fail(err);
   }
@@ -781,18 +785,16 @@ export async function inviteCreatorsAction(input: {
       })
       .safeParse(input);
     if (!parsed.success) return { ok: false, error: parsed.error.issues[0].message };
-    const result = await sendOffers({
+    const queued = await queueOffers({
       companyId: context.companyId,
       showId: parsed.data.showId,
       creatorIds: parsed.data.creatorIds,
       reviewer: { id: context.user.id, role: "label" },
       message: parsed.data.message,
     });
-    if (!result.ok) return { ok: false, error: result.error };
-    revalidatePath(`/label/shows/${parsed.data.showId}`);
-    revalidatePath("/label/creators");
-    const sent = `Invited ${result.sent} creator${result.sent === 1 ? "" : "s"}. They (or their agency) have ${result.acceptHours} hours to accept.`;
-    return { ok: true, message: result.skipped.length ? `${sent} Skipped: ${result.skipped.join(", ")}.` : sent };
+    if (!queued.ok) return { ok: false, error: queued.error };
+    after(() => runOutboxNow([queued.key]));
+    return { ok: true, message: sendingMessage(queued.count) };
   } catch (err) {
     const failed = fail(err);
     return { ok: false, error: failed && "error" in failed ? failed.error : "Something went wrong" };

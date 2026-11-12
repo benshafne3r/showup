@@ -62,10 +62,15 @@ than trusting notes (0007 was marked "done" but wasn't).
   show form (own "Content" card), bulk import and pop-up; the fields stay visible, greyed out (disabled
   fieldset) until checked. Off = attend-only (payment 0, no deliverables);
   on needs a payment and at least one deliverable (`contentTerms()` in `label/actions.ts`).
-- **Tour cards:** "Import dates" (bulk import with the tour + artist preselected, all dates selected,
-  `/label/shows/import?tour=`) and "Add a date" (`/label/shows/new?tour=`, `tour-show-form.tsx`: artist
-  and tour locked, the artist's dates load on open minus ones already on the tour, click one to fill
-  the form). The old one-at-a-time import panel is gone. Date chips no longer show the deposit.
+- **Tour cards:** one "Add a date" button → `/label/shows/new?tour=` (`tour-show-form.tsx`): artist and
+  tour locked, the artist's dates load on open minus ones already on the tour, click one to fill the
+  form, or "Import several" → bulk import with the tour + artist preselected and all dates selected
+  (`/label/shows/import?tour=`). Old one-at-a-time import panel gone; date chips show no deposit.
+  Artists without a Spotify link (added before Spotify search) are accepted (`artistSpotifyUrl` may be "").
+- **Invites send in the background:** `queueOffers()` checks the batch, queues a `send_offers` job and the
+  action runs it via `after()` (worker as fallback); the label can leave right away and gets an in-app
+  notice ("Invited N creators", `inAppOnly`, no email). Show page "Pick creators": floating bar (count,
+  Clear, Invite N), "Nearby" folded behind a chevron, neutral selected cards (also on the Creators tab).
 - Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)

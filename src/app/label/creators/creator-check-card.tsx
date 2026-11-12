@@ -29,22 +29,21 @@ export function CreatorCheckCard({
     <label
       className={cn(
         "relative flex h-full cursor-pointer flex-col overflow-hidden rounded-lg border transition-colors",
-        checked ? "border-primary ring-1 ring-primary" : "hover:border-primary/40",
+        checked ? "border-foreground/70 ring-1 ring-foreground/70" : "hover:border-foreground/30",
         disabled && "cursor-not-allowed opacity-60",
       )}
     >
       <input
         type="checkbox"
-        name="creatorId"
         value={c.id}
         checked={checked}
         disabled={disabled}
         onChange={onToggle}
-        className="absolute top-2 left-2 z-10 size-4 accent-primary"
+        className="absolute top-2 left-2 z-10 size-4 accent-foreground"
         aria-label={`Invite ${c.name}`}
       />
       <CreatorPhoto name={c.name} src={c.avatarUrl} handle={c.handle} />
-      <span className={cn("min-w-0 flex-1 space-y-0.5 p-2", checked && "bg-primary/10")}>
+      <span className={cn("min-w-0 flex-1 space-y-0.5 p-2", checked && "bg-muted/60")}>
         <span className="block truncate text-sm leading-tight font-medium">{c.name}</span>
         {c.handle ? (
           <a

@@ -4,7 +4,7 @@ import { serviceDb } from "@/server/db/service";
 import { deliver, notify, notifyCompany, type NotifyInput } from "@/server/services/notifications";
 import { notifyAgency } from "@/server/services/agencies";
 import { cancelAuthorizationForBooking, expireHold, placeAuthorization } from "@/server/services/payments";
-import { sendOfferDigest } from "@/server/services/offers";
+import { sendOfferDigest, sendQueuedOffers } from "@/server/services/offers";
 import { cancelBooking, expireBooking } from "@/server/services/bookings";
 import { autoReleaseCheckIn, sendNoShowDecisionReminder } from "@/server/services/attendance";
 import { remindAccept, remindContent, remindShow } from "@/server/services/reminders";
@@ -44,6 +44,11 @@ export const JOB_HANDLERS = {
   notify_company: async (p: { companyId: string; input: Omit<NotifyInput, "userId"> }) => notifyCompany(p.companyId, p.input),
   notify_agency: async (p: { agencyId: string; input: Omit<NotifyInput, "userId"> }) => notifyAgency(p.agencyId, p.input),
   offer_digest: async (p: { agencyId: string; showId: string; companyId: string; since: string }) => sendOfferDigest(p),
+  // A label's invite batch, sent in the background (already-invited creators are skipped on a rerun).
+  send_offers: async (
+    p: { companyId: string; showId: string; creatorIds: string[]; reviewer: { id: string; role: string }; message?: string },
+    ctx: Ctx,
+  ) => sendQueuedOffers(p, ctx.key),
   release_holds: async (p: { bookingId: string; actor: Actor }) => {
     const result = await cancelAuthorizationForBooking(p.bookingId, p.actor);
     if (!result.ok) throw new Error(result.error);

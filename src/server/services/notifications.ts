@@ -36,6 +36,8 @@ export type NotifyInput = {
    * logged and never undoes the action that triggered it.
    */
   strict?: boolean;
+  /** Bell only, no email (e.g. "your invites went out" back to the sender). */
+  inAppOnly?: boolean;
 };
 
 const keyFor = (key: string | undefined, userId: string) => (key ? `${key}:${userId}` : undefined);
@@ -115,7 +117,7 @@ export async function deliver(input: NotifyInput): Promise<void> {
   }
 
   // Email channel (best effort — never blocks the triggering action).
-  if (!user.email) return;
+  if (!user.email || input.inAppOnly) return;
 
   const href = input.link ? `${publicEnv.appUrl}${input.link}` : null;
   const linkLine = href ? `\n\nOpen ${BRAND.name}: ${href}` : "";

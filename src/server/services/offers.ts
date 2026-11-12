@@ -3,10 +3,11 @@ import "server-only";
 import { serviceDb } from "@/server/db/service";
 import { notifyAgency } from "./agencies";
 import { getPlatformSettings } from "./settings";
-import { runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
+import { enqueueJobs, runOutboxNow, type OutboxJob } from "@/server/jobs/queue";
 import { deliverJob, keysOf } from "@/server/jobs/outbox";
 import { randomUUID } from "node:crypto";
 import { audit } from "./audit";
+import { deliver } from "./notifications";
 import { cityKey } from "@/lib/cities";
 import { showStateKey } from "@/lib/us-states";
 import { locationLabel } from "@/lib/roster";
@@ -310,36 +311,87 @@ async function postInviteNote(requestId: string, senderId: string, body: string)
   await db.from("message_threads").update({ last_message_at: new Date().toISOString() }).eq("id", thread.id);
 }
 
-export async function sendOffers(input: {
+type OfferInput = {
   companyId: string;
   showId: string;
   creatorIds: string[];
   reviewer: { id: string; role: string };
   /** Posted in each invite's conversation (an agency creator's goes to their agency). */
   message?: string;
-}): Promise<{ ok: true; sent: number; skipped: string[]; acceptHours: number } | { ok: false; error: string }> {
-  const creatorIds = [...new Set(input.creatorIds)];
-  const note = input.message?.trim().slice(0, 2000) ?? "";
-  if (!creatorIds.length) return { ok: false, error: "Pick at least one creator" };
-  if (creatorIds.length > MAX_OFFERS_PER_SEND) {
-    return { ok: false, error: `Pick up to ${MAX_OFFERS_PER_SEND} creators at a time` };
-  }
-  const db = serviceDb();
+};
 
-  const { data: show } = await db
+/** The show and picks an invite batch needs, or why it can't go out. */
+async function checkOffers(input: OfferInput) {
+  const creatorIds = [...new Set(input.creatorIds)];
+  if (!creatorIds.length) return { ok: false as const, error: "Pick at least one creator" };
+  if (creatorIds.length > MAX_OFFERS_PER_SEND) {
+    return { ok: false as const, error: `Pick up to ${MAX_OFFERS_PER_SEND} creators at a time` };
+  }
+  const { data: show } = await serviceDb()
     .from("shows")
     .select("id, date, status, artists(name), companies(name), show_opportunities(id, tickets_total, tickets_claimed)")
     .eq("id", input.showId)
     .eq("company_id", input.companyId)
     .maybeSingle();
   const opp = show?.show_opportunities;
-  if (!show || !opp) return { ok: false, error: "Show not found" };
-  if (show.status !== "published") return { ok: false, error: "Publish the show before inviting creators" };
-  if (showDatePassed(show.date)) return { ok: false, error: "This show has already happened" };
+  if (!show || !opp) return { ok: false as const, error: "Show not found" };
+  if (show.status !== "published") return { ok: false as const, error: "Publish the show before inviting creators" };
+  if (showDatePassed(show.date)) return { ok: false as const, error: "This show has already happened" };
   const left = opp.tickets_total - opp.tickets_claimed;
   if (creatorIds.length > left) {
-    return { ok: false, error: `Only ${left} ticket${left === 1 ? "" : "s"} left for this show` };
+    return { ok: false as const, error: `Only ${left} ticket${left === 1 ? "" : "s"} left for this show` };
   }
+  return { ok: true as const, show, opp, creatorIds };
+}
+
+/**
+ * Invites go out in the background so the label can leave the page: the
+ * batch is checked now, then queued as a `send_offers` job (the caller runs
+ * it right after responding; the worker picks it up if that's cut short).
+ * The label gets an in-app note when it's done.
+ */
+export async function queueOffers(input: OfferInput): Promise<{ ok: true; key: string; count: number } | { ok: false; error: string }> {
+  const checked = await checkOffers(input);
+  if (!checked.ok) return checked;
+  const key = `send_offers:${randomUUID()}`;
+  await enqueueJobs([
+    {
+      kind: "send_offers",
+      payload: { ...input, creatorIds: checked.creatorIds },
+      dedupe_key: key,
+      priority: 1,
+      company_id: input.companyId,
+    },
+  ]);
+  return { ok: true, key, count: checked.creatorIds.length };
+}
+
+/** Job: send a queued invite batch, then tell the label how it went (in-app only). */
+export async function sendQueuedOffers(input: OfferInput, jobKey: string) {
+  const result = await sendOffers(input);
+  const n = result.ok ? result.sent : 0;
+  await deliver({
+    userId: input.reviewer.id,
+    type: "request_approved",
+    title: result.ok ? `Invited ${n} creator${n === 1 ? "" : "s"}` : "Invites not sent",
+    body: result.ok
+      ? `${result.skipped.length ? `Skipped: ${result.skipped.join(", ")}. ` : ""}They have ${result.acceptHours} hours to accept.`
+      : result.error,
+    link: `/label/shows/${input.showId}`,
+    dedupeKey: `${jobKey}:done`,
+    strict: true,
+    inAppOnly: true,
+  });
+}
+
+export async function sendOffers(
+  input: OfferInput,
+): Promise<{ ok: true; sent: number; skipped: string[]; acceptHours: number } | { ok: false; error: string }> {
+  const checked = await checkOffers(input);
+  if (!checked.ok) return checked;
+  const { show, opp, creatorIds } = checked;
+  const note = input.message?.trim().slice(0, 2000) ?? "";
+  const db = serviceDb();
 
   const [{ data: creators }, { data: rosters }] = await Promise.all([
     db

@@ -4,8 +4,8 @@ import { clearCheckpoints, onCheckpoint, SimulatedCrash } from "@/server/checkpo
 import { approveRequest, createRequest } from "@/server/services/requests";
 import { cancelBooking } from "@/server/services/bookings";
 import { placeAuthorization } from "@/server/services/payments";
-import { sendOffers } from "@/server/services/offers";
-import { drainJobs, enqueueJobs } from "@/server/jobs/queue";
+import { queueOffers, sendOffers, sendQueuedOffers } from "@/server/services/offers";
+import { drainJobs, enqueueJobs, runOutboxNow } from "@/server/jobs/queue";
 import { notifyJob } from "@/server/jobs/outbox";
 import { bookingWithHold, db, hold, providerIntents } from "./fixtures";
 
@@ -163,6 +163,36 @@ describe("label invites", () => {
       expect(t.messages).toEqual([{ body: "Bring your camera!", sender_id: ownerId }]);
       expect(t.last_message_at).not.toBeNull();
     }
+  });
+});
+
+describe("background invites", () => {
+  it("queue the batch, send it as a job, and tell the label in-app only (once, even if rerun)", async () => {
+    const { ownerId, companyId, creators } = await companyAndCreators();
+    const { showId, oppId } = await opportunity(companyId, 5);
+    const input = { companyId, showId, creatorIds: creators.slice(0, 2).map((c) => c.id), reviewer: { id: ownerId, role: "label" } };
+
+    const queued = await queueOffers(input);
+    if (!queued.ok) throw new Error(queued.error);
+    expect(queued.count).toBe(2);
+    expect(await claimed(oppId)).toBe(0); // nothing sent until the job runs
+
+    await runOutboxNow([queued.key]);
+    expect(await claimed(oppId)).toBe(2);
+    const done = await db.from("notifications").select("title, emailed_at").eq("dedupe_key", `${queued.key}:done`);
+    expect(done.data).toEqual([{ title: "Invited 2 creators", emailed_at: null }]);
+
+    // A retry of the same job skips the invited creators and sends no second note.
+    await sendQueuedOffers(input, queued.key);
+    expect(await claimed(oppId)).toBe(2);
+    expect((await db.from("notifications").select("id").eq("dedupe_key", `${queued.key}:done`)).data).toHaveLength(1);
+  });
+
+  it("are refused up front when the show can't take them", async () => {
+    const { ownerId, companyId, creators } = await companyAndCreators();
+    const { showId } = await opportunity(companyId, 1);
+    const result = await queueOffers({ companyId, showId, creatorIds: creators.slice(0, 2).map((c) => c.id), reviewer: { id: ownerId, role: "label" } });
+    expect(result).toEqual({ ok: false, error: "Only 1 ticket left for this show" });
   });
 });
 

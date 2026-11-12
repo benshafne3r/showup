@@ -85,9 +85,10 @@ export function BulkImportForm({
     fetchEvents(picked);
   };
 
-  // Opened from a tour: load that artist's dates right away.
+  // Opened from a tour: load that artist's dates right away (once, even when
+  // React runs the effect twice in development).
   useEffect(() => {
-    if (!initialArtist) return;
+    if (!initialArtist || fetchedFor.current === artistKey(initialArtist)) return;
     fetchedFor.current = artistKey(initialArtist);
     loadEvents(initialArtist);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on open

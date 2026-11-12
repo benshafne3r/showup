@@ -31,7 +31,7 @@ test("label pulls an artist's tour dates from a Spotify search and publishes two
 });
 
 /**
- * From a tour's "Import dates": the tour's artist and the tour come
+ * From a tour's "Add a date" → "Import several": the tour's artist and the tour come
  * preselected, every date is selected, and content is opt-in.
  */
 test("label imports dates straight into a tour, with paid content", async ({ page }) => {
@@ -39,7 +39,8 @@ test("label imports dates straight into a tour, with paid content", async ({ pag
   await page.goto("/label/tours?view=all");
 
   const tourCard = page.locator("div.rounded-xl").filter({ hasText: "The Dandelion Tour 2026" }).first();
-  await tourCard.getByRole("link", { name: "Import dates" }).click();
+  await tourCard.getByRole("link", { name: "Add a date" }).click();
+  await page.getByRole("link", { name: "Import several" }).click();
   await expect(page.getByRole("heading", { name: "Import dates for The Dandelion Tour 2026" })).toBeVisible();
   await expect(page.getByText(/\d+ dates from demo/)).toBeVisible();
   await expect(page.getByRole("button", { name: "Deselect all" })).toBeVisible(); // all preselected

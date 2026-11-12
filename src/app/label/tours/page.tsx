@@ -287,11 +287,6 @@ export default async function ToursPage({
                           />
                         ) : null}
                         <Button asChild size="sm">
-                          <Link href={`/label/shows/import?tour=${card.tour.id}`}>
-                            <CalendarArrowDown className="size-4" aria-hidden /> Import dates
-                          </Link>
-                        </Button>
-                        <Button asChild variant="outline" size="sm">
                           <Link href={`/label/shows/new?tour=${card.tour.id}`}>
                             <CalendarPlus className="size-4" aria-hidden /> Add a date
                           </Link>

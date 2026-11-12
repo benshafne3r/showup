@@ -56,15 +56,24 @@ test("label invites managed creators; the agency accepts one on its card and pas
     await page.goto(`/label/shows/${show!.id}`);
     const picker = page.locator("form").filter({ has: page.getByText("In Los Angeles") });
     await expect(picker.getByRole("group", { name: /In Los Angeles/ }).getByText("Rae Rivers")).toBeVisible();
+    // Nearby starts folded away.
+    await expect(picker.getByText("Kai Moreno")).toHaveCount(0);
+    await picker.getByRole("button", { name: /Nearby/ }).click();
     await expect(picker.getByRole("group", { name: /Nearby/ }).getByText("Kai Moreno")).toBeVisible();
     await expect(picker.getByText("via Northside Talent").first()).toBeVisible();
 
     await picker.getByRole("checkbox", { name: "Invite Rae Rivers" }).check();
     await picker.getByRole("checkbox", { name: "Invite Kai Moreno" }).check();
-    await picker.getByRole("button", { name: "Invite 2 creators" }).click();
-    await expect(page.getByText(/Invited 2 creators/)).toBeVisible();
+    // The floating bar sends them in the background and reports back.
+    await page.getByRole("region", { name: "Send invites" }).getByRole("button", { name: "Invite 2 creators" }).click();
+    await expect(page.getByText("Sending 2 invites. You'll get a notification when they're out.")).toBeVisible();
+    await expect(picker.getByRole("checkbox", { name: "Invite Rae Rivers" })).toBeDisabled();
 
-    expect((await bookingFor(rae!.id)).status).toBe("awaiting_acceptance");
+    await expect.poll(async () => (await bookingFor(rae!.id))?.status).toBe("awaiting_acceptance");
+    const { data: owner } = await db.from("users").select("id").eq("email", ACCOUNTS.labelOwner).single();
+    await expect
+      .poll(async () => (await db.from("notifications").select("title").eq("user_id", owner!.id).eq("title", "Invited 2 creators")).data?.length)
+      .toBe(1);
     // Managed profiles are never notified directly; their agency is.
     const { count: raeNotes } = await db
       .from("notifications")
@@ -112,6 +121,7 @@ test("label invites managed creators; the agency accepts one on its card and pas
     await signIn(page, ACCOUNTS.labelOwner);
     await page.goto(`/label/shows/${show!.id}`);
     await expect(page.getByRole("checkbox", { name: "Invite Rae Rivers" })).toBeDisabled();
+    await page.getByRole("button", { name: /Nearby/ }).click();
     await expect(page.getByRole("checkbox", { name: "Invite Kai Moreno" })).toBeEnabled();
 
     // The Creators tab lists every creator; filter to a city and pick the show.

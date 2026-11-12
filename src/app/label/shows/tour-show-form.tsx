@@ -36,8 +36,11 @@ export function TourShowForm({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLDivElement>(null);
+  const loaded = useRef(false);
 
   useEffect(() => {
+    if (loaded.current) return; // once, even when React runs the effect twice in development
+    loaded.current = true;
     startTransition(async () => {
       const result = await searchArtistEvents({ name: tour.artist.name, spotifyUrl });
       if (!result.ok) {
@@ -75,7 +78,7 @@ export function TourShowForm({
                 href={`/label/shows/import?tour=${tour.id}`}
                 className="text-sm font-medium text-primary underline-offset-2 hover:underline"
               >
-                Add several
+                Import several
               </Link>
             </CardAction>
           ) : null}
