@@ -63,8 +63,8 @@ than trusting notes (0007 was marked "done" but wasn't).
   fieldset) until checked. Off = attend-only (payment 0, no deliverables);
   on needs a payment and at least one deliverable (`contentTerms()` in `label/actions.ts`).
 - **Tour cards:** one "Add a date" button → `/label/shows/new?tour=` (`tour-show-form.tsx`): artist and
-  tour locked, the artist's dates load on open minus ones already on the tour, click one to fill the
-  form, or "Import several" → bulk import with the tour + artist preselected and all dates selected
+  tour locked, the artist's dates load on open minus ones already on the tour; pick one to fill the
+  form (a dropdown of the dates), or "Import several" → bulk import with the tour + artist preselected and all dates selected
   (`/label/shows/import?tour=`). Old one-at-a-time import panel gone; date chips show no deposit.
   Artists without a Spotify link (added before Spotify search) are accepted (`artistSpotifyUrl` may be "").
 - **Invites send in the background:** `queueOffers()` checks the batch, queues a `send_offers` job and the

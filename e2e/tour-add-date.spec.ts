@@ -9,7 +9,7 @@ const db = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL!, process
 
 /**
  * "Add a date" on a tour: the artist and tour are fixed (no artist list), the
- * artist's announced dates load on open, and picking one fills the form.
+ * artist's announced dates load into a dropdown, and picking one fills the form.
  */
 test("label adds one more date to a tour from the artist's announced dates", async ({ page }) => {
   await signIn(page, ACCOUNTS.labelOwner);
@@ -20,10 +20,9 @@ test("label adds one more date to a tour from the artist's announced dates", asy
   await expect(page.getByRole("heading", { name: "Add a date to The Dandelion Tour 2026" })).toBeVisible();
   await expect(page.locator("#show-artist")).toHaveCount(0);
 
-  const firstDate = page.locator("ul li button[aria-pressed]").first();
-  await expect(firstDate).toBeVisible();
-  await firstDate.click();
-  await expect(firstDate).toHaveAttribute("aria-pressed", "true");
+  // Pick an announced date from the dropdown; it fills the form below.
+  await page.getByRole("combobox", { name: "Pick a tour date" }).click();
+  await page.getByRole("option").first().click();
   const venue = await page.getByLabel("Venue name").inputValue();
   expect(venue).not.toBe("");
   // Applications close at noon on the show date unless the label changes it.
