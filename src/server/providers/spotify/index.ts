@@ -2,6 +2,7 @@ import "server-only";
 
 import { serverEnv } from "@/lib/env";
 import { log, errorFields } from "@/server/log";
+import { spotifyArtistId } from "@/lib/spotify-link";
 
 /**
  * Spotify catalog access via the Client Credentials flow (no user login — the
@@ -69,10 +70,52 @@ type SpotifyApiArtist = {
   followers: { total: number };
 };
 
-/** Search Spotify's artist catalog. Returns [] when unconfigured or on error. */
+const toArtist = (a: SpotifyApiArtist): SpotifyArtist => ({
+  spotifyId: a.id,
+  name: a.name,
+  genre: a.genres[0] ?? "",
+  // images are ordered largest-first; 320px is plenty for a card.
+  imageUrl: a.images[1]?.url ?? a.images[0]?.url ?? null,
+  spotifyUrl: a.external_urls.spotify,
+  followers: a.followers.total,
+});
+
+/** One artist by Spotify id (from a pasted link). Null when not found, unconfigured or on error. */
+export async function getArtist(id: string): Promise<SpotifyArtist | null> {
+  if (serverEnv.externalLookups === "fake") {
+    return { spotifyId: id, name: `Artist ${id.slice(0, 6)}`, genre: "", imageUrl: null, spotifyUrl: `https://open.spotify.com/artist/${id}`, followers: 0 };
+  }
+  const token = await getAccessToken();
+  if (!token) return null;
+  try {
+    const res = await fetch(`https://api.spotify.com/v1/artists/${encodeURIComponent(id)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+      cache: "no-store",
+    });
+    if (res.status === 404 || res.status === 400) return null;
+    if (!res.ok) {
+      log.error("Spotify artist lookup failed", { status: res.status });
+      return null;
+    }
+    return toArtist((await res.json()) as SpotifyApiArtist);
+  } catch (err) {
+    log.error("Spotify artist lookup errored", errorFields(err));
+    return null;
+  }
+}
+
+/**
+ * Search Spotify's artist catalog. A pasted artist link or URI looks up that
+ * exact artist instead. Returns [] when unconfigured or on error.
+ */
 export async function searchArtists(query: string, limit = 8): Promise<SpotifyArtist[]> {
   const q = query.trim();
   if (!q) return [];
+  const linkedId = spotifyArtistId(q);
+  if (linkedId) {
+    const artist = await getArtist(linkedId);
+    return artist ? [artist] : [];
+  }
   if (serverEnv.externalLookups === "fake") {
     const slug = q.toLowerCase().replace(/[^a-z0-9]+/g, "-");
     return [{ spotifyId: `fake-${slug}`, name: q, genre: "", imageUrl: null, spotifyUrl: `https://open.spotify.com/artist/fake-${slug}`, followers: 0 }];
@@ -94,15 +137,7 @@ export async function searchArtists(query: string, limit = 8): Promise<SpotifyAr
       return [];
     }
     const data = (await res.json()) as { artists?: { items: SpotifyApiArtist[] } };
-    return (data.artists?.items ?? []).map((a) => ({
-      spotifyId: a.id,
-      name: a.name,
-      genre: a.genres[0] ?? "",
-      // images are ordered largest-first; 320px is plenty for a card.
-      imageUrl: a.images[1]?.url ?? a.images[0]?.url ?? null,
-      spotifyUrl: a.external_urls.spotify,
-      followers: a.followers.total,
-    }));
+    return (data.artists?.items ?? []).map(toArtist);
   } catch (err) {
     log.error("Spotify search errored", errorFields(err));
     return [];

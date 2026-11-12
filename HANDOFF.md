@@ -100,6 +100,9 @@ than trusting notes (0007 was marked "done" but wasn't).
   have 2 tickets), what to post and by when, notes; no money; plain characters so it's one normal SMS
   type. "Text" is an `sms:?&body=` link (opens Messages; no phone numbers stored, they pick the contact).
   Automatic SMS (Twilio) priced for Ben 2026-11-11 (~$20 setup, $3-11/mo, ~1-3c/text): not set up.
+- **Spotify artist search accepts a pasted artist link or `spotify:artist:` URI** (`spotifyArtistId` in
+  `src/lib/spotify-link.ts` → `getArtist(id)` in `providers/spotify`), for artists name search misses
+  (e.g. VALÉ, 3iyja6ErhSJ4NplEsdlzyE).
 - Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)

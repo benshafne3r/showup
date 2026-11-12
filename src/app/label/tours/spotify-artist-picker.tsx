@@ -95,7 +95,7 @@ export function SpotifyArtistPicker({
           value={query}
           onChange={(e) => onChange(e.target.value)}
           onFocus={() => results.length && setOpen(true)}
-          placeholder="Search Spotify for an artist…"
+          placeholder="Search Spotify or paste an artist link"
           className="pl-8"
           aria-label="Search Spotify for an artist"
           autoComplete="off"
