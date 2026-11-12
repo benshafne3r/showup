@@ -65,7 +65,8 @@ than trusting notes (0007 was marked "done" but wasn't).
 - New script flags: `--skip h1,h2` and `--locations file.json` ({handle: {city, region, country}}, full
   state names like "Florida"), applied only when the page has no city.
 - Cities set from research: Danielle Cohn (Orlando), Damaury Mikula (Tampa), DESS (New York), Josh Diggs
-  (Iowa, state only). The rest are waiting on Ben to ask Spade.
+  (Iowa, state only), Avani (Los Angeles, via SQL since Spade added her by hand). The other 14 are
+  waiting on Ben to ask Spade.
 
 ## Invites are first come, first served (2026-11-12, Ben)
 - A label invite no longer holds a ticket. Labels can invite more creators than they have tickets
