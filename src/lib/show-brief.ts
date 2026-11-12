@@ -35,46 +35,90 @@ const PLATFORM: Record<string, [string, string]> = {
   other: ["post", "posts"],
 };
 
+const timesOf = (s: ShowBriefInput) =>
+  [s.doorsTime ? `doors ${formatShowTime(s.doorsTime)}` : null, s.startTime ? `show ${formatShowTime(s.startTime)}` : null]
+    .filter(Boolean)
+    .join(", ");
+const whenOf = (s: ShowBriefInput) => `${formatShowDate(s.date)}${timesOf(s) ? ` (${timesOf(s)})` : ""}`;
+const addressOf = (s: ShowBriefInput) =>
+  [s.address, [s.city, s.state].filter(Boolean).join(", ")].filter(Boolean).join(", ");
+const postsOf = (s: ShowBriefInput) =>
+  s.deliverables
+    .map((d) => {
+      const [one, many] = PLATFORM[d.platform] ?? PLATFORM.other;
+      const what = `${d.quantity} ${d.quantity === 1 ? one : many}`;
+      return d.description.trim() ? `${what} (${d.description.trim()})` : what;
+    })
+    .join(" and ");
+
+/** Address, ticket, what to post and notes for one show. `due` words the post deadline. */
+function detailLines(s: ShowBriefInput, tickets: number, due: string): string[] {
+  const ticketFor = tickets > 1 ? "You + 1 guest" : "Your ticket";
+  const delivery = s.ticketDelivery ? DELIVERY[s.ticketDelivery] : null;
+  const lines = [
+    addressOf(s) ? `Address: ${addressOf(s)}` : null,
+    delivery ? `${ticketFor} will be ${delivery}.` : tickets > 1 ? "You can bring a +1." : null,
+    s.deliverables.length ? `To post: ${postsOf(s)} ${due}.` : "No post needed for this one.",
+    s.notes?.trim() ? `Notes: ${s.notes.trim()}` : null,
+  ];
+  return lines.filter((l): l is string => !!l);
+}
+
+const dueBy = (s: ShowBriefInput) => `by ${format(addDays(parseISO(s.date), s.contentDeadlineDays), "EEE, MMM d")}`;
+const dueAfter = (days: number) =>
+  days === 0 ? "the day of the show" : `within ${days} day${days === 1 ? "" : "s"} after the show`;
+
 /**
- * A text a manager can send their creator to invite them to a show, written
- * as if from the manager: where and when, the ticket, and what to post by
- * when. Plain characters only, so it stays a short SMS. Leaves out money
- * (the hold and the creator payment are between the label and the agency).
+ * A text a manager can send their creator to invite them, written as if from
+ * the manager: where and when, the ticket, and what to post by when. Several
+ * invites (say three nights of one run) go in one text: the dates to pick
+ * from, then the shared details; different shows each get their own section.
+ * Plain characters only, so it stays a normal SMS. Leaves out money (the hold
+ * and the creator payment are between the label and the agency).
  */
 export function formatInviteMessage(
-  s: ShowBriefInput,
+  shows: ShowBriefInput[],
   creator: { name: string; tickets: number },
 ): string {
   const firstName = creator.name.trim().split(/\s+/)[0] ?? "";
-  const times = [
-    s.doorsTime ? `doors ${formatShowTime(s.doorsTime)}` : null,
-    s.startTime ? `show ${formatShowTime(s.startTime)}` : null,
-  ].filter(Boolean);
-  const where = s.venueName ? ` at ${s.venueName}` : "";
-  const invite = `Wanted to invite you to see ${s.artist}${where} on ${formatShowDate(s.date)}${times.length ? ` (${times.join(", ")})` : ""}.`;
+  const hey = firstName ? `Hey ${firstName}!` : "Hey!";
+  const sorted = [...shows].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  const [first] = sorted;
+  const where = (s: ShowBriefInput) => `${s.artist}${s.venueName ? ` at ${s.venueName}` : ""}`;
 
-  const address = [s.address, [s.city, s.state].filter(Boolean).join(", ")].filter(Boolean).join(", ");
-  const ticketFor = creator.tickets > 1 ? "You + 1 guest" : "Your ticket";
-  const delivery = s.ticketDelivery ? DELIVERY[s.ticketDelivery] : null;
-
-  const details = [
-    address ? `Address: ${address}` : null,
-    delivery ? `${ticketFor} will be ${delivery}.` : creator.tickets > 1 ? "You can bring a +1." : null,
-  ];
-  if (s.deliverables.length) {
-    const posts = s.deliverables
-      .map((d) => {
-        const [one, many] = PLATFORM[d.platform] ?? PLATFORM.other;
-        const what = `${d.quantity} ${d.quantity === 1 ? one : many}`;
-        return d.description.trim() ? `${what} (${d.description.trim()})` : what;
-      })
-      .join(" and ");
-    const due = format(addDays(parseISO(s.date), s.contentDeadlineDays), "EEE, MMM d");
-    details.push(`To post: ${posts} by ${due}.`);
-  } else {
-    details.push("No post needed for this one.");
+  if (sorted.length === 1) {
+    return [
+      hey,
+      "",
+      `Wanted to invite you to see ${where(first)} on ${whenOf(first)}.`,
+      "",
+      ...detailLines(first, creator.tickets, dueBy(first)),
+      "",
+      "Let me know if you're in!",
+    ].join("\n");
   }
-  if (s.notes?.trim()) details.push(`Notes: ${s.notes.trim()}`);
 
-  return [firstName ? `Hey ${firstName}!` : "Hey!", "", invite, "", ...details.filter(Boolean), "", "Let me know if you're in!"].join("\n");
+  const oneRun = sorted.every((s) => where(s) === where(first) && addressOf(s) === addressOf(first));
+  if (oneRun) {
+    const sameDue = sorted.every((s) => s.contentDeadlineDays === first.contentDeadlineDays);
+    return [
+      hey,
+      "",
+      `Wanted to invite you to see ${where(first)}. Pick whichever night works:`,
+      ...sorted.map((s) => `- ${whenOf(s)}`),
+      "",
+      ...detailLines(first, creator.tickets, sameDue ? dueAfter(first.contentDeadlineDays) : "after the show"),
+      "",
+      "Let me know which date works!",
+    ].join("\n");
+  }
+
+  return [
+    hey,
+    "",
+    "Wanted to invite you to a few shows. Pick whichever works:",
+    ...sorted.flatMap((s) => ["", `${where(s)}, ${whenOf(s)}`, ...detailLines(s, creator.tickets, dueBy(s))]),
+    "",
+    "Let me know which ones you're in for!",
+  ].join("\n");
 }

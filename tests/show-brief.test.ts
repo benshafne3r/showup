@@ -18,7 +18,7 @@ const show: ShowBriefInput = {
 
 describe("formatInviteMessage", () => {
   it("invites the creator by first name with where, when, the ticket and what to post", () => {
-    expect(formatInviteMessage(show, { name: "Chloe Park", tickets: 1 })).toBe(
+    expect(formatInviteMessage([show], { name: "Chloe Park", tickets: 1 })).toBe(
       [
         "Hey Chloe!",
         "",
@@ -35,10 +35,10 @@ describe("formatInviteMessage", () => {
   });
 
   it("mentions a +1, says when there's nothing to post, and skips missing details", () => {
-    const message = formatInviteMessage(
-      { ...show, doorsTime: null, address: null, deliverables: [], notes: "" },
-      { name: "Awzzy", tickets: 2 },
-    );
+    const message = formatInviteMessage([{ ...show, doorsTime: null, address: null, deliverables: [], notes: "" }], {
+      name: "Awzzy",
+      tickets: 2,
+    });
     expect(message).toBe(
       [
         "Hey Awzzy!",
@@ -55,6 +55,36 @@ describe("formatInviteMessage", () => {
   });
 
   it("uses plain characters only, so it's sent as a normal text", () => {
-    expect(formatInviteMessage(show, { name: "Chloe", tickets: 1 })).toMatch(/^[\x20-\x7E\n]*$/);
+    expect(formatInviteMessage([show], { name: "Chloe", tickets: 1 })).toMatch(/^[\x20-\x7E\n]*$/);
+  });
+
+  it("puts several nights of one run in one text, to pick from", () => {
+    const nights = ["2026-11-14", "2026-11-12", "2026-11-13"].map((date) => ({ ...show, date }));
+    expect(formatInviteMessage(nights, { name: "Chloe", tickets: 1 })).toBe(
+      [
+        "Hey Chloe!",
+        "",
+        "Wanted to invite you to see Ninajirachi at The Fonda Theatre. Pick whichever night works:",
+        "- Thu, Nov 12 (doors 7:00 PM, show 8:00 PM)",
+        "- Fri, Nov 13 (doors 7:00 PM, show 8:00 PM)",
+        "- Sat, Nov 14 (doors 7:00 PM, show 8:00 PM)",
+        "",
+        "Address: 6126 Hollywood Blvd., Los Angeles, CA",
+        "Your ticket will be on the guest list.",
+        "To post: 1 TikTok (tag @ninajirachi) within 7 days after the show.",
+        "Notes: Ask for Sam at the door",
+        "",
+        "Let me know which date works!",
+      ].join("\n"),
+    );
+  });
+
+  it("gives different shows their own sections", () => {
+    const other: ShowBriefInput = { ...show, artist: "Baby Keem", venueName: "The Greek Theatre", address: null, date: "2026-11-20", deliverables: [], notes: "" };
+    const message = formatInviteMessage([other, show], { name: "Chloe", tickets: 1 });
+    expect(message).toContain("Wanted to invite you to a few shows. Pick whichever works:");
+    expect(message.indexOf("Ninajirachi at The Fonda Theatre, Wed, Nov 11")).toBeLessThan(message.indexOf("Baby Keem at The Greek Theatre, Fri, Nov 20"));
+    expect(message).toContain("No post needed for this one.");
+    expect(message.endsWith("Let me know which ones you're in for!")).toBe(true);
   });
 });

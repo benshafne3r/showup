@@ -572,7 +572,7 @@ export async function pendingOffersForAgency(agencyId: string, limit = 200) {
   const { data: rows } = await db
     .from("bookings")
     .select(
-      `id, authorization_amount_cents, acceptance_deadline_at, ticket_count,
+      `id, creator_id, authorization_amount_cents, acceptance_deadline_at, ticket_count,
        users:users!creator_id(full_name, avatar_url),
        shows!inner(id, date, artists(name), venues(city)),
        companies(name),
@@ -583,6 +583,7 @@ export async function pendingOffersForAgency(agencyId: string, limit = 200) {
   const data = ids.map((id) => byId.get(id)).filter((b) => b !== undefined);
   return (data ?? []).map((b) => ({
     bookingId: b.id,
+    creatorId: b.creator_id,
     creatorName: b.users?.full_name || "Creator",
     avatarUrl: b.users?.avatar_url ?? null,
     showId: b.shows.id,

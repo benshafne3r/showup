@@ -17,7 +17,7 @@ import { Pager } from "@/components/pager";
 import { pageOf } from "@/lib/pagination";
 import { requestOutcomeMeta } from "@/lib/statuses";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
-import { formatInviteMessage } from "@/lib/show-brief";
+import { formatInviteMessage, type ShowBriefInput } from "@/lib/show-brief";
 import { Inbox } from "lucide-react";
 
 export const metadata: Metadata = { title: "Messages" };
@@ -73,6 +73,12 @@ export default async function ManagerMessagesPage({
   // Label invites waiting on the agency open the Requests tab.
   const defaultTab = params.tab === "messages" ? "messages" : params.tab === "requests" || offers.length ? "requests" : "messages";
   const briefs = await showBriefs([...new Set(offers.map((o) => o.showId))]);
+  // One text per creator covering every date they're invited to.
+  const showsFor = new Map<string, ShowBriefInput[]>();
+  for (const offer of offers) {
+    const brief = briefs.get(offer.showId);
+    if (brief) showsFor.set(offer.creatorId, [...(showsFor.get(offer.creatorId) ?? []), brief]);
+  }
   const waiting: WaitingShow[] = [];
   for (const offer of offers) {
     let show = waiting.find((w) => w.showId === offer.showId);
@@ -85,13 +91,13 @@ export default async function ManagerMessagesPage({
       };
       waiting.push(show);
     }
-    const brief = briefs.get(offer.showId);
+    const shows = showsFor.get(offer.creatorId) ?? [];
     show.invites.push({
       bookingId: offer.bookingId,
       creatorName: offer.creatorName,
       avatarUrl: offer.avatarUrl,
       hold: offer.hold,
-      message: brief ? formatInviteMessage(brief, { name: offer.creatorName, tickets: offer.tickets }) : "",
+      message: shows.length ? formatInviteMessage(shows, { name: offer.creatorName, tickets: offer.tickets }) : "",
     });
   }
   const open = openList.rows;
