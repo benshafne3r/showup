@@ -27,12 +27,12 @@ const PITCHES: Record<"label" | "manager", Pitch> = {
   manager: {
     audience: "management companies",
     headline: "Get your roster into shows and keep every conversation with you.",
-    intro: `${BRAND.name} connects artist teams with creators: free concert tickets in exchange for showing up and posting. A management account lets you run it for your whole roster.`,
+    intro: `${BRAND.name} connects artist teams with creators: free concert tickets for showing up, and paid posts when a show asks for content. A management account lets you run it for your whole roster.`,
     benefits: [
       {
         icon: Ticket,
         title: "Book your whole roster",
-        body: "Browse open shows in every city and request tickets for any of your creators in a couple of clicks.",
+        body: "Browse open shows in every city and request tickets for any of your creators in a couple of clicks. Artist teams can also invite them, and you accept.",
       },
       {
         icon: MessagesSquare,
@@ -51,15 +51,15 @@ const PITCHES: Record<"label" | "manager", Pitch> = {
       },
       {
         icon: UserCheck,
-        title: "Simple for your creators",
-        body: "They get their own login to browse shows near them and add a card for the temporary ticket hold, released when they attend.",
+        title: "Nothing for your creators to set up",
+        body: "Add them from their TikTok link. The temporary ticket hold goes on your company card and is released when they attend.",
       },
     ],
     steps: [
-      "Create your account and name your company.",
-      "Add creators by email. They accept and join your roster.",
-      "Request tickets for them (or they request themselves); artist teams approve.",
-      "They attend and post. You track it all and receive the content payments.",
+      "Create your account, name your company and add your creators from their TikTok links.",
+      "Request tickets for them, or accept invites from artist teams. Holds go on your company card.",
+      "They attend, and post when the show asks for it.",
+      "You track it all and receive the content payments.",
     ],
   },
   label: {
@@ -70,22 +70,22 @@ const PITCHES: Record<"label" | "manager", Pitch> = {
       {
         icon: ShieldCheck,
         title: "Accountable comps",
-        body: "Creators agree to a temporary card hold: a deposit per ticket that you choose. No-shows have consequences; reliable creators are never charged.",
+        body: "Every ticket comes with a temporary card hold: a deposit per ticket that you choose. No-shows have consequences; creators who attend are never charged.",
       },
       {
         icon: Users,
         title: "Pick the right creators",
-        body: "See city, audience size, average views and past work on every request. Approve, waitlist or pass. Unclaimed approvals expire after 72 hours.",
+        body: "See city, audience size, average views and their show history on every request, or invite creators yourself. Approvals expire after 72 hours, or at the show if it's sooner.",
       },
       {
         icon: Wallet,
-        title: "Pay only for delivered content",
-        body: "Set a fixed creator payment per show: $0 for attend-only, or any amount for Stories, TikToks or Reels. Release it in one click once you approve.",
+        title: "Pay only for content you approve",
+        body: "Posts are optional. When you want one, set a fixed payment per show for a Story, TikTok or Reel; your card is charged and the creator paid when you approve it.",
       },
       {
         icon: Eye,
         title: "Verified attendance and views",
-        body: "Creators check in with proof at the show, and TikTok posts are tracked for live status and view counts.",
+        body: "Creators check in at the venue by location or photo, or you mark them attended. TikTok posts are tracked for live status and view counts.",
       },
       {
         icon: CalendarRange,
@@ -96,8 +96,8 @@ const PITCHES: Record<"label" | "manager", Pitch> = {
     steps: [
       "Create your account and set up your company.",
       "Add a tour (import dates from Ticketmaster) or a one-off event.",
-      "Set tickets, the hold, and the content ask; creators request.",
-      "Approve the right creators. They attend and post; you release payment.",
+      "Set tickets, the hold, and a content ask if you want posts. Creators request, or you invite them.",
+      "Approve the right creators. They attend, and when you approve their post they're paid.",
     ],
   },
 };
