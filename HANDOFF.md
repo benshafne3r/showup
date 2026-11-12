@@ -65,7 +65,11 @@ than trusting notes (0007 was marked "done" but wasn't).
   `agency_team` → manager sign-up; `claimAgencyInvites` attaches them on first landing (`destinationFor`).
   Shared invite form: `components/team-invite-form.tsx` (labels use it too).
 - **Owner dashboard:** each label/management person shows "Company · role" and a **Make admin / Make member**
-  button (`setTeamRoleAction`, owner-only, audited). View as stays read-only, so it lives on the owner page.
+  button (`setTeamRoleAction`, owner-only, audited).
+- **While viewing as a label/manager**, Settings → Team works for the owner (even if the viewed person is a
+  member): invite as admin/member, switch roles, remove, cancel invites. These go to `POST /api/owner/team`
+  (a route handler, not a server action, so the proxy's view-as block still stops everything else; it checks
+  the real login is a platform owner and records the owner as the actor). Client: `components/owner-team*.ts(x)`.
 - Labels already had admin invites + Make admin for owners/admins.
 - Prod: deleted empty creator account brendan@sparkhousegroup.com (Ben's request, audit-logged).
 - Tests: `tests/integration/agency-team.test.ts`, `e2e/team-admins.spec.ts`.

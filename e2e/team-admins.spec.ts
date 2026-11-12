@@ -44,3 +44,42 @@ test("the owner makes a label teammate an admin from the owner dashboard", async
   await expect(row.getByRole("button", { name: "Make admin" })).toBeVisible();
   expect(await roleOf()).toBe("member");
 });
+
+/**
+ * Viewing as a label teammate stays read-only, except team access: the owner
+ * can invite people (as admins) and switch roles, recorded as the owner.
+ */
+test("the owner gives team access while viewing as a label teammate", async ({ page }) => {
+  const { data: member } = await db.from("users").select("id, full_name").eq("email", ACCOUNTS.labelMember).single();
+  const { data: owner } = await db.from("users").select("id").eq("email", ACCOUNTS.labelOwner).single();
+  await db.from("users").update({ created_at: new Date().toISOString() }).eq("id", member!.id);
+  const email = `e2e-viewing-${Date.now()}@example.com`;
+
+  await signIn(page, ACCOUNTS.labelOwner);
+  await page.goto("/owner");
+  await page.getByRole("button", { name: `View as ${member!.full_name}` }).click();
+  await expect(page.getByText(`Viewing as ${member!.full_name}`)).toBeVisible();
+
+  // A member can't manage the team, but the owner viewing as them can.
+  await page.goto("/label/settings");
+  await page.getByLabel("Email").fill(email);
+  await page.getByLabel("Role").click();
+  await page.getByRole("option", { name: "Admin" }).click();
+  await page.getByRole("button", { name: "Send invite" }).click();
+  await expect(page.getByText(`Invite sent to ${email}`)).toBeVisible();
+  const { data: invite } = await db.from("company_invites").select("role, invited_by").eq("email", email).single();
+  expect(invite).toEqual({ role: "admin", invited_by: owner!.id });
+
+  await page.goto("/owner/stop-viewing");
+  await expect(page).toHaveURL(/\/owner$/);
+});
+
+test("only the platform owner can use the owner team endpoint", async ({ page }) => {
+  const { data: company } = await db.from("companies").select("id").eq("name", "Columbia Records").limit(1).single();
+  const payload = { op: "invite", kind: "label", orgId: company!.id, email: "nope@example.com", role: "admin" };
+
+  expect((await page.request.post("/api/owner/team", { data: payload })).status()).toBe(403); // signed out
+  await signIn(page, ACCOUNTS.labelMember);
+  expect((await page.request.post("/api/owner/team", { data: payload })).status()).toBe(403);
+  expect((await db.from("company_invites").select("id").eq("email", "nope@example.com")).data).toEqual([]);
+});

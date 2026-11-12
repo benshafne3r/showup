@@ -42,7 +42,8 @@ const VIEW_AS_COOKIE = "showup_view_as";
 export default async function proxy(request: NextRequest) {
   // "View as" is read-only: refuse every server action (the only way the app
   // writes) while the owner is viewing as someone. Leaving goes through the
-  // GET route /owner/stop-viewing.
+  // GET route /owner/stop-viewing; giving team access goes through the
+  // owner-only /api/owner/team (not a server action, checks the real login).
   if (
     request.method === "POST" &&
     request.headers.has("next-action") &&

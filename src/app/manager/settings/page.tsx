@@ -4,6 +4,7 @@ import { serviceDb } from "@/server/db/service";
 import { AgencyForm } from "../onboarding/agency-form";
 import { PageHeader } from "@/components/page-header";
 import { TeamInviteForm } from "@/components/team-invite-form";
+import { OwnerTeamButton } from "@/components/owner-team-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatDateTime } from "@/lib/dates";
@@ -19,7 +20,9 @@ export const dynamic = "force-dynamic";
 
 export default async function ManagerSettingsPage() {
   const ctx = await requireManagerPage();
-  const canManage = ctx.memberRole !== "member";
+  // The platform owner viewing as this manager can manage the team too.
+  const ownerViewing = !!ctx.user.viewedBy;
+  const canManage = ctx.memberRole !== "member" || ownerViewing;
   const db = serviceDb();
   const [{ data: agency }, { data: team }, { data: invites }] = await Promise.all([
     db.from("agencies").select("name, website, city").eq("id", ctx.agencyId).single(),
@@ -68,7 +71,27 @@ export default async function ManagerSettingsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize">{member.role}</span>
-                  {canManage && member.role !== "owner" && member.user_id !== ctx.user.id ? (
+                  {canManage && member.role !== "owner" && ownerViewing ? (
+                    <>
+                      <OwnerTeamButton
+                        request={{
+                          op: "role",
+                          kind: "manager",
+                          orgId: ctx.agencyId,
+                          memberUserId: member.user_id,
+                          role: member.role === "admin" ? "member" : "admin",
+                        }}
+                      >
+                        Make {member.role === "admin" ? "member" : "admin"}
+                      </OwnerTeamButton>
+                      <OwnerTeamButton
+                        request={{ op: "remove", kind: "manager", orgId: ctx.agencyId, memberUserId: member.user_id }}
+                        className="text-red-300"
+                      >
+                        Remove
+                      </OwnerTeamButton>
+                    </>
+                  ) : canManage && member.role !== "owner" && member.user_id !== ctx.user.id ? (
                     <>
                       <form action={changeAgencyMemberRoleAction}>
                         <input type="hidden" name="memberUserId" value={member.user_id} />
@@ -93,7 +116,11 @@ export default async function ManagerSettingsPage() {
           {canManage ? (
             <div className="mt-4 space-y-4 border-t pt-4">
               <p className="text-sm font-medium">Invite a teammate</p>
-              <TeamInviteForm action={inviteAgencyMemberAction} placeholder="teammate@company.com" />
+              <TeamInviteForm
+                action={inviteAgencyMemberAction}
+                owner={ownerViewing ? { kind: "manager", orgId: ctx.agencyId } : undefined}
+                placeholder="teammate@company.com"
+              />
               {invites?.length ? (
                 <div>
                   <p className="mb-1 text-sm font-medium">Pending invites</p>
@@ -103,12 +130,18 @@ export default async function ManagerSettingsPage() {
                         <span>
                           {invite.email} · {invite.role} · expires {formatDateTime(invite.expires_at)}
                         </span>
-                        <form action={revokeAgencyInviteAction}>
-                          <input type="hidden" name="inviteId" value={invite.id} />
-                          <Button variant="ghost" size="sm" type="submit">
+                        {ownerViewing ? (
+                          <OwnerTeamButton request={{ op: "revoke", kind: "manager", orgId: ctx.agencyId, inviteId: invite.id }}>
                             Cancel
-                          </Button>
-                        </form>
+                          </OwnerTeamButton>
+                        ) : (
+                          <form action={revokeAgencyInviteAction}>
+                            <input type="hidden" name="inviteId" value={invite.id} />
+                            <Button variant="ghost" size="sm" type="submit">
+                              Cancel
+                            </Button>
+                          </form>
+                        )}
                       </li>
                     ))}
                   </ul>

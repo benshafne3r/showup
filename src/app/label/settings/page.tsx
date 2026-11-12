@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { TeamInviteForm } from "@/components/team-invite-form";
+import { OwnerTeamButton } from "@/components/owner-team-button";
 import { inviteMemberAction, removeMemberAction, changeMemberRoleAction } from "../actions";
 import { AutoReleaseForm } from "./auto-release-form";
 import { formatDateTime } from "@/lib/dates";
@@ -15,7 +16,9 @@ export const dynamic = "force-dynamic";
 export default async function CompanySettingsPage() {
   const context = await requireLabelPage();
   const db = serviceDb();
-  const canManage = context.memberRole !== "member";
+  // The platform owner viewing as this label can manage its team too.
+  const ownerViewing = !!context.user.viewedBy;
+  const canManage = context.memberRole !== "member" || ownerViewing;
 
   const [{ data: company }, { data: members }, { data: invites }] = await Promise.all([
     db
@@ -96,7 +99,27 @@ export default async function CompanySettingsPage() {
                   <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium capitalize">
                     {member.role}
                   </span>
-                  {canManage && member.role !== "owner" && member.user_id !== context.user.id ? (
+                  {canManage && member.role !== "owner" && ownerViewing ? (
+                    <>
+                      <OwnerTeamButton
+                        request={{
+                          op: "role",
+                          kind: "label",
+                          orgId: context.companyId,
+                          memberUserId: member.user_id,
+                          role: member.role === "admin" ? "member" : "admin",
+                        }}
+                      >
+                        Make {member.role === "admin" ? "member" : "admin"}
+                      </OwnerTeamButton>
+                      <OwnerTeamButton
+                        request={{ op: "remove", kind: "label", orgId: context.companyId, memberUserId: member.user_id }}
+                        className="text-red-300"
+                      >
+                        Remove
+                      </OwnerTeamButton>
+                    </>
+                  ) : canManage && member.role !== "owner" && member.user_id !== context.user.id ? (
                     <>
                       <form action={changeMemberRoleAction}>
                         <input type="hidden" name="memberUserId" value={member.user_id} />
@@ -125,7 +148,11 @@ export default async function CompanySettingsPage() {
           {canManage ? (
             <div className="mt-4 space-y-4 border-t pt-4">
               <p className="text-sm font-medium">Invite a teammate</p>
-              <TeamInviteForm action={inviteMemberAction} placeholder="teammate@label.com" />
+              <TeamInviteForm
+                action={inviteMemberAction}
+                owner={ownerViewing ? { kind: "label", orgId: context.companyId } : undefined}
+                placeholder="teammate@label.com"
+              />
               {invites?.length ? (
                 <div>
                   <p className="mb-1 text-sm font-medium">Pending invites</p>
