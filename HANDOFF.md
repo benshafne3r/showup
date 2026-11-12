@@ -103,6 +103,11 @@ than trusting notes (0007 was marked "done" but wasn't).
 - **Spotify artist search accepts a pasted artist link or `spotify:artist:` URI** (`spotifyArtistId` in
   `src/lib/spotify-link.ts` → `getArtist(id)` in `providers/spotify`), for artists name search misses
   (e.g. VALÉ, 3iyja6ErhSJ4NplEsdlzyE).
+- **Sentry is connected to Claude** (connector, org `show-up-ki`, project `javascript-nextjs`): "check
+  Sentry" = list unresolved issues, fix, push, resolve with a note. 2026-11-12: all 5 open issues
+  resolved. Noise filters: MusicBrainz/Wikipedia misses are `log.warn` (+1 retry on 503/429); the
+  browser drops "unexpected response" while viewing as someone (`instrumentation-client.ts`); the server
+  skips "Failed to find Server Action" on marketing routes (bots) in `instrumentation.ts`.
 - Local dev on **port 3200** (`showup-dev-3200` in `.claude/launch.json`); port 3000 is Outreach HQ.
 
 ## Codex review #2 (2026-11-04)
