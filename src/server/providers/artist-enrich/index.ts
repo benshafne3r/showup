@@ -48,7 +48,8 @@ async function instagramFromMusicBrainz(name: string): Promise<string> {
     }
     return "";
   } catch (err) {
-    log.error("MusicBrainz enrichment failed", errorFields(err));
+    // Best effort (the bio/Instagram are optional), so not an alert-worthy error.
+    log.warn("MusicBrainz enrichment failed", errorFields(err));
     return "";
   }
 }
@@ -61,13 +62,18 @@ async function bioFromWikipedia(name: string): Promise<string> {
     if (data.type === "disambiguation") return "";
     return (data.extract ?? "").trim().slice(0, 700);
   } catch (err) {
-    log.error("Wikipedia enrichment failed", errorFields(err));
+    log.warn("Wikipedia enrichment failed", errorFields(err));
     return "";
   }
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { headers: { "User-Agent": UA }, cache: "no-store" });
+  let res = await fetch(url, { headers: { "User-Agent": UA }, cache: "no-store" });
+  // MusicBrainz allows about one request a second and answers 503 past that: wait once and retry.
+  if (res.status === 503 || res.status === 429) {
+    await new Promise((r) => setTimeout(r, 1100));
+    res = await fetch(url, { headers: { "User-Agent": UA }, cache: "no-store" });
+  }
   if (!res.ok) throw new Error(`${res.status} for ${url}`);
   return res.json() as Promise<T>;
 }
