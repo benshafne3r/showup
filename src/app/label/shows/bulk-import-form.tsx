@@ -120,7 +120,8 @@ export function BulkImportForm({
   return (
     <form action={formAction} className="space-y-6">
       {/* 1 · Pick the artist and pull their dates */}
-      <Card className="border-primary/30">
+      {/* overflow-visible: the Spotify search results drop down past the card. */}
+      <Card className="overflow-visible border-primary/30">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-base">
             <CalendarArrowDown className="size-4 text-primary" aria-hidden /> Pull tour dates

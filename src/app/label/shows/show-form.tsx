@@ -115,7 +115,8 @@ export function ShowForm({
     <form action={formAction} className="space-y-6">
       {initial.showId ? <input type="hidden" name="showId" value={initial.showId} /> : null}
 
-      <Card>
+      {/* overflow-visible: venue and city suggestions drop down past the card. */}
+      <Card className="overflow-visible">
         <CardHeader>
           <CardTitle className="text-base">Show details</CardTitle>
         </CardHeader>
