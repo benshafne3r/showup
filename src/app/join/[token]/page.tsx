@@ -48,8 +48,8 @@ function Card({ children }: { children: React.ReactNode }) {
 
 /**
  * Landing page for every invite link. Partner invites (labels, management)
- * get a private pitch page with sign-up built in; teammate invites go to the
- * invite-aware sign-up.
+ * get a private pitch page with sign-up built in; teammate invites (label or
+ * management) go to the invite-aware sign-up.
  */
 export default async function JoinPage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -78,7 +78,13 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
         <h1 className="text-xl font-bold">Sign out to use this invite</h1>
         <p className="text-sm text-muted-foreground">
           This link creates a new{" "}
-          {invite.kind === "team" ? `${invite.companyName} team` : invite.role === "label" ? "label" : "management"}{" "}
+          {invite.kind === "team"
+            ? `${invite.companyName} team`
+            : invite.kind === "agency_team"
+              ? `${invite.agencyName} team`
+              : invite.role === "label"
+                ? "label"
+                : "management"}{" "}
           account. You&apos;re signed in as{" "}
           <span className="font-medium text-foreground">{user.email}</span>. Sign out, then open the
           link again.
@@ -91,6 +97,6 @@ export default async function JoinPage({ params }: { params: Promise<{ token: st
       </Card>
     );
   }
-  if (invite.kind === "team") redirect(signUpHref);
+  if (invite.kind === "team" || invite.kind === "agency_team") redirect(signUpHref);
   return <PartnerLanding kind={invite.role} token={token} orgName={invite.orgName} email={invite.email} />;
 }

@@ -14,7 +14,7 @@ import { formatCents } from "@/lib/money";
 import { formatDateTime, formatShowDate } from "@/lib/dates";
 import { readViewAs } from "@/server/auth/view-as";
 import { isPlatformOwner } from "@/server/auth/owner-emails";
-import { revokePartnerLinkAction, viewAsAction } from "./actions";
+import { revokePartnerLinkAction, setTeamRoleAction, viewAsAction } from "./actions";
 import { PartnerLinkForm } from "./partner-link-form";
 import { Button } from "@/components/ui/button";
 import { Pager } from "@/components/pager";
@@ -118,8 +118,8 @@ export default async function OwnerDashboardPage({
     ? await Promise.all([
         db.from("creator_profiles").select("user_id, city, onboarded_at").in("user_id", ids),
         db.from("payment_methods").select("user_id").in("user_id", ids),
-        db.from("company_members").select("user_id, companies(name)").in("user_id", ids),
-        db.from("agency_members").select("user_id, agencies(name)").in("user_id", ids),
+        db.from("company_members").select("user_id, role, companies(name)").in("user_id", ids),
+        db.from("agency_members").select("user_id, role, agencies(name)").in("user_id", ids),
         db.from("agency_creators").select("creator_id, agencies(name)").in("creator_id", ids),
       ])
     : [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }];
@@ -127,6 +127,8 @@ export default async function OwnerDashboardPage({
   const withCard = new Set((cards ?? []).map((c) => c.user_id));
   const companyOf = new Map((companyMembers ?? []).map((m) => [m.user_id, m.companies?.name]));
   const agencyOf = new Map((agencyMembers ?? []).map((m) => [m.user_id, m.agencies?.name]));
+  // Their role on that label or management team (owner, admin, member).
+  const teamRoleOf = new Map([...(companyMembers ?? []), ...(agencyMembers ?? [])].map((m) => [m.user_id, m.role]));
   const managedBy = new Map((rosters ?? []).map((r) => [r.creator_id, r.agencies?.name]));
   const bookingsByStatus = Object.entries(stats.bookings_by_status ?? {});
 
@@ -141,8 +143,9 @@ export default async function OwnerDashboardPage({
       ];
       return bits.filter(Boolean).join(" · ");
     }
-    if (u.role === "label") return companyOf.get(u.id) ?? "hasn't set up a company";
-    if (u.role === "manager") return agencyOf.get(u.id) ?? "hasn't set up a company";
+    const team = (name: string | undefined) => (name ? `${name} · ${teamRoleOf.get(u.id) ?? "member"}` : "hasn't set up a company");
+    if (u.role === "label") return team(companyOf.get(u.id));
+    if (u.role === "manager") return team(agencyOf.get(u.id));
     return "";
   };
 
@@ -222,6 +225,15 @@ export default async function OwnerDashboardPage({
                     <span className="text-xs whitespace-nowrap text-muted-foreground" title={formatDateTime(u.created_at)}>
                       {ago(u.created_at)}
                     </span>
+                    {!viewing && (teamRoleOf.get(u.id) === "member" || teamRoleOf.get(u.id) === "admin") ? (
+                      <form action={setTeamRoleAction}>
+                        <input type="hidden" name="userId" value={u.id} />
+                        <input type="hidden" name="newRole" value={teamRoleOf.get(u.id) === "admin" ? "member" : "admin"} />
+                        <Button type="submit" variant="ghost" size="sm">
+                          Make {teamRoleOf.get(u.id) === "admin" ? "member" : "admin"}
+                        </Button>
+                      </form>
+                    ) : null}
                     {!viewing && !isPlatformOwner(u.email) ? (
                       <form action={viewAsAction}>
                         <input type="hidden" name="userId" value={u.id} />

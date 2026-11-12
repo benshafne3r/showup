@@ -10,8 +10,9 @@ import { audit } from "./audit";
  *   - partner: a private label / management sign-up link minted by the
  *     platform owner (scripts/partner-invite.ts)
  *   - team:    a label teammate invite (company_invites)
- * Partner tokens are stored hashed; team tokens predate that and are stored
- * as-is (random 24 bytes either way). Agencies add creators as managed
+ *   - agency_team: a management-company teammate invite (agency_invites)
+ * Partner and agency-team tokens are stored hashed; label team tokens predate
+ * that and are stored as-is (random 24 bytes either way). Agencies add creators as managed
  * profiles from a TikTok link, with no invite.
  */
 
@@ -23,16 +24,17 @@ export type ResolvedInvite =
       email: string | null;
       orgName: string;
     }
-  | { kind: "team"; id: string; companyId: string; companyName: string; email: string };
+  | { kind: "team"; id: string; companyId: string; companyName: string; email: string }
+  | { kind: "agency_team"; id: string; agencyId: string; agencyName: string; email: string };
 
 const TOKEN_SHAPE = /^[A-Za-z0-9_-]{20,128}$/;
 
-function newInviteToken(): { token: string; hash: string } {
+export function newInviteToken(): { token: string; hash: string } {
   const token = randomBytes(24).toString("base64url");
   return { token, hash: hashInviteToken(token) };
 }
 
-function hashInviteToken(token: string): string {
+export function hashInviteToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
@@ -74,6 +76,24 @@ export async function resolveInvite(token: string): Promise<ResolvedInvite | nul
       companyId: team.company_id,
       companyName: team.companies?.name ?? "a team",
       email: team.email,
+    };
+  }
+
+  const { data: agencyTeam } = await db
+    .from("agency_invites")
+    .select("id, agency_id, email, agencies(name)")
+    .eq("token_hash", hash)
+    .is("accepted_at", null)
+    .is("revoked_at", null)
+    .gt("expires_at", now)
+    .maybeSingle();
+  if (agencyTeam) {
+    return {
+      kind: "agency_team",
+      id: agencyTeam.id,
+      agencyId: agencyTeam.agency_id,
+      agencyName: agencyTeam.agencies?.name ?? "a team",
+      email: agencyTeam.email,
     };
   }
   return null;

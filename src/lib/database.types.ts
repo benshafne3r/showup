@@ -114,6 +114,7 @@ export type Database = {
           id: string
           invited_by: string | null
           revoked_at: string | null
+          role: Database["public"]["Enums"]["company_member_role"]
           token_hash: string
         }
         Insert: {
@@ -127,6 +128,7 @@ export type Database = {
           id?: string
           invited_by?: string | null
           revoked_at?: string | null
+          role?: Database["public"]["Enums"]["company_member_role"]
           token_hash: string
         }
         Update: {
@@ -140,6 +142,7 @@ export type Database = {
           id?: string
           invited_by?: string | null
           revoked_at?: string | null
+          role?: Database["public"]["Enums"]["company_member_role"]
           token_hash?: string
         }
         Relationships: [

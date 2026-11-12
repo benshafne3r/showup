@@ -4,9 +4,10 @@ import { claimPartnerInvite, setUserRole, type ResolvedInvite } from "@/server/s
 import { log } from "@/server/log";
 
 /**
- * Apply a vetted invite to a brand-new account: promote its role. Label
- * teammates are attached to their company by `claimInvites` (email match) on
- * first landing via `destinationFor`.
+ * Apply a vetted invite to a brand-new account: promote its role. Teammates
+ * are attached to their company by email match on first landing via
+ * `destinationFor` (`claimInvites` for labels, `claimAgencyInvites` for
+ * management).
  */
 export async function applyInviteToNewUser(invite: ResolvedInvite, userId: string): Promise<void> {
   if (invite.kind === "partner") {
@@ -17,6 +18,5 @@ export async function applyInviteToNewUser(invite: ResolvedInvite, userId: strin
     }
     return;
   }
-  // A label teammate.
-  await setUserRole(userId, "label");
+  await setUserRole(userId, invite.kind === "agency_team" ? "manager" : "label");
 }

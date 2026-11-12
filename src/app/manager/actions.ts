@@ -4,10 +4,17 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import {
+  AuthError,
   requireManagerOf,
   requireManagerWithAgency,
   requireUser,
 } from "@/server/auth/guards";
+import {
+  changeAgencyMemberRole,
+  inviteAgencyMember,
+  removeAgencyMember,
+  revokeAgencyInvite,
+} from "@/server/services/agency-team";
 import {
   addManagedCreator,
   createAgency,
@@ -38,6 +45,64 @@ const agencySchema = z.object({
   website: z.union([z.literal(""), z.string().url("Enter a full URL, like https://…")]).optional(),
   city: z.string().trim().max(80).optional(),
 });
+
+// ── Team (owners and admins manage it) ──────────────────────────────────
+
+async function requireAgencyAdmin() {
+  const ctx = await requireManagerWithAgency();
+  if (ctx.memberRole === "member") throw new AuthError("Only owners and admins can manage the team");
+  return ctx;
+}
+
+export async function inviteAgencyMemberAction(_prev: ActionState, formData: FormData): Promise<ActionState> {
+  try {
+    const ctx = await requireAgencyAdmin();
+    const email = z.string().trim().email("Enter a valid email").parse(formData.get("email"));
+    const role = z.enum(["admin", "member"]).parse(formData.get("role") ?? "member");
+    const result = await inviteAgencyMember({
+      agencyId: ctx.agencyId,
+      inviter: { id: ctx.user.id, role: "manager" },
+      email,
+      role,
+    });
+    if (!result.ok) return { error: result.error };
+    revalidatePath("/manager/settings");
+    return { success: `Invite sent to ${email}` };
+  } catch (err) {
+    return fail(err);
+  }
+}
+
+export async function changeAgencyMemberRoleAction(formData: FormData): Promise<void> {
+  const ctx = await requireAgencyAdmin();
+  await changeAgencyMemberRole({
+    agencyId: ctx.agencyId,
+    actor: { id: ctx.user.id, role: "manager" },
+    memberUserId: z.string().uuid().parse(formData.get("memberUserId")),
+    newRole: z.enum(["admin", "member"]).parse(formData.get("newRole")),
+  });
+  revalidatePath("/manager/settings");
+}
+
+export async function removeAgencyMemberAction(formData: FormData): Promise<void> {
+  const ctx = await requireAgencyAdmin();
+  await removeAgencyMember({
+    agencyId: ctx.agencyId,
+    actor: { id: ctx.user.id, role: "manager" },
+    memberUserId: z.string().uuid().parse(formData.get("memberUserId")),
+  });
+  revalidatePath("/manager/settings");
+}
+
+export async function revokeAgencyInviteAction(formData: FormData): Promise<void> {
+  const ctx = await requireAgencyAdmin();
+  await revokeAgencyInvite({
+    agencyId: ctx.agencyId,
+    actor: { id: ctx.user.id, role: "manager" },
+    inviteId: z.string().uuid().parse(formData.get("inviteId")),
+  });
+  revalidatePath("/manager/settings");
+}
 
 // ── Onboarding / settings ───────────────────────────────────────────────
 

@@ -9,6 +9,8 @@ import { VIEW_AS_COOKIE, VIEWING_FLAG_COOKIE, viewAsCookieValue } from "@/server
 import { serviceDb } from "@/server/db/service";
 import { audit } from "@/server/services/audit";
 import { createPartnerInvite, revokePartnerInvite } from "@/server/services/invites";
+import { changeMemberRole } from "@/server/services/companies";
+import { changeAgencyMemberRole } from "@/server/services/agency-team";
 import { revalidatePath } from "next/cache";
 
 const HOME_BY_ROLE: Record<string, string> = {
@@ -87,5 +89,25 @@ export async function revokePartnerLinkAction(formData: FormData): Promise<void>
   const owner = await getRealSessionUser();
   if (!owner || !isPlatformOwner(owner.email)) redirect("/");
   await revokePartnerInvite(z.string().uuid().parse(formData.get("inviteId")));
+  revalidatePath("/owner");
+}
+
+/**
+ * Owner-only: make someone an admin (or back to member) of their label or
+ * management company, from the owner dashboard. Owners can't be changed here.
+ */
+export async function setTeamRoleAction(formData: FormData): Promise<void> {
+  const owner = await getRealSessionUser();
+  if (!owner || !isPlatformOwner(owner.email)) redirect("/");
+  const userId = z.string().uuid().parse(formData.get("userId"));
+  const newRole = z.enum(["admin", "member"]).parse(formData.get("newRole"));
+  const actor = { id: owner.id, role: "owner" };
+  const db = serviceDb();
+  const [{ data: company }, { data: agency }] = await Promise.all([
+    db.from("company_members").select("company_id").eq("user_id", userId).limit(1).maybeSingle(),
+    db.from("agency_members").select("agency_id").eq("user_id", userId).maybeSingle(),
+  ]);
+  if (company) await changeMemberRole({ companyId: company.company_id, actor, memberUserId: userId, newRole });
+  else if (agency) await changeAgencyMemberRole({ agencyId: agency.agency_id, actor, memberUserId: userId, newRole });
   revalidatePath("/owner");
 }

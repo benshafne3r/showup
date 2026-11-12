@@ -57,6 +57,19 @@ than trusting notes (0007 was marked "done" but wasn't).
 `http://127.0.0.1:54323`. `supabase db reset` re-applies all migrations. Types:
 `supabase gen types typescript --local --schema public` (then re-add the `__InternalSupabase` header).
 
+## Team admins (2026-11-12, Ben)
+- **Management teams** now work like label teams: owners/admins invite teammates by email as **admin or
+  member** (Settings → Team & permissions), switch roles, remove people, cancel invites
+  (`services/agency-team.ts`, actions in `manager/actions.ts`). Invites use `agency_invites` (hashed token,
+  new `role` column, migration **0031**, applied to prod) and resolve at `/join/<token>` as kind
+  `agency_team` → manager sign-up; `claimAgencyInvites` attaches them on first landing (`destinationFor`).
+  Shared invite form: `components/team-invite-form.tsx` (labels use it too).
+- **Owner dashboard:** each label/management person shows "Company · role" and a **Make admin / Make member**
+  button (`setTeamRoleAction`, owner-only, audited). View as stays read-only, so it lives on the owner page.
+- Labels already had admin invites + Make admin for owners/admins.
+- Prod: deleted empty creator account brendan@sparkhousegroup.com (Ben's request, audit-logged).
+- Tests: `tests/integration/agency-team.test.ts`, `e2e/team-admins.spec.ts`.
+
 ## Posting flow (2026-11-11, Ben)
 - **Content is opt-in:** a "Require content" checkbox (`src/app/label/shows/content-fields.tsx`) on the
   show form (own "Content" card), bulk import and pop-up; the fields stay visible, greyed out (disabled

@@ -23,6 +23,11 @@ function inviteCopy(invite: ResolvedInvite): { title: string; subtitle: string }
         title: `Join ${invite.companyName}`,
         subtitle: `You've been invited to ${invite.companyName}'s team on ${BRAND.name}.`,
       };
+    case "agency_team":
+      return {
+        title: `Join ${invite.agencyName}`,
+        subtitle: `You've been invited to ${invite.agencyName}'s team on ${BRAND.name}.`,
+      };
   }
 }
 

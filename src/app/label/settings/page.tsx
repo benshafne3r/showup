@@ -4,8 +4,8 @@ import { serviceDb } from "@/server/db/service";
 import { PageHeader } from "@/components/page-header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { InviteForm } from "./invite-form";
-import { removeMemberAction, changeMemberRoleAction } from "../actions";
+import { TeamInviteForm } from "@/components/team-invite-form";
+import { inviteMemberAction, removeMemberAction, changeMemberRoleAction } from "../actions";
 import { AutoReleaseForm } from "./auto-release-form";
 import { formatDateTime } from "@/lib/dates";
 
@@ -125,7 +125,7 @@ export default async function CompanySettingsPage() {
           {canManage ? (
             <div className="mt-4 space-y-4 border-t pt-4">
               <p className="text-sm font-medium">Invite a teammate</p>
-              <InviteForm />
+              <TeamInviteForm action={inviteMemberAction} placeholder="teammate@label.com" />
               {invites?.length ? (
                 <div>
                   <p className="mb-1 text-sm font-medium">Pending invites</p>
