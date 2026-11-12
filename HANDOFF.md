@@ -59,7 +59,8 @@ than trusting notes (0007 was marked "done" but wasn't).
 
 ## Posting flow (2026-11-11, Ben)
 - **Content is opt-in:** a "Require content" checkbox (`src/app/label/shows/content-fields.tsx`) on the
-  show form (own "Content" card), bulk import and pop-up. Off = attend-only (payment 0, no deliverables);
+  show form (own "Content" card), bulk import and pop-up; the fields stay visible, greyed out (disabled
+  fieldset) until checked. Off = attend-only (payment 0, no deliverables);
   on needs a payment and at least one deliverable (`contentTerms()` in `label/actions.ts`).
 - **Tour cards:** "Import dates" (bulk import with the tour + artist preselected, all dates selected,
   `/label/shows/import?tour=`) and "Add a date" (`/label/shows/new?tour=`, `tour-show-form.tsx`: artist
