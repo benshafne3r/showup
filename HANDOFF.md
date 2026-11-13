@@ -466,6 +466,10 @@ OpenStreetMap Nominatim (`providers/geocode/nominatim.ts`), cron step 9 (8 venue
 or on demand at check-in. `GEOCODER` env: defaults to `nominatim` in production, `off` in dev/CI.
 Migration **0015** (venue lat/lng, attendance method/distance). `isShowDay` now uses the UTC date,
 like the rest of the app.
+**2026-11-13:** never used live yet (0 check-ins). Nominatim missed "The X, City, ST, US" names, so
+7 of 32 venues had no pin. `venueGeocodeQueries` now retries without "The" and the country (64c80af).
+Pinned the Fonda, Greek and Echoplex on prod. Still unpinned (photo check-in only): BankNH Pavilion,
+Shrine Expo Hall, "Wynn" (Milwakee, typo), internal test venue. Fix by adding a street address.
 Sentry is LIVE: `SENTRY_DSN` + `NEXT_PUBLIC_SENTRY_DSN` set on Railway 2026-10-06 (org show-up-ki).
 
 ## Owner dashboard (2026-10-06)
