@@ -12,6 +12,29 @@ export function distanceMeters(
   return 2 * R * Math.asin(Math.sqrt(h));
 }
 
+/**
+ * Search strings for a venue, best first. Nominatim misses names like
+ * "The Fonda Theatre, Los Angeles, CA, US" but finds "Fonda Theatre, Los
+ * Angeles, CA", so the last try drops a leading "The" and the country.
+ */
+export function venueGeocodeQueries(venue: {
+  name: string;
+  address: string | null;
+  city: string;
+  state: string | null;
+  country: string | null;
+}): string[] {
+  const join = (...parts: (string | null)[]) => parts.map((p) => p?.trim()).filter(Boolean).join(", ");
+  const place = join(venue.city, venue.state, venue.country);
+  const bareName = venue.name.trim().replace(/^the\s+/i, "");
+  const queries = [
+    venue.address?.trim() ? join(venue.address, place) : null,
+    join(venue.name, place),
+    join(bareName, venue.city, venue.state),
+  ].filter((q): q is string => !!q);
+  return [...new Set(queries)];
+}
+
 /** Within this many meters of the venue's pin counts as "at the venue" (arenas are big). */
 const CHECK_IN_RADIUS_M = 350;
 /** We give back up to this much of the phone's reported uncertainty. */

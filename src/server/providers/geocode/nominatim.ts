@@ -2,11 +2,13 @@ import "server-only";
 
 import { serverEnv } from "@/lib/env";
 import { BRAND } from "@/lib/brand";
+import { venueGeocodeQueries } from "@/lib/geo";
 
 /**
  * Venue → coordinates via OpenStreetMap Nominatim (free; usage policy: a real
  * User-Agent and at most ~1 request/second, which the caller enforces).
- * Tries the street address first, then the venue name, both scoped to the city.
+ * Tries the street address first, then the venue name, both scoped to the city
+ * (see venueGeocodeQueries).
  */
 export async function geocodeVenue(venue: {
   name: string;
@@ -16,11 +18,7 @@ export async function geocodeVenue(venue: {
   country: string | null;
 }): Promise<{ lat: number; lng: number } | null> {
   if (serverEnv.geocoder !== "nominatim") return null;
-  const place = [venue.city, venue.state, venue.country].filter(Boolean).join(", ");
-  const queries = [
-    venue.address ? `${venue.address}, ${place}` : null,
-    `${venue.name}, ${place}`,
-  ].filter(Boolean) as string[];
+  const queries = venueGeocodeQueries(venue);
 
   for (const q of queries) {
     const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&q=${encodeURIComponent(q)}`;

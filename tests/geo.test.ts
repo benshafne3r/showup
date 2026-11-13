@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distanceMeters, formatDistance, locationCheckInVerdict } from "@/lib/geo";
+import { distanceMeters, formatDistance, locationCheckInVerdict, venueGeocodeQueries } from "@/lib/geo";
 
 const GREEK_THEATRE = { lat: 34.1197, lng: -118.2962 };
 
@@ -34,5 +34,19 @@ describe("formatDistance", () => {
   it("uses meters up close and miles further out", () => {
     expect(formatDistance(347)).toBe("350 m");
     expect(formatDistance(4023)).toBe("2.5 mi");
+  });
+});
+
+describe("venueGeocodeQueries", () => {
+  it("falls back to the name without a leading 'The' or the country", () => {
+    expect(
+      venueGeocodeQueries({ name: "The Fonda Theatre", address: null, city: "Los Angeles", state: "CA", country: "US" }),
+    ).toEqual(["The Fonda Theatre, Los Angeles, CA, US", "Fonda Theatre, Los Angeles, CA"]);
+  });
+
+  it("tries the street address first and skips duplicates and blanks", () => {
+    expect(
+      venueGeocodeQueries({ name: "Echoplex", address: "1154 Glendale Blvd", city: "Los Angeles", state: null, country: null }),
+    ).toEqual(["1154 Glendale Blvd, Los Angeles", "Echoplex, Los Angeles"]);
   });
 });
